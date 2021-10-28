@@ -179,6 +179,7 @@ class Trainer(ModelBase):
         # Update temperature parameter
         new_action, log_prob, _ = self.actor.evaluate(state)
         if adaptive_entropy:
+            # equation 18
             alpha_loss = -(self.log_alpha * (log_prob + target_entropy).detach()).mean()
             self.alpha_optimizer.zero_grad()
             alpha_loss.backward()
@@ -191,8 +192,11 @@ class Trainer(ModelBase):
         with torch.no_grad():
             new_next_action, next_log_prob, _ = self.actor.evaluate(next_state)
 
+            # use min to mitigate bias
             target_q_min = torch.min(*self.target_critic(next_state, new_next_action))
+            # target_q_min is V(s_t+1) through equation 3
             target_q_min -= alpha * next_log_prob
+            # equation 5
             target_q_value = reward + (1 - done) * gamma * target_q_min
         critic_loss_1 = self.critic_criterion(predicted_q_value_1, target_q_value)
         critic_loss_2 = self.critic_criterion(predicted_q_value_2, target_q_value)

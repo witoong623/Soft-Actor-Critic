@@ -171,6 +171,7 @@ class SoftQNetwork(MultilayerPerceptron):
 class PolicyNetwork(MultilayerPerceptron):
     def __init__(self, state_dim, action_dim, hidden_dims, activation=nn.ReLU(inplace=True), device=None,
                  log_std_min=LOG_STD_MIN, log_std_max=LOG_STD_MAX):
+        # the last layer of perception is the action_dim (output size) * 2, which can be chunk into 2 action_dims
         super().__init__(n_dims=[state_dim, *hidden_dims, 2 * action_dim],
                          activation=activation,
                          output_activation=None)
@@ -192,9 +193,11 @@ class PolicyNetwork(MultilayerPerceptron):
     def evaluate(self, state, epsilon=1E-6):
         mean, std = self(state)
 
+        # enforcing Action Bounds
         distribution = Normal(mean, std)
         u = distribution.rsample()
         action = torch.tanh(u)
+        # equation 26
         log_prob = distribution.log_prob(u) - torch.log(1.0 - action.pow(2) + epsilon)
         log_prob = log_prob.sum(dim=-1, keepdim=True)
         return action, log_prob, distribution
