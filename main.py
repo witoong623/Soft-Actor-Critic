@@ -15,7 +15,7 @@ from common.config import Config
 from common.environment import initialize_environment
 from common.network import build_encoder
 from common.utils import check_devices, check_logging
-from sac import build_model, train, test
+from sac import build_model, train, test, test_render
 
 
 mpl.use('Agg')
@@ -36,7 +36,7 @@ def get_config():
             return device
 
     parser = argparse.ArgumentParser(description='Train or test Soft Actor-Critic controller.')
-    parser.add_argument('--mode', type=str, choices=['train', 'test'], default='train',
+    parser.add_argument('--mode', type=str, choices=['train', 'test', 'test_render'], default='train',
                         help='mode (default: train)')
     parser.add_argument('--gpu', type=gpu_type, default=None, nargs='+', metavar='CUDA_DEVICE',
                         help="GPU device indexes "
@@ -219,6 +219,8 @@ def main():
         train(model, config)
     elif config.mode == 'test':
         test(model, config)
+    elif config.mode == 'test_render':
+        test_render(model, config)
 
 
 if __name__ == '__main__':

@@ -150,3 +150,20 @@ def test(model, config):
         except ImportError:
             for metric, mean, stddev in zip(results['Metrics'], results['Mean'], results['Stddev']):
                 print(f'{metric}: {dict(mean=mean, stddev=stddev)}')
+
+
+def test_render(model, config):
+    model.state_encoder.reset()
+    observation = model.env.reset()
+
+    for step in range(config.max_episode_steps):
+        model.env.render()
+        state = model.state_encoder.encode(observation)
+        action = model.actor.get_action(state, deterministic=config.deterministic)
+
+        next_observation, reward, done, _ = model.env.step(action)
+        observation = next_observation
+
+        if done:
+            print('done')
+            break

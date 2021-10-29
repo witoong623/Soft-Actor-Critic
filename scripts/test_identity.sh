@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-ENV="Pendulum-v0"
+ENV="Pendulum-v1"
 DATETIME="$(date +"%Y-%m-%d-%T")"
 LOG_DIR="logs/$ENV/Identity/$DATETIME"
 CHECKPOINT_DIR="checkpoints/$ENV/Identity"

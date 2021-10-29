@@ -38,6 +38,8 @@ def build_model(config):
             Model = Trainer
         else:
             from .rnn.model import Trainer as Model
+    elif config.mode == 'test_render':
+        Model = RenderTester
     else:
         if not config.RNN_encoder:
             Model = Tester
@@ -265,3 +267,59 @@ class Tester(ModelBase):
 
         self.eval()
         self.modules.requires_grad_(False)
+
+
+class RenderTester(object):
+    ''' For single render test '''
+    STATE_ENCODER_WRAPPER = StateEncoderWrapper
+
+    def __init__(self, env_func, env_kwargs, state_encoder,
+                 state_dim, action_dim, hidden_dims, activation,
+                 initial_alpha, n_samplers, buffer_capacity,
+                 devices, random_seed=0):
+        self.devices = itertools.cycle(devices)
+        self.model_device = next(self.devices)
+
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+
+        self.training = True
+
+        self.state_encoder = self.STATE_ENCODER_WRAPPER(state_encoder)
+
+        self.critic = Critic(state_dim, action_dim, hidden_dims, activation=activation)
+        self.actor = Actor(state_dim, action_dim, hidden_dims, activation=activation)
+
+        self.log_alpha = nn.Parameter(torch.tensor(np.log(initial_alpha), dtype=torch.float32),
+                                      requires_grad=True)
+
+        self.modules = Container()
+        self.modules.state_encoder = self.state_encoder
+        self.modules.critic = self.critic
+        self.modules.actor = self.actor
+        self.modules.params = nn.ParameterDict({'log_alpha': self.log_alpha})
+        self.modules.to(self.model_device)
+
+        self.env = env_func(**env_kwargs)
+        self.env.seed(random_seed)
+
+    def print_info(self, file=None):
+        print(f'state_dim = {self.state_dim}')
+        print(f'action_dim = {self.action_dim}')
+        print(f'device = {self.model_device}')
+        print('Modules:', self.modules)
+
+    def train(self, mode=True):
+        if self.training != mode:
+            self.training = mode
+            self.modules.train(mode=mode)
+        return self
+
+    def eval(self):
+        return self.train(mode=False)
+
+    def save_model(self, path):
+        self.modules.save_model(path)
+
+    def load_model(self, path, strict=True):
+        self.modules.load_model(path, strict=strict)

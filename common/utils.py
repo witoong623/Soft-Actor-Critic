@@ -102,7 +102,7 @@ def check_logging(config):
         with open(file=os.path.join(directory, 'config.json'), mode='w') as file:
             json.dump(config, file, indent=4, default=formatter)
 
-    if config.mode == 'test' or config.load_checkpoint:
+    if config.mode == 'test' or config.mode == 'test_render' or config.load_checkpoint:
         initial_checkpoint = get_checkpoint(config.checkpoint_dir, by='epoch')
     else:
         initial_checkpoint = None
