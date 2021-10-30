@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
-ENV="Pendulum-v0"
+ENV="Pendulum-v1"
 DATETIME="$(date +"%Y-%m-%d-%T")"
 LOG_DIR="logs/$ENV/RNN/$DATETIME"
-CHECKPOINT_DIR="checkpoints/$ENV/RNN"
+CHECKPOINT_DIR="savedcheckpoints/$ENV/RNN"
 
 ROOT_DIR="$(
 	cd "$(dirname "$(dirname "$0")")"

@@ -1,6 +1,5 @@
 ### Project specific
 logs/
-checkpoints/
 savedcheckpoints/
 *.tar.gz
 

@@ -102,7 +102,7 @@ optional arguments:
                         GPU device indexes (int for CUDA device or 'c'/'cpu'
                         for CPU) (use 'cuda:0' if no following arguments; use
                         CPU if not present)
-  --env ENV             environment to train on (default: Pendulum-v0)
+  --env ENV             environment to train on (default: Pendulum-v1)
   --n-frames N_FRAMES   concatenate original N consecutive observations as a
                         new observation (default: 1)
   --render              render the environment

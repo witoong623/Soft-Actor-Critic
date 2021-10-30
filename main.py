@@ -42,8 +42,8 @@ def get_config():
                         help="GPU device indexes "
                              "(int for CUDA device or 'c'/'cpu' for CPU) "
                              "(use 'cuda:0' if no following arguments; use CPU if not present)")
-    parser.add_argument('--env', type=str, default='Pendulum-v0',
-                        help='environment to train on (default: Pendulum-v0)')
+    parser.add_argument('--env', type=str, default='Pendulum-v1',
+                        help='environment to train on (default: Pendulum-v1)')
     parser.add_argument('--n-frames', type=int, default=1,
                         help='concatenate original N consecutive observations as a new observation (default: 1)')
     parser.add_argument('--render', action='store_true',

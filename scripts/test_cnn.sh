@@ -3,7 +3,7 @@
 ENV="InvertedPendulumBulletEnv-v0"
 DATETIME="$(date +"%Y-%m-%d-%T")"
 LOG_DIR="logs/$ENV/CNN/$DATETIME"
-CHECKPOINT_DIR="checkpoints/$ENV/CNN"
+CHECKPOINT_DIR="savedcheckpoints/$ENV/CNN"
 
 ROOT_DIR="$(
 	cd "$(dirname "$(dirname "$0")")"

@@ -304,10 +304,10 @@ class RenderTester(object):
         self.env.seed(random_seed)
 
     def print_info(self, file=None):
-        print(f'state_dim = {self.state_dim}')
-        print(f'action_dim = {self.action_dim}')
-        print(f'device = {self.model_device}')
-        print('Modules:', self.modules)
+        print(f'state_dim = {self.state_dim}', file=file)
+        print(f'action_dim = {self.action_dim}', file=file)
+        print(f'device = {self.model_device}', file=file)
+        print('Modules:', self.modules, file=file)
 
     def train(self, mode=True):
         if self.training != mode:

@@ -1,8 +1,8 @@
 numpy
 matplotlib
 tqdm
-pytorch
-torchvision
+# pytorch
+# torchvision
 tensorboard
 gym
 pybullet
