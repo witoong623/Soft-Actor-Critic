@@ -1,6 +1,8 @@
 ### Project specific
 logs/
 checkpoints/
+savedcheckpoints/
+*.tar.gz
 
 ### Python template
 # Byte-compiled / optimized / DLL files

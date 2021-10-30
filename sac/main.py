@@ -6,6 +6,7 @@ import numpy as np
 import tqdm
 from setproctitle import setproctitle
 from torch.utils.tensorboard import SummaryWriter
+from tqdm import trange
 
 from common.utils import CHECKPOINT_FORMAT
 
@@ -156,7 +157,7 @@ def test_render(model, config):
     model.state_encoder.reset()
     observation = model.env.reset()
 
-    for step in range(config.max_episode_steps):
+    for step in trange(config.max_episode_steps):
         model.env.render()
         state = model.state_encoder.encode(observation)
         action = model.actor.get_action(state, deterministic=config.deterministic)
@@ -167,3 +168,5 @@ def test_render(model, config):
         if done:
             print('done')
             break
+
+    model.env.close()

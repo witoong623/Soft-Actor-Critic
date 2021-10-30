@@ -12,7 +12,7 @@ import torch.nn as nn
 
 CHECKPOINT_FORMAT = '{prefix}epoch({epoch})-reward({reward:+.2E}){suffix}.pkl'
 CHECKPOINT_FORMAT = partial(CHECKPOINT_FORMAT.format, prefix='', suffix='')
-CHECKPOINT_PATTERN = re.compile(r'^(.*/)?[\w-]*epoch\((?P<epoch>\d+)\)-reward\((?P<reward>[\-+Ee\d.]+)\)[\w-]*\.pkl$')
+CHECKPOINT_PATTERN = re.compile(r'^(.*\/|.*\\)?[\w-]*epoch\((?P<epoch>\d+)\)-reward\((?P<reward>[\-+Ee\d.]+)\)[\w-]*\.pkl$')
 
 
 def clone_network(src_net, device=None):
@@ -79,6 +79,7 @@ def check_devices(config):
 
 
 def get_checkpoint(checkpoint_dir, by='epoch'):
+    ''' get checkpoint file by epoch or reward '''
     try:
         checkpoints = glob.iglob(os.path.join(checkpoint_dir, '*.pkl'))
         matches = filter(None, map(CHECKPOINT_PATTERN.match, checkpoints))
