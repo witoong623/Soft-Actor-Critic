@@ -54,7 +54,7 @@ def get_config():
                         help='image size of vision observation (default: 96)')
     parser.add_argument('--hidden-dims', type=int, default=[], nargs='+', metavar='DIM',
                         help='hidden dimensions of FC controller')
-    parser.add_argument('--activation', type=str, choices=['ReLU', 'LeakyReLU'], default='ReLU',
+    parser.add_argument('--activation', type=str, choices=['ReLU', 'LeakyReLU', 'Tanh'], default='ReLU',
                         help='activation function in controller networks (default: ReLU)')
     encoder_group = parser.add_argument_group('state encoder')
     encoder_group.add_argument('--encoder-arch', type=str, choices=['FC', 'RNN', 'CNN'], default='FC',
@@ -175,7 +175,8 @@ def initialize(config):
 def initialize_hyperparameters(config):
     config.activation = {
         'ReLU': nn.ReLU(inplace=True),
-        'LeakyReLU': nn.LeakyReLU(negative_slope=0.01, inplace=True)
+        'LeakyReLU': nn.LeakyReLU(negative_slope=0.01, inplace=True),
+        'Tanh': nn.Tanh()
     }.get(config.activation)
     config.encoder_activation = {
         'ReLU': nn.ReLU(inplace=True),
