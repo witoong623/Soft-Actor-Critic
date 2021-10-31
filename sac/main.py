@@ -157,16 +157,19 @@ def test_render(model, config):
     model.state_encoder.reset()
     observation = model.env.reset()
 
+    rewards = 0
+
     for step in trange(config.max_episode_steps):
         model.env.render()
         state = model.state_encoder.encode(observation)
         action = model.actor.get_action(state, deterministic=config.deterministic)
 
         next_observation, reward, done, _ = model.env.step(action)
+        rewards += reward
         observation = next_observation
 
         if done:
-            print('done')
             break
 
     model.env.close()
+    print(f'accumulate reward is {rewards}')

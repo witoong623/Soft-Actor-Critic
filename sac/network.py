@@ -203,7 +203,7 @@ class PolicyNetwork(MultilayerPerceptron):
         return action, log_prob, distribution
 
     @torch.no_grad()
-    def get_action(self, state, deterministic=False):
+    def get_action(self, state, deterministic=False, noise_generator=None):
         state = torch.FloatTensor(state).unsqueeze(dim=0).to(self.device)
         mean, std = self(state)
 
@@ -212,6 +212,10 @@ class PolicyNetwork(MultilayerPerceptron):
         else:
             z = Normal(0, 1).sample()
             action = torch.tanh(mean + std * z)
+            if noise_generator is not None:
+                noise = noise_generator()
+                action += noise
+                action = torch.clamp(action, -1, 1)
         action = action.cpu().numpy()[0]
         return action
 
