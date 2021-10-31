@@ -12,7 +12,6 @@ from torch.utils.tensorboard import SummaryWriter
 
 from .buffer import ReplayBuffer, EpisodeReplayBuffer
 from .utils import clone_network, sync_params
-from .noise import OrnsteinUhlenbeckActionNoise
 
 
 __all__ = ['Collector', 'EpisodeCollector']
@@ -71,7 +70,6 @@ class Sampler(mp.Process):
         self.trajectory = []
         self.frames = []
         self.render()
-        self.noise_generator = OrnsteinUhlenbeckActionNoise(np.array([0]), np.array([0.5]))
 
     def run(self):
         setproctitle(title=self.name)
@@ -107,7 +105,7 @@ class Sampler(mp.Process):
                     action = self.env.action_space.sample()
                 else:
                     state = self.state_encoder.encode(observation)
-                    action = self.actor.get_action(state, deterministic=self.deterministic, noise_generator=self.noise_generator)
+                    action = self.actor.get_action(state, deterministic=self.deterministic)
                 next_observation, reward, done, _ = self.env.step(action)
 
                 episode_reward += reward
@@ -139,7 +137,6 @@ class Sampler(mp.Process):
                 self.writer.flush()
 
         self.env.close()
-        self.noise_generator.reset()
 
         if self.writer is not None:
             self.writer.close()
