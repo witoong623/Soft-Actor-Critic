@@ -29,12 +29,18 @@ def build_env(**kwargs):
     env.seed(kwargs['random_seed'])
 
     env = NormalizedAction(FlattenedAction(env))
-    if kwargs['vision_observation']:
+    if kwargs['vision_observation'] and kwargs['name'] == 'CarRacing-v0':
+        env = NaturalVisionObservation(env, image_size=(kwargs['image_size'], kwargs['image_size']))
+    elif kwargs['vision_observation']:
         env = VisionObservation(env, image_size=(kwargs['image_size'], kwargs['image_size']))
     else:
         env = FlattenedObservation(env)
+
     if kwargs['n_frames'] > 1:
         env = ConcatenatedObservation(env, n_frames=kwargs['n_frames'], dim=0)
+
+    if kwargs['repeat_action'] > 1:
+        env = RepeatActionEnvironment(env, repeat=kwargs['repeat_action'])
 
     max_episode_steps = kwargs['max_episode_steps']
     try:
@@ -54,7 +60,8 @@ def initialize_environment(config):
                                                 'image_size',
                                                 'n_frames',
                                                 'max_episode_steps',
-                                                'random_seed'])
+                                                'random_seed',
+                                                'repeat_action'])
     config.env_kwargs.update(name=config.env)
 
     with config.env_func(**config.env_kwargs) as env:
@@ -116,6 +123,26 @@ class NormalizedAction(gym.ActionWrapper):
         return action
 
 
+class RepeatActionEnvironment(gym.Wrapper):
+    def __init__(self, env, repeat=4):
+        super().__init__(env)
+
+        self.repeat = repeat
+
+    def step(self, action):
+        total_reward = 0
+        infos = []
+        for _ in range(self.repeat):
+            obs, reward, done, info = self.env.step(action)
+
+            total_reward += reward
+            infos.append(info)
+            if done:
+                break
+
+        return obs, total_reward, done, infos
+
+
 class FlattenedObservation(gym.ObservationWrapper):
     def __init__(self, env):
         super().__init__(env=env)
@@ -149,6 +176,20 @@ class VisionObservation(gym.ObservationWrapper):
         obs = self.transform(obs).cpu().detach().numpy()
 
         return obs
+
+
+class NaturalVisionObservation(gym.ObservationWrapper):
+    def __init__(self, env, image_size=(128, 128)):
+        super().__init__(env)
+
+        self.transform = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.Resize(size=image_size),
+            transforms.Lambda(lambd=lambda img: np.array(img).transpose(2, 0, 1))
+        ])
+
+    def observation(self, observation):
+        return self.transform(observation)
 
 
 class ConcatenatedObservation(gym.ObservationWrapper):

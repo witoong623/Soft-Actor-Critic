@@ -46,6 +46,8 @@ def get_config():
                         help='environment to train on (default: Pendulum-v1)')
     parser.add_argument('--n-frames', type=int, default=1,
                         help='concatenate original N consecutive observations as a new observation (default: 1)')
+    parser.add_argument('--repeat-action', type=int, default=1,
+                        help='number of repeat action (default: 1, which is no repeat)')
     parser.add_argument('--render', action='store_true',
                         help='render the environment')
     parser.add_argument('--vision-observation', action='store_true',
