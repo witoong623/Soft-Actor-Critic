@@ -103,6 +103,7 @@ class NormalizedAction(gym.ActionWrapper):
                                 high=1.0,
                                 shape=self.env.action_space.shape,
                                 dtype=np.float32)
+        print(f'NormalizedAction observation space: {self.env.observation_space.shape}')
 
     def action(self, action):
         low = self.env.action_space.low
@@ -181,12 +182,15 @@ class VisionObservation(gym.ObservationWrapper):
 class NaturalVisionObservation(gym.ObservationWrapper):
     def __init__(self, env, image_size=(128, 128)):
         super().__init__(env)
+        self.observation_space = Box(low=0.0, high=1.0, shape=(3, *image_size), dtype=np.float32)
 
         self.transform = transforms.Compose([
             transforms.ToPILImage(),
             transforms.Resize(size=image_size),
-            transforms.Lambda(lambd=lambda img: np.array(img).transpose(2, 0, 1))
+            transforms.Lambda(lambd=lambda img: np.array(img).transpose(2, 0, 1) / 255)
         ])
+
+        print(f'NaturalVisionObservation observation_space: {self.env.observation_space.shape}')
 
     def observation(self, observation):
         return self.transform(observation)
@@ -196,12 +200,15 @@ class ConcatenatedObservation(gym.ObservationWrapper):
     def __init__(self, env, n_frames=3, dim=0):
         super().__init__(env=env)
 
+        print(f'before ConcatenatedObservation observation_space: {self.env.observation_space.shape}')
+
         self.observation_space = Box(low=np.concatenate([self.env.observation_space.low] * n_frames, axis=dim),
                                      high=np.concatenate([self.env.observation_space.high] * n_frames, axis=dim),
                                      dtype=self.env.observation_space.dtype)
 
         self.queue = deque(maxlen=n_frames)
         self.dim = dim
+        print(f'ConcatenatedObservation observation_space: {self.observation_space.shape}')
 
     def reset(self, **kwargs):
         self.queue.clear()
