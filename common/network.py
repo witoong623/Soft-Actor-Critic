@@ -316,7 +316,8 @@ class ConvolutionalNeuralNetwork(NetworkBase):
             if self.batch_normalization:
                 x = self.batch_norm_layers[i](x)
             x = self.activation(x)
-            x = max_pooling_layer(x)
+        
+        x = self.max_pooling_layers[-1](x)
 
         x = x.view(*input_size[:-3], -1)
         if hasattr(self, 'linear_layer'):
