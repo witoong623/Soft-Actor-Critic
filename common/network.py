@@ -34,6 +34,19 @@ def build_encoder(config):
                                                trainable_initial_hidden=config.trainable_hidden,
                                                activation=config.encoder_activation,
                                                output_activation=None)
+    elif config.CNN_encoder and config.env == 'CarRacing-v0':
+        state_encoder = CarRacingCNN(image_size=(config.image_size, config.image_size),
+                                     input_channels=config.observation_dim,
+                                     output_dim=state_dim,
+                                     headless=True,
+                                     n_hidden_channels=config.encoder_hidden_channels,
+                                     activation=config.encoder_activation,
+                                     output_activation=None,
+                                     **config.build_from_keys(['kernel_sizes',
+                                                               'strides',
+                                                               'paddings',
+                                                               'poolings',
+                                                               'batch_normalization']))
     elif config.CNN_encoder:
         state_encoder = ConvolutionalNeuralNetwork(image_size=(config.image_size, config.image_size),
                                                    input_channels=config.observation_dim,
@@ -316,8 +329,7 @@ class ConvolutionalNeuralNetwork(NetworkBase):
             if self.batch_normalization:
                 x = self.batch_norm_layers[i](x)
             x = self.activation(x)
-        
-        x = self.max_pooling_layers[-1](x)
+            x = max_pooling_layer(x)
 
         x = x.view(*input_size[:-3], -1)
         if hasattr(self, 'linear_layer'):
@@ -326,6 +338,79 @@ class ConvolutionalNeuralNetwork(NetworkBase):
             x = self.output_activation(x)
 
         return x
+
+
+class CarRacingCNN(NetworkBase):
+    def __init__(self, image_size, input_channels, n_hidden_channels,
+                 kernel_sizes, strides, paddings, poolings,
+                 output_dim=None, headless=False, batch_normalization=False,
+                 activation=nn.ReLU(inplace=True), output_activation=None, device=None):
+        assert len(n_hidden_channels) == len(kernel_sizes)
+        assert len(n_hidden_channels) == len(strides)
+        assert len(n_hidden_channels) == len(paddings)
+        assert len(n_hidden_channels) == len(poolings)
+
+        super().__init__()
+
+        n_hidden_channels = [input_channels, *n_hidden_channels]
+
+        self.activation = activation
+        self.output_activation = output_activation
+
+        self.conv_layers = nn.ModuleList()
+        for i in range(len(n_hidden_channels) - 1):
+            conv_layer = nn.Conv2d(n_hidden_channels[i],
+                                   n_hidden_channels[i + 1],
+                                   kernel_size=kernel_sizes[i],
+                                   stride=strides[i],
+                                   padding=paddings[i],
+                                   bias=True)
+
+            self.conv_layers.append(module=conv_layer)
+
+        # for PPO that work, it is not used
+        self.batch_normalization = batch_normalization
+        if batch_normalization:
+            self.batch_norm_layers = nn.ModuleList()
+            for i in range(1, len(n_hidden_channels)):
+                self.batch_norm_layers.append(module=nn.BatchNorm2d(n_hidden_channels[i],
+                                                                    affine=True))
+
+        dummy = torch.zeros(1, input_channels, *image_size)
+        with torch.no_grad():
+            dummy = self(dummy)
+        conv_output_dim = int(np.prod(dummy.size()))
+
+        if not headless:
+            self.linear_layer = nn.Linear(in_features=conv_output_dim,
+                                          out_features=output_dim,
+                                          bias=True)
+            self.out_features = output_dim
+        else:
+            assert conv_output_dim == output_dim
+            self.out_features = conv_output_dim
+        self.in_features = (input_channels, *image_size)
+
+        self.to(device)
+
+    def forward(self, x):
+        input_size = x.size()
+        x = x.view(-1, *input_size[-3:])
+
+        for i, conv_layer in enumerate(self.conv_layers):
+            x = conv_layer(x)
+            if self.batch_normalization:
+                x = self.batch_norm_layers[i](x)
+            x = self.activation(x)
+
+        x = x.view(*input_size[:-3], -1)
+        if hasattr(self, 'linear_layer'):
+            x = self.linear_layer(x)
+        if self.output_activation is not None:
+            x = self.output_activation(x)
+
+        return x
+
 
 
 MLP = MultilayerPerceptron = VanillaNN = VanillaNeuralNetwork

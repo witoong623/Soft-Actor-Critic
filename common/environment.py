@@ -229,11 +229,16 @@ class RepeatActionEnvironment(gym.Wrapper):
         return obs, total_reward, done, infos
 
 
+def transform_gray_normalize(rgb_img):
+    gray = np.dot(rgb_img[..., :], [0.299, 0.587, 0.114])
+    return gray / 128. - 1.
+
+
 class CarRacingEnvWrapper(gym.Wrapper):
     def __init__(self, env, n_frames=4, n_repeat_actions=4, image_size=(96, 96)):
         super().__init__(env)
         # for single image, necessary as base for next calculation
-        self.observation_space = Box(low=0.0, high=1.0, shape=(3, *image_size), dtype=np.float32)
+        self.observation_space = Box(low=0.0, high=1.0, shape=(1, *image_size), dtype=np.float32)
         # for stack frame
         self.observation_space = Box(low=np.concatenate([self.observation_space.low] * n_frames, axis=0),
                                      high=np.concatenate([self.observation_space.high] * n_frames, axis=0),
@@ -244,9 +249,7 @@ class CarRacingEnvWrapper(gym.Wrapper):
         self.queue = deque(maxlen=self.n_frames)
 
         self.transform = transforms.Compose([
-            transforms.ToPILImage(),
-            transforms.Resize(size=image_size),
-            transforms.Lambda(lambd=lambda img: np.array(img).transpose(2, 0, 1) / 255)
+            transforms.Lambda(lambd=transform_gray_normalize)
         ])
 
     def reset(self, **kwargs):
@@ -256,7 +259,7 @@ class CarRacingEnvWrapper(gym.Wrapper):
         for _ in range(self.n_frames):
             self.queue.append(self.transform(obs))
 
-        return np.concatenate(self.queue, axis=0)
+        return np.array(self.queue)
 
     def step(self, action):
         total_reward = 0
@@ -274,10 +277,9 @@ class CarRacingEnvWrapper(gym.Wrapper):
             if done or die:
                 break
 
-            # don't skip frame if number of frame and number of repeat action is equal
-            self.queue.append(self.transform(obs))
+        self.queue.append(self.transform(obs))
 
-        return np.concatenate(self.queue, axis=0), total_reward, done, die
+        return np.array(self.queue), total_reward, done, die
 
     @staticmethod
     def reward_memory():
@@ -292,6 +294,15 @@ class CarRacingEnvWrapper(gym.Wrapper):
             return np.mean(history)
 
         return memory
+
+    @staticmethod
+    def rgb2gray(rgb, norm=True):
+        # rgb image -> gray [0, 1]
+        gray = np.dot(rgb[..., :], [0.299, 0.587, 0.114])
+        if norm:
+            # normalize
+            gray = gray / 128. - 1.
+        return gray
 
 
 if __name__ == '__main__':
