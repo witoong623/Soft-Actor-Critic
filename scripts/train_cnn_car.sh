@@ -19,7 +19,7 @@ PYTHONWARNINGS=ignore xvfb-run -s "-screen 0 1400x900x24" python main.py \
 	--env "$ENV" \
 	--vision-observation --image-size 96 \
 	--n-frames 4 \
-    --repeat-action 4 \
+    --n-past-actions 8 \
 	--hidden-dims 256 128 \
 	--activation LeakyReLU \
 	--encoder-arch CNN \

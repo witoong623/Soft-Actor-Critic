@@ -204,7 +204,11 @@ class PolicyNetwork(MultilayerPerceptron):
 
     @torch.no_grad()
     def get_action(self, state, deterministic=False):
-        state = torch.FloatTensor(state).unsqueeze(dim=0).to(self.device)
+        if isinstance(state, np.ndarray):
+            state = torch.FloatTensor(state).unsqueeze(dim=0).to(self.device)
+        else:
+            # Tensor
+            state = state.unsqueeze(dim=0).to(self.device)
         mean, std = self(state)
 
         if deterministic:

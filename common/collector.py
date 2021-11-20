@@ -4,6 +4,7 @@ import time
 from functools import lru_cache
 
 import numpy as np
+import torch
 import torch.multiprocessing as mp
 import tqdm
 from PIL import Image, ImageDraw
@@ -97,6 +98,11 @@ class Sampler(mp.Process):
             if self.state_encoder is not None:
                 self.state_encoder.reset()
             observation = self.env.reset()
+
+            prev_actions = None
+            if hasattr(self.env, 'actions_queue'):
+                prev_actions = np.array(self.env.actions_queue)
+
             self.render()
             self.frames.clear()
             self.save_frame(step=0, reward=np.nan, episode_reward=0.0)
@@ -105,14 +111,23 @@ class Sampler(mp.Process):
                     action = self.env.action_space.sample()
                 else:
                     state = self.state_encoder.encode(observation)
+
+                    if prev_actions is not None:
+                        state_tensor = torch.FloatTensor(state)
+                        actions_tensor = torch.FloatTensor(prev_actions.reshape(-1))
+                        state = torch.cat((state_tensor, actions_tensor))
+
                     action = self.actor.get_action(state, deterministic=self.deterministic)
+
                 next_observation, reward, done, info = self.env.step(action)
+                if 'past_actions' in info:
+                    prev_actions = info['past_actions']
 
                 episode_reward += reward
                 episode_steps += 1
                 self.render()
                 self.save_frame(step=episode_steps, reward=reward, episode_reward=episode_reward)
-                self.add_transaction(observation, action, reward, next_observation, done)
+                self.add_transaction(observation, action, reward, next_observation, done, info)
 
                 observation = next_observation
 

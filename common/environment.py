@@ -104,7 +104,6 @@ class NormalizedAction(gym.ActionWrapper):
                                 high=1.0,
                                 shape=self.env.action_space.shape,
                                 dtype=np.float32)
-        print(f'NormalizedAction observation space: {self.env.observation_space.shape}')
 
     def action(self, action):
         low = self.env.action_space.low
@@ -258,6 +257,8 @@ class CarRacingEnvWrapper(gym.Wrapper):
 
     def reset(self, **kwargs):
         self.avg_reward = self.reward_memory()
+        self.queue.clear()
+        self.actions_queue.clear()
 
         obs = self.env.reset(**kwargs)
         for _ in range(self.n_frames):

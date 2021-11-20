@@ -82,8 +82,8 @@ class ModelBase(object):
 
         self.state_encoder = self.STATE_ENCODER_WRAPPER(state_encoder)
 
-        self.critic = Critic(state_dim, action_dim, hidden_dims, activation=activation)
-        self.actor = Actor(state_dim, action_dim, hidden_dims, activation=activation)
+        self.critic = Critic(self.state_dim, action_dim, hidden_dims, activation=activation)
+        self.actor = Actor(self.state_dim, action_dim, hidden_dims, activation=activation)
 
         self.log_alpha = nn.Parameter(torch.tensor(np.log(initial_alpha), dtype=torch.float32),
                                       requires_grad=True)
@@ -264,8 +264,8 @@ class Trainer(ModelBase):
             next_state = self.state_encoder(next_observation)
 
         if self.n_past_actions > 1:
-            state = torch.cat(state, past_actions)
-            next_state = torch.cat(next_state, next_past_actions)
+            state = torch.cat((state, past_actions.view(batch_size, -1)), dim=1)
+            next_state = torch.cat((next_state, next_past_actions.view(batch_size, -1)), dim=1)
 
         # size: (batch_size, item_size)
         return state, action, reward, next_state, done
