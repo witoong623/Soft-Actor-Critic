@@ -30,7 +30,7 @@ def build_env(**kwargs):
 
     env = NormalizedAction(FlattenedAction(env))
     if kwargs['vision_observation'] and kwargs['name'] == 'CarRacing-v0':
-        env = CarRacingEnvWrapper(env, n_frames=kwargs['n_frames'], n_repeat_actions=kwargs['repeat_action'])
+        env = CarRacingEnvWrapper(env, n_frames=kwargs['n_frames'], n_repeat_actions=kwargs['repeat_action'], n_past_actions=kwargs['n_past_actions'])
     elif kwargs['vision_observation']:
         env = VisionObservation(env, image_size=(kwargs['image_size'], kwargs['image_size']))
     else:
@@ -61,7 +61,8 @@ def initialize_environment(config):
                                                 'n_frames',
                                                 'max_episode_steps',
                                                 'random_seed',
-                                                'repeat_action'])
+                                                'repeat_action',
+                                                'n_past_actions'])
     config.env_kwargs.update(name=config.env)
 
     with config.env_func(**config.env_kwargs) as env:
@@ -235,7 +236,7 @@ def transform_gray_normalize(rgb_img):
 
 
 class CarRacingEnvWrapper(gym.Wrapper):
-    def __init__(self, env, n_frames=4, n_repeat_actions=4, image_size=(96, 96)):
+    def __init__(self, env, n_frames=4, n_repeat_actions=4, n_past_actions=1, image_size=(96, 96)):
         super().__init__(env)
         # for single image, necessary as base for next calculation
         self.observation_space = Box(low=0.0, high=1.0, shape=(1, *image_size), dtype=np.float32)
@@ -247,6 +248,9 @@ class CarRacingEnvWrapper(gym.Wrapper):
         self.n_frames = n_frames
         self.n_repeat_actions = n_repeat_actions
         self.queue = deque(maxlen=self.n_frames)
+        self.n_past_actions = n_past_actions
+        if n_past_actions > 1:
+            self.actions_queue = deque(maxlen=n_past_actions)
 
         self.transform = transforms.Compose([
             transforms.Lambda(lambd=transform_gray_normalize)
@@ -259,10 +263,21 @@ class CarRacingEnvWrapper(gym.Wrapper):
         for _ in range(self.n_frames):
             self.queue.append(self.transform(obs))
 
+        if self.n_past_actions > 1:
+            for _ in range(self.n_past_actions):
+                self.actions_queue.append(np.array([0, 0, 0]))
+
         return np.array(self.queue)
 
     def step(self, action):
-        return self._step_frames_stacking(action)
+        obs, reward, done, info = self._step_frames_stacking(action)
+
+        if self.n_past_actions > 1:
+            info['past_actions'] = np.array(self.actions_queue)
+            self.actions_queue.append(action)
+            info['next_past_actions'] = np.array(self.actions_queue)
+
+        return obs, reward, done, info
 
     def _step_frames_stacking(self, action):
         obs, reward, die, info = self.env.step(action)

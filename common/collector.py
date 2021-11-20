@@ -106,7 +106,7 @@ class Sampler(mp.Process):
                 else:
                     state = self.state_encoder.encode(observation)
                     action = self.actor.get_action(state, deterministic=self.deterministic)
-                next_observation, reward, done, _ = self.env.step(action)
+                next_observation, reward, done, info = self.env.step(action)
 
                 episode_reward += reward
                 episode_steps += 1
@@ -141,8 +141,13 @@ class Sampler(mp.Process):
         if self.writer is not None:
             self.writer.close()
 
-    def add_transaction(self, observation, action, reward, next_observation, done):
-        self.trajectory.append((observation, action, [reward], next_observation, [done]))
+    def add_transaction(self, observation, action, reward, next_observation, done, info):
+        past_actions = info.get('past_actions')
+        next_past_actions = info.get('next_past_actions')
+        if past_actions is None:
+            self.trajectory.append((observation, action, [reward], next_observation, [done]))
+        else:
+            self.trajectory.append((observation, action, past_actions, next_past_actions, [reward], next_observation, [done]))
 
     def save_trajectory(self):
         self.replay_buffer.extend(self.trajectory)

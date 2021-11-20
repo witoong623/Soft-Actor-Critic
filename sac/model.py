@@ -23,6 +23,7 @@ def build_model(config):
                                            'action_dim',
                                            'hidden_dims',
                                            'activation',
+                                           'n_past_actions',
                                            'initial_alpha',
                                            'n_samplers',
                                            'buffer_capacity',
@@ -63,13 +64,18 @@ class ModelBase(object):
     COLLECTOR = Collector
 
     def __init__(self, env_func, env_kwargs, state_encoder,
-                 state_dim, action_dim, hidden_dims, activation,
+                 state_dim, action_dim, hidden_dims, activation, n_past_actions,
                  initial_alpha, n_samplers, buffer_capacity,
                  devices, random_seed=0):
         self.devices = itertools.cycle(devices)
         self.model_device = next(self.devices)
 
-        self.state_dim = state_dim
+        self.n_past_actions = n_past_actions
+        if n_past_actions > 1:
+            # add past actions to state dim
+            self.state_dim = state_dim + (action_dim * n_past_actions)
+        else:
+            self.state_dim = state_dim
         self.action_dim = action_dim
 
         self.training = True
@@ -144,11 +150,11 @@ class ModelBase(object):
 
 class Trainer(ModelBase):
     def __init__(self, env_func, env_kwargs, state_encoder,
-                 state_dim, action_dim, hidden_dims, activation,
+                 state_dim, action_dim, hidden_dims, activation, n_past_actions,
                  initial_alpha, critic_lr, actor_lr, alpha_lr, weight_decay,
                  n_samplers, buffer_capacity, devices, random_seed=0):
         super().__init__(env_func, env_kwargs, state_encoder,
-                         state_dim, action_dim, hidden_dims, activation,
+                         state_dim, action_dim, hidden_dims, activation, n_past_actions,
                          initial_alpha, n_samplers, buffer_capacity,
                          devices, random_seed)
 
@@ -244,13 +250,22 @@ class Trainer(ModelBase):
 
     def prepare_batch(self, batch_size):
         # size: (batch_size, item_size)
-        observation, action, reward, next_observation, done \
-            = tuple(map(lambda tensor: torch.FloatTensor(tensor).to(self.model_device),
-                        self.replay_buffer.sample(batch_size)))
+        if self.n_past_actions > 1:
+            observation, action, past_actions, next_past_actions, reward, next_observation, done \
+                = tuple(map(lambda tensor: torch.FloatTensor(tensor).to(self.model_device),
+                            self.replay_buffer.sample(batch_size)))
+        else:
+            observation, action, reward, next_observation, done \
+                = tuple(map(lambda tensor: torch.FloatTensor(tensor).to(self.model_device),
+                            self.replay_buffer.sample(batch_size)))
 
         state = self.state_encoder(observation)
         with torch.no_grad():
             next_state = self.state_encoder(next_observation)
+
+        if self.n_past_actions > 1:
+            state = torch.cat(state, past_actions)
+            next_state = torch.cat(next_state, next_past_actions)
 
         # size: (batch_size, item_size)
         return state, action, reward, next_state, done
