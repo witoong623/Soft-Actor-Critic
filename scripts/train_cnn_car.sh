@@ -34,8 +34,8 @@ PYTHONWARNINGS=ignore xvfb-run -s "-screen 0 1400x900x24" python main.py \
 	--n-samplers 1 \
 	--buffer-capacity 10000 \
 	--update-sample-ratio 8.0 \
-	--critic-lr 1E-4 --actor-lr 1E-5 \
-	--alpha-lr 1E-5 --initial-alpha 1.0 --adaptive-entropy \
+	--critic-lr 3E-4 --actor-lr 3E-4 \
+	--alpha-lr 3E-4 --initial-alpha 1.0 --adaptive-entropy \
 	--normalize-rewards --reward-scale 1.0 \
 	--gamma 0.99 --soft-tau 0.01 --random-seed 69 \
 	--log-dir "$LOG_DIR" \

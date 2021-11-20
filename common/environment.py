@@ -49,7 +49,7 @@ def build_env(**kwargs):
         pass
     except TypeError:
         pass
-    # env = TimeLimit(env, max_episode_steps=max_episode_steps)
+    env = TimeLimit(env, max_episode_steps=max_episode_steps)
 
     return env
 
@@ -262,9 +262,24 @@ class CarRacingEnvWrapper(gym.Wrapper):
         return np.array(self.queue)
 
     def step(self, action):
+        return self._step_frames_stacking(action)
+
+    def _step_frames_stacking(self, action):
+        obs, reward, die, info = self.env.step(action)
+        # green penalty
+        if np.mean(obs[:, :, 1]) > 185.0:
+            reward -= 0.05
+        # if no reward recently, end the episode
+        done = True if self.avg_reward(reward) <= -0.1 or die else False
+
+        self.queue.append(self.transform(obs))
+
+        return np.array(self.queue), reward, done, info
+
+    def _repeat_step(self, action):
         total_reward = 0
         for _ in range(self.n_repeat_actions):
-            obs, reward, die, _ = self.env.step(action)
+            obs, reward, die, info = self.env.step(action)
             # don't penalize "die state"
             if die:
                 reward += 100
@@ -279,7 +294,7 @@ class CarRacingEnvWrapper(gym.Wrapper):
 
         self.queue.append(self.transform(obs))
 
-        return np.array(self.queue), total_reward, done, die
+        return np.array(self.queue), total_reward, done, info
 
     @staticmethod
     def reward_memory():

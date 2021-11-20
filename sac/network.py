@@ -210,8 +210,9 @@ class PolicyNetwork(MultilayerPerceptron):
         if deterministic:
             action = torch.tanh(mean)
         else:
-            z = Normal(0, 1).sample()
-            action = torch.tanh(mean + std * z)
+            distribution = Normal(mean, std)
+            u = distribution.rsample()
+            action = torch.tanh(u)
         action = action.cpu().numpy()[0]
         return action
 

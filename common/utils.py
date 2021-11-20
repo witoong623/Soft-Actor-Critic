@@ -114,3 +114,23 @@ def check_logging(config):
 
     config.initial_checkpoint = initial_checkpoint
     config.initial_epoch = initial_epoch
+
+
+def sample_bias_action(prev_action):
+    ''' Sample bias action for CarRacing-v0 '''
+    if np.random.randint(3) % 3:
+        return prev_action
+
+    index = np.random.randn(3)
+    # Favor acceleration over the others:
+    index[1] = np.abs(index[1])
+    index = np.argmax(index)
+    mask = np.zeros(3)
+    mask[index] = 1
+
+    action = np.random.randn(3)
+    action = np.tanh(action)
+    action[1] = (action[1] + 1) / 2
+    action[2] = (action[2] + 1) / 2
+
+    return action * mask
