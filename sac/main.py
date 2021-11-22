@@ -3,6 +3,7 @@ import time
 from collections import OrderedDict
 
 import numpy as np
+import torch
 import tqdm
 from setproctitle import setproctitle
 from torch.utils.tensorboard import SummaryWriter
@@ -156,15 +157,28 @@ def test(model, config):
 def test_render(model, config):
     model.state_encoder.reset()
     observation = model.env.reset()
+    prev_actions = None
+    if hasattr(model.env, 'actions_queue'):
+        prev_actions = np.array(model.env.actions_queue)
 
     rewards = 0
 
     for step in trange(config.max_episode_steps):
         model.env.render()
         state = model.state_encoder.encode(observation)
+
+        if prev_actions is not None:
+            state_tensor = torch.FloatTensor(state)
+            actions_tensor = torch.FloatTensor(prev_actions.reshape(-1))
+            state = torch.cat((state_tensor, actions_tensor))
+
         action = model.actor.get_action(state, deterministic=config.deterministic)
 
-        next_observation, reward, done, _ = model.env.step(action)
+        next_observation, reward, done, info = model.env.step(action)
+
+        if 'past_actions' in info:
+            prev_actions = info['past_actions']
+
         rewards += reward
         observation = next_observation
 

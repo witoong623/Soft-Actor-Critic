@@ -289,21 +289,26 @@ class RenderTester(object):
     STATE_ENCODER_WRAPPER = StateEncoderWrapper
 
     def __init__(self, env_func, env_kwargs, state_encoder,
-                 state_dim, action_dim, hidden_dims, activation,
+                 state_dim, action_dim, hidden_dims, activation, n_past_actions,
                  initial_alpha, n_samplers, buffer_capacity,
                  devices, random_seed=0):
         self.devices = itertools.cycle(devices)
         self.model_device = next(self.devices)
 
-        self.state_dim = state_dim
+        self.n_past_actions = n_past_actions
+        if n_past_actions > 1:
+            # add past actions to state dim
+            self.state_dim = state_dim + (action_dim * n_past_actions)
+        else:
+            self.state_dim = state_dim
         self.action_dim = action_dim
 
         self.training = True
 
         self.state_encoder = self.STATE_ENCODER_WRAPPER(state_encoder)
 
-        self.critic = Critic(state_dim, action_dim, hidden_dims, activation=activation)
-        self.actor = Actor(state_dim, action_dim, hidden_dims, activation=activation)
+        self.critic = Critic(self.state_dim, action_dim, hidden_dims, activation=activation)
+        self.actor = Actor(self.state_dim, action_dim, hidden_dims, activation=activation)
 
         self.log_alpha = nn.Parameter(torch.tensor(np.log(initial_alpha), dtype=torch.float32),
                                       requires_grad=True)
