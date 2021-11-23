@@ -30,7 +30,7 @@ def build_env(**kwargs):
 
     env = NormalizedAction(FlattenedAction(env))
     if kwargs['vision_observation'] and kwargs['name'] == 'CarRacing-v0':
-        env = CarRacingEnvWrapper(env, n_frames=kwargs['n_frames'], n_repeat_actions=kwargs['repeat_action'], n_past_actions=kwargs['n_past_actions'])
+        env = CarRacingEnvWrapper(env, n_frames=kwargs['n_frames'], n_repeat_actions=kwargs['n_repeat_actions'], n_past_actions=kwargs['n_past_actions'])
     elif kwargs['vision_observation']:
         env = VisionObservation(env, image_size=(kwargs['image_size'], kwargs['image_size']))
     else:
@@ -39,8 +39,8 @@ def build_env(**kwargs):
     if kwargs['n_frames'] > 1 and kwargs['name'] != 'CarRacing-v0' :
         env = ConcatenatedObservation(env, n_frames=kwargs['n_frames'], dim=0)
 
-    # if kwargs['repeat_action'] > 1  and kwargs['name'] != 'CarRacing-v0':
-    #     env = RepeatActionEnvironment(env, repeat=kwargs['repeat_action'])
+    # if kwargs['n_repeat_actions'] > 1  and kwargs['name'] != 'CarRacing-v0':
+    #     env = RepeatActionEnvironment(env, repeat=kwargs['n_repeat_actions'])
 
     max_episode_steps = kwargs['max_episode_steps']
     try:
@@ -61,7 +61,7 @@ def initialize_environment(config):
                                                 'n_frames',
                                                 'max_episode_steps',
                                                 'random_seed',
-                                                'repeat_action',
+                                                'n_repeat_actions',
                                                 'n_past_actions'])
     config.env_kwargs.update(name=config.env)
 
@@ -235,7 +235,7 @@ def transform_gray_normalize(rgb_img):
 
 
 class CarRacingEnvWrapper(gym.Wrapper):
-    def __init__(self, env, n_frames=4, n_repeat_actions=4, n_past_actions=1, image_size=(96, 96)):
+    def __init__(self, env, n_frames=4, n_repeat_actions=1, n_past_actions=1, image_size=(96, 96)):
         super().__init__(env)
         # for single image, necessary as base for next calculation
         self.observation_space = Box(low=0.0, high=1.0, shape=(1, *image_size), dtype=np.float32)
@@ -246,10 +246,16 @@ class CarRacingEnvWrapper(gym.Wrapper):
 
         self.n_frames = n_frames
         self.n_repeat_actions = n_repeat_actions
-        self.queue = deque(maxlen=self.n_frames)
         self.n_past_actions = n_past_actions
-        if n_past_actions > 1:
+        self.frames_queue = deque(maxlen=self.n_frames)
+
+        if self.n_past_actions > 1:
             self.actions_queue = deque(maxlen=n_past_actions)
+
+        if self.n_repeat_actions > 1:
+            self._do_step = self._repeat_step
+        else:
+            self._do_step = self._step_frames_stacking
 
         self.transform = transforms.Compose([
             transforms.Lambda(lambd=transform_gray_normalize)
@@ -257,21 +263,21 @@ class CarRacingEnvWrapper(gym.Wrapper):
 
     def reset(self, **kwargs):
         self.avg_reward = self.reward_memory()
-        self.queue.clear()
+        self.frames_queue.clear()
         self.actions_queue.clear()
 
         obs = self.env.reset(**kwargs)
         for _ in range(self.n_frames):
-            self.queue.append(self.transform(obs))
+            self.frames_queue.append(self.transform(obs))
 
         if self.n_past_actions > 1:
             for _ in range(self.n_past_actions):
                 self.actions_queue.append(np.array([0, 0, 0]))
 
-        return np.array(self.queue)
+        return np.array(self.frames_queue)
 
     def step(self, action):
-        obs, reward, done, info = self._step_frames_stacking(action)
+        obs, reward, done, info = self._do_step(action)
 
         if self.n_past_actions > 1:
             info['past_actions'] = np.array(self.actions_queue)
@@ -288,17 +294,14 @@ class CarRacingEnvWrapper(gym.Wrapper):
         # if no reward recently, end the episode
         done = True if self.avg_reward(reward) <= -0.1 or die else False
 
-        self.queue.append(self.transform(obs))
+        self.frames_queue.append(self.transform(obs))
 
-        return np.array(self.queue), reward, done, info
+        return np.array(self.frames_queue), reward, done, info
 
     def _repeat_step(self, action):
         total_reward = 0
         for _ in range(self.n_repeat_actions):
             obs, reward, die, info = self.env.step(action)
-            # don't penalize "die state"
-            if die:
-                reward += 100
             # green penalty
             if np.mean(obs[:, :, 1]) > 185.0:
                 reward -= 0.05
@@ -308,9 +311,9 @@ class CarRacingEnvWrapper(gym.Wrapper):
             if done or die:
                 break
 
-        self.queue.append(self.transform(obs))
+        self.frames_queue.append(self.transform(obs))
 
-        return np.array(self.queue), total_reward, done, info
+        return np.array(self.frames_queue), total_reward, done, info
 
     @staticmethod
     def reward_memory():

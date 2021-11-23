@@ -46,7 +46,7 @@ def get_config():
                         help='environment to train on (default: Pendulum-v1)')
     parser.add_argument('--n-frames', type=int, default=1,
                         help='concatenate original N consecutive observations as a new observation (default: 1)')
-    parser.add_argument('--repeat-action', type=int, default=1,
+    parser.add_argument('--n-repeat-actions', type=int, default=1,
                         help='number of repeat action (default: 1, which is no repeat)')
     parser.add_argument('--n-past-actions', type=int, default=1,
                         help='number of past action that will be used as part of state (default: 1 which is no past action state)')
