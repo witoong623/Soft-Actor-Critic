@@ -264,13 +264,13 @@ class CarRacingEnvWrapper(gym.Wrapper):
     def reset(self, **kwargs):
         self.avg_reward = self.reward_memory()
         self.frames_queue.clear()
-        self.actions_queue.clear()
 
         obs = self.env.reset(**kwargs)
         for _ in range(self.n_frames):
             self.frames_queue.append(self.transform(obs))
 
         if self.n_past_actions > 1:
+            self.actions_queue.clear()
             for _ in range(self.n_past_actions):
                 self.actions_queue.append(np.array([0, 0, 0]))
 
