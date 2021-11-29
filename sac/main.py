@@ -164,7 +164,6 @@ def test_render(model, config):
     rewards = 0
 
     for step in trange(config.max_episode_steps):
-        model.env.render()
         state = model.state_encoder.encode(observation)
 
         if prev_actions is not None:

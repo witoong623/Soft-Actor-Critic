@@ -261,6 +261,8 @@ class CarRacingEnvWrapper(gym.Wrapper):
             transforms.Lambda(lambd=transform_gray_normalize)
         ])
 
+        self.render_inside = False
+
     def reset(self, **kwargs):
         self.avg_reward = self.reward_memory()
         self.frames_queue.clear()
@@ -287,6 +289,9 @@ class CarRacingEnvWrapper(gym.Wrapper):
         return obs, reward, done, info
 
     def _step_frames_stacking(self, action):
+        if self.render_inside:
+            self.env.render()
+
         obs, reward, die, info = self.env.step(action)
         # green penalty
         if np.mean(obs[:, :, 1]) > 185.0:
@@ -301,6 +306,9 @@ class CarRacingEnvWrapper(gym.Wrapper):
     def _repeat_step(self, action):
         total_reward = 0
         for _ in range(self.n_repeat_actions):
+            if self.render_inside:
+                self.env.render()
+
             obs, reward, die, info = self.env.step(action)
             # green penalty
             if np.mean(obs[:, :, 1]) > 185.0:
