@@ -61,7 +61,7 @@ def get_config():
     parser.add_argument('--activation', type=str, choices=['ReLU', 'LeakyReLU', 'Tanh'], default='ReLU',
                         help='activation function in controller networks (default: ReLU)')
     encoder_group = parser.add_argument_group('state encoder')
-    encoder_group.add_argument('--encoder-arch', type=str, choices=['FC', 'RNN', 'CNN'], default='FC',
+    encoder_group.add_argument('--encoder-arch', type=str, choices=['FC', 'RNN', 'CNN', 'VAE'], default='FC',
                                help='architecture of state encoder network (default: FC)')
     encoder_group.add_argument('--state-dim', type=int, default=None, metavar='DIM',
                                help='target state dimension of encoded state '
@@ -191,6 +191,7 @@ def initialize_hyperparameters(config):
     config.FC_encoder = (config.encoder_arch == 'FC')
     config.RNN_encoder = (config.encoder_arch == 'RNN')
     config.CNN_encoder = (config.encoder_arch == 'CNN')
+    config.VAE_encoder = (config.encoder_arch == 'VAE')
 
     if config.CNN_encoder:
         kernel_sizes = config.kernel_sizes

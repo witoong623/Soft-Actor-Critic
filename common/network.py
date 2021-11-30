@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import vae.model as vaemodel
 
 
 __all__ = [
@@ -59,6 +60,9 @@ def build_encoder(config):
                                                                              'paddings',
                                                                              'poolings',
                                                                              'batch_normalization']))
+
+    elif config.VAE_encoder:
+        state_encoder = vaemodel.ConvVAE((96, 96), latent_size=128)
 
     config.state_encoder = state_encoder
     config.state_dim = state_dim

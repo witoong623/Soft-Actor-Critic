@@ -165,8 +165,7 @@ class Trainer(ModelBase):
 
         self.global_step = 0
 
-        self.optimizer = optim.Adam(itertools.chain(self.state_encoder.parameters(),
-                                                    self.critic.parameters(),
+        self.optimizer = optim.Adam(itertools.chain(self.critic.parameters(),
                                                     self.actor.parameters()),
                                     lr=critic_lr, weight_decay=weight_decay)
         init_optimizer(self.optimizer)
@@ -259,8 +258,8 @@ class Trainer(ModelBase):
                 = tuple(map(lambda tensor: torch.FloatTensor(tensor).to(self.model_device),
                             self.replay_buffer.sample(batch_size)))
 
-        state = self.state_encoder(observation)
         with torch.no_grad():
+            state = self.state_encoder(observation)
             next_state = self.state_encoder(next_observation)
 
         if self.n_past_actions > 1:
