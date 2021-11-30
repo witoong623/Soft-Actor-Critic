@@ -4,6 +4,7 @@ sys.path.append('/root/thesis/thesis-code/Soft-Actor-Critic')
 import os
 import torch
 import torch.optim as optim
+import torch.optim.lr_scheduler as lr_scheduler
 import multiprocessing
 import time
 from functools import partial
@@ -104,9 +105,12 @@ if __name__ == "__main__":
     print('latent size:', LATENT_SIZE)
     model = ConvVAE((96, 96), latent_size=LATENT_SIZE).to(device)
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer=optimizer)
 
     for epoch in range(0, EPOCHS + 1):
         train_loss = train(model, device, train_loader, optimizer, epoch, PRINT_INTERVAL)
+        optimizer.step(train_loss)
+
         # test_loss, original_images, rect_images = test(model, device, test_loader, return_images=5)
 
         # save_image(original_images + rect_images, COMPARE_PATH + str(epoch) + '.png', padding=0, nrow=len(original_images))
