@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-import torch.functional as F
+import torch.nn.functional as F
 
 from common.network import NetworkBase
 
@@ -9,14 +9,20 @@ class ConvVAE(NetworkBase):
     def __init__(self, image_size,  input_channel=3, latent_size=64):
         super(ConvVAE, self).__init__()
 
+        self.beta = 3
+
         self.encoder = nn.Sequential(
             nn.Conv2d(input_channel, 32, 4, stride=2),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.Conv2d(32, 32, 4, stride=2),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.Conv2d(32, 64, 4, stride=2),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
             nn.Conv2d(64, 64, 4, stride=2),
+            nn.BatchNorm2d(64),
             nn.ReLU()
         )
 
@@ -29,12 +35,16 @@ class ConvVAE(NetworkBase):
 
         self.decoder = nn.Sequential(
             nn.ConvTranspose2d(64, 64, 4, stride=2),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
             nn.ConvTranspose2d(64, 32, 4, stride=2),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
-            nn.ConvTranspose2d(32, 32, 4, stride=2),
+            nn.ConvTranspose2d(32, 32, 4, stride=2, output_padding=1),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.ConvTranspose2d(32, 3, 4, stride=2),
+            nn.BatchNorm2d(3),
             nn.Sigmoid()
         )
 

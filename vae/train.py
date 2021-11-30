@@ -1,3 +1,6 @@
+import sys
+sys.path.append('/root/thesis/thesis-code/Soft-Actor-Critic')
+
 import os
 import torch
 import torch.optim as optim
@@ -28,8 +31,8 @@ def train(model, device, train_loader, optimizer, epoch, log_interval):
         train_loss += loss.cpu().item()
 
         if batch_idx % log_interval == 0:
-            t.set_description('{} Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                time.ctime(time.time()), epoch, batch_idx * len(data),
+            t.set_description('Train Epoch: {} [{}/{} ({:.0f}%)] Loss: {:.6f}'.format(
+                epoch, batch_idx * len(data),
                 len(train_loader.dataset), 100. * batch_idx / len(train_loader), loss.item()))
 
     train_loss /= len(train_loader)
@@ -71,16 +74,16 @@ def test(model, device, test_loader, return_images=0, log_interval=None):
     return test_loss
 
 
-CHECKPOINT_FORMAT = '{prefix}epoch({epoch})-loss({loss:+.2E}){suffix}.pkl'
+CHECKPOINT_FORMAT = '{prefix}epoch({epoch})-loss({loss:+.3E}){suffix}.pkl'
 CHECKPOINT_FORMAT = partial(CHECKPOINT_FORMAT.format, prefix='', suffix='')
 
 # parameters
-BATCH_SIZE = 256
+BATCH_SIZE = 512
 TEST_BATCH_SIZE = 10
 EPOCHS = 400
 
-LATENT_SIZE = 100
-LEARNING_RATE = 1e-3
+LATENT_SIZE = 128
+LEARNING_RATE = 5e-4
 
 USE_CUDA = True
 PRINT_INTERVAL = 100
@@ -88,22 +91,19 @@ LOG_PATH = './logs/log.pkl'
 MODEL_PATH = './checkpoints/'
 COMPARE_PATH = './comparisons/'
 
-use_cuda = USE_CUDA and torch.cuda.is_available()
-device = torch.device("cuda" if use_cuda else "cpu")
-print('Using device', device)
-print('num cpus:', multiprocessing.cpu_count())
-
-train_loader = get_train_dataloader('./dataset')
-# test_loader = torch.utils.data.DataLoader(data_test, batch_size=TEST_BATCH_SIZE, shuffle=True, **kwargs)
-
-print('latent size:', LATENT_SIZE)
-
-model = ConvVAE((96, 96), latent_size=LATENT_SIZE).to(device)
-
-optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
-
-
 if __name__ == "__main__":
+
+    use_cuda = USE_CUDA and torch.cuda.is_available()
+    device = torch.device("cuda:1" if use_cuda else "cpu")
+    print('Using device', device)
+    print('num cpus:', multiprocessing.cpu_count())
+
+    train_loader = get_train_dataloader('/root/image_dataset', BATCH_SIZE, 2)
+    # test_loader = torch.utils.data.DataLoader(data_test, batch_size=TEST_BATCH_SIZE, shuffle=True, **kwargs)
+
+    print('latent size:', LATENT_SIZE)
+    model = ConvVAE((96, 96), latent_size=LATENT_SIZE).to(device)
+    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
     for epoch in range(0, EPOCHS + 1):
         train_loss = train(model, device, train_loader, optimizer, epoch, PRINT_INTERVAL)
@@ -116,4 +116,5 @@ if __name__ == "__main__":
         # utils.write_log(LOG_PATH, (train_losses, test_losses))
 
         if epoch % 10 == 0:
-            model.save_model(os.path.join('./somepath', CHECKPOINT_FORMAT(epoch=epoch, loss=train_loss)))
+            print(f'save weight at epoch {epoch}')
+            model.save_model(os.path.join('/root/thesis/thesis-code/Soft-Actor-Critic/vae_weights', CHECKPOINT_FORMAT(epoch=epoch, loss=train_loss)))
