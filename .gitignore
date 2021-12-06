@@ -237,3 +237,4 @@ tags
 
 *.bat
 videos/
+vae_weights/

@@ -30,7 +30,8 @@ def build_env(**kwargs):
 
     env = NormalizedAction(FlattenedAction(env))
     if kwargs['vision_observation'] and kwargs['name'] == 'CarRacing-v0':
-        env = CarRacingEnvWrapper(env, n_frames=kwargs['n_frames'], n_repeat_actions=kwargs['n_repeat_actions'], n_past_actions=kwargs['n_past_actions'])
+        env = CarRacingEnvWrapper(env, n_frames=kwargs['n_frames'], n_repeat_actions=kwargs['n_repeat_actions'],
+                                  n_past_actions=kwargs['n_past_actions'], to_grayscale=kwargs['encoder_arch'] != 'VAE')
     elif kwargs['vision_observation']:
         env = VisionObservation(env, image_size=(kwargs['image_size'], kwargs['image_size']))
     else:
@@ -39,9 +40,6 @@ def build_env(**kwargs):
     if kwargs['n_frames'] > 1 and kwargs['name'] != 'CarRacing-v0' :
         env = ConcatenatedObservation(env, n_frames=kwargs['n_frames'], dim=0)
 
-    # if kwargs['n_repeat_actions'] > 1  and kwargs['name'] != 'CarRacing-v0':
-    #     env = RepeatActionEnvironment(env, repeat=kwargs['n_repeat_actions'])
-
     max_episode_steps = kwargs['max_episode_steps']
     try:
         max_episode_steps = min(max_episode_steps, env.spec.max_episode_steps)
@@ -49,7 +47,7 @@ def build_env(**kwargs):
         pass
     except TypeError:
         pass
-    env = TimeLimit(env, max_episode_steps=max_episode_steps)
+    # env = TimeLimit(env, max_episode_steps=max_episode_steps)
 
     return env
 
@@ -62,7 +60,8 @@ def initialize_environment(config):
                                                 'max_episode_steps',
                                                 'random_seed',
                                                 'n_repeat_actions',
-                                                'n_past_actions'])
+                                                'n_past_actions',
+                                                'encoder_arch'])
     config.env_kwargs.update(name=config.env)
 
     with config.env_func(**config.env_kwargs) as env:
@@ -229,13 +228,9 @@ class RepeatActionEnvironment(gym.Wrapper):
         return obs, total_reward, done, infos
 
 
-def transform_gray_normalize(rgb_img):
-    gray = np.dot(rgb_img[..., :], [0.299, 0.587, 0.114])
-    return gray / 128. - 1.
-
-
 class CarRacingEnvWrapper(gym.Wrapper):
-    def __init__(self, env, n_frames=4, n_repeat_actions=1, n_past_actions=1, image_size=(96, 96)):
+    def __init__(self, env, n_frames=4, n_repeat_actions=1, n_past_actions=1,
+                 image_size=(96, 96), to_grayscale=True):
         super().__init__(env)
         # for single image, necessary as base for next calculation
         self.observation_space = Box(low=0.0, high=1.0, shape=(1, *image_size), dtype=np.float32)
@@ -257,9 +252,20 @@ class CarRacingEnvWrapper(gym.Wrapper):
         else:
             self._do_step = self._step_frames_stacking
 
-        self.transform = transforms.Compose([
-            transforms.Lambda(lambd=transform_gray_normalize)
-        ])
+        if to_grayscale:
+            def transform_gray_normalize(rgb_img):
+                gray = np.dot(rgb_img[..., :], [0.299, 0.587, 0.114])
+                return gray / 128. - 1.
+
+            self.transform = transforms.Compose([
+                transforms.Lambda(lambd=transform_gray_normalize)
+            ])
+            self.create_observation = lambda q: np.array(q)
+        else:
+            # identity
+            self.transform = lambda x: x
+            # self.create_observation = lambda q: np.concatenate(q, axis=2)
+            self.create_observation = lambda q: np.array(q)
 
         self.render_inside = False
 
@@ -276,7 +282,7 @@ class CarRacingEnvWrapper(gym.Wrapper):
             for _ in range(self.n_past_actions):
                 self.actions_queue.append(np.array([0, 0, 0]))
 
-        return np.array(self.frames_queue)
+        return self.create_observation(self.frames_queue)
 
     def step(self, action):
         obs, reward, done, info = self._do_step(action)
@@ -301,7 +307,7 @@ class CarRacingEnvWrapper(gym.Wrapper):
 
         self.frames_queue.append(self.transform(obs))
 
-        return np.array(self.frames_queue), reward, done, info
+        return self.create_observation(self.frames_queue), reward, done, info
 
     def _repeat_step(self, action):
         total_reward = 0
@@ -321,7 +327,7 @@ class CarRacingEnvWrapper(gym.Wrapper):
 
         self.frames_queue.append(self.transform(obs))
 
-        return np.array(self.frames_queue), total_reward, done, info
+        return self.create_observation(self.frames_queue), total_reward, done, info
 
     @staticmethod
     def reward_memory():

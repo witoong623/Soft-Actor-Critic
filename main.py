@@ -99,6 +99,8 @@ def get_config():
                                    help='max pooling kernel size after activation function in CNN state encoder (defaults: 1)')
     cnn_encoder_group.add_argument('--batch-normalization', action='store_true', default=False,
                                    help='use batch normalization in CNN state encoder')
+    vae_encoder_group = parser.add_argument_group('VAE state encoder')
+    vae_encoder_group.add_argument('--weight-path', type=str, default=None, help='path to weight file')
     parser.add_argument('--max-episode-steps', type=int, default=10000,
                         help='max steps per episode (default: 10000)')
     parser.add_argument('--n-epochs', type=int, default=1000,

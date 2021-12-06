@@ -105,11 +105,11 @@ if __name__ == "__main__":
     print('latent size:', LATENT_SIZE)
     model = ConvVAE((96, 96), latent_size=LATENT_SIZE).to(device)
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
-    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer=optimizer)
+    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, cooldown=30, verbose=True)
 
     for epoch in range(0, EPOCHS + 1):
         train_loss = train(model, device, train_loader, optimizer, epoch, PRINT_INTERVAL)
-        optimizer.step(train_loss)
+        scheduler.step(train_loss)
 
         # test_loss, original_images, rect_images = test(model, device, test_loader, return_images=5)
 
@@ -121,4 +121,4 @@ if __name__ == "__main__":
 
         if epoch % 10 == 0:
             print(f'save weight at epoch {epoch}')
-            model.save_model(os.path.join('/root/thesis/thesis-code/Soft-Actor-Critic/vae_weights', CHECKPOINT_FORMAT(epoch=epoch, loss=train_loss)))
+            model.save_model(os.path.join('/root/thesis/thesis-code/Soft-Actor-Critic/vae_weights2', CHECKPOINT_FORMAT(epoch=epoch, loss=train_loss)))

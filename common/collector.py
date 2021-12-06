@@ -12,7 +12,7 @@ from setproctitle import setproctitle
 from torch.utils.tensorboard import SummaryWriter
 
 from .buffer import ReplayBuffer, EpisodeReplayBuffer
-from .utils import clone_network, sync_params
+from .utils import clone_network, sync_params, encode_vae_observation
 
 
 __all__ = ['Collector', 'EpisodeCollector']
@@ -110,12 +110,20 @@ class Sampler(mp.Process):
                 if self.random_sample:
                     action = self.env.action_space.sample()
                 else:
-                    state = self.state_encoder.encode(observation)
+                    state = encode_vae_observation(observation, self.state_encoder, device=self.device)
+                    # state = self.state_encoder.encode(observation)
+
+                    # when state is np
+                    # if prev_actions is not None:
+                    #     state_tensor = torch.FloatTensor(state)
+                    #     actions_tensor = torch.FloatTensor(prev_actions.reshape(-1))
+                    #     state = torch.cat((state_tensor, actions_tensor))
 
                     if prev_actions is not None:
-                        state_tensor = torch.FloatTensor(state)
                         actions_tensor = torch.FloatTensor(prev_actions.reshape(-1))
-                        state = torch.cat((state_tensor, actions_tensor))
+                        # print('actions_tensor size', actions_tensor.size())
+                        # print('state size', state.size())
+                        state = torch.cat((state.squeeze(), actions_tensor))
 
                     action = self.actor.get_action(state, deterministic=self.deterministic)
 

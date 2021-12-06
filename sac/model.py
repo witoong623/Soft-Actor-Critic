@@ -8,7 +8,7 @@ import torch.optim as optim
 
 from common.collector import Collector
 from common.network import Container
-from common.utils import clone_network, sync_params, init_optimizer, clip_grad_norm
+from common.utils import clone_network, sync_params, init_optimizer, clip_grad_norm, encode_vae_observation
 from .network import StateEncoderWrapper, Actor, Critic
 
 
@@ -259,8 +259,11 @@ class Trainer(ModelBase):
                             self.replay_buffer.sample(batch_size)))
 
         with torch.no_grad():
-            state = self.state_encoder(observation)
-            next_state = self.state_encoder(next_observation)
+            self.state_encoder.eval()
+            # print('observation size', observation.size())
+            # print('next_observation size', next_observation.size())
+            state = encode_vae_observation(observation, self.state_encoder, device=self.model_device)
+            next_state = encode_vae_observation(next_observation, self.state_encoder, device=self.model_device)
 
         if self.n_past_actions > 1:
             state = torch.cat((state, past_actions.view(batch_size, -1)), dim=1)
