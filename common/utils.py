@@ -9,6 +9,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torchvision.transforms as T
+from PIL import Image
 
 
 CHECKPOINT_FORMAT = '{prefix}epoch({epoch})-reward({reward:+.2E}){suffix}.pkl'
@@ -137,113 +138,95 @@ def sample_bias_action(prev_action):
     return action * mask
 
 
-def _transform_np_image(img):
-    img = img.transpose(2, 0, 1)
-    img = img / 255.
-    return img
-
-
-# def encode_observation(observation, encoder, n_channel=3):
-#     ''' observation must be in form H x W x C and is numpy array '''
-#     # print('raw observation', observation.shape)
-#     # observation = observation.squeeze()
-#     assert observation.shape[-1] % n_channel == 0
-#     states = []
-#     with torch.no_grad():
-#         for i in range(0, observation.shape[-1]-1, n_channel):
-#             frame = _transform_np_image(observation[:,:, i:i+n_channel])
-#             # print('type', type(frame))
-#             state = encoder.encode(frame, encode=True)
-#             states.append(state)
-#             # print('each state shape', state.shape)
-    
-#     new_state = np.concatenate(states)
-#     # print('new state shape', new_state.shape)
-#     return new_state
-
-
 _img_transform = T.Compose([
     T.ToPILImage(),
     T.ToTensor()
 ])
 
 
-def _transform_np_image_to_tensor(imgs):
+def _transform_np_image_to_tensor(imgs, normalize=True):
     tensors = []
     # print('imgs type', type(imgs))
     # print('imgs shape', imgs.shape)
     for i in range(imgs.shape[0]):
         img = imgs[i]
-        img_tensor = _img_transform(img)
+        img = img.transpose(2, 0, 1)
+        if normalize:
+            img = img / 255.
+
+        img_tensor = torch.from_numpy(img)
         # print('img_tensor', img_tensor.size())
         tensors.append(img_tensor)
 
     return torch.stack(tensors, dim=0)
 
-def _normalize_transform(img_tensors):
+def _transform_tensor(img_tensors, normalize=True):
     tensors = []
     # print('img_tensors type', type(img_tensors))
     # print('img_tensors size', img_tensors.size())
     for i in range(img_tensors.size(0)):
         img = img_tensors[i]
-        img_tensor = (img / 255.).permute((2, 0, 1)).contiguous()
+
+        if img.size(0) == 3:
+            # correct form, do nothing
+            pass
+        elif img.size(-1) == 3:
+            img = img.permute((2, 0, 1)).contiguous()
+
+        assert img.size(0) == 3
+
+        if normalize:
+            img = img / 255.
+
         # print(img_tensor)
         # print('img_tensor', img_tensor.size())
-        tensors.append(img_tensor)
+        tensors.append(img)
 
     return torch.stack(tensors, dim=0)
 
 
-def encode_vae_observation(observation, encoder, n_channel=3, device='cpu'):
-    ''' observation must be in form batch x n_images x H x W x C or n_images x H x W x C and is numpy array '''
+def encode_vae_observation(observation, encoder, normalize=True, device='cpu'):
+    ''' transforms ``Tensor`` or numpy's ``ndarray`` to state vector.
+
+    If observation is ``ndarray``, it must be in form of ``batch`` x ``n_images`` x ``H`` x ``W`` x ``C``.
+
+    If observation is ``Tensor``, it must be in form of ``batch`` x ``n_images`` x ``C`` x ``H`` x ``W`` or ``batch`` x ``n_images`` x ``H`` x ``W`` x ``C``.
+    
+    returns ``batch`` x ``state size`` tensor on CPU.
+    
+    ``device`` is device that encoder will run on.'''
     if isinstance(observation, np.ndarray):
         # print('raw observation', observation.shape)
         if len(observation.shape) == 4:
             observation = np.expand_dims(observation, axis=0)
         elif len(observation.shape) != 5:
-            raise ValueError('observation')
+            raise ValueError('observation must have 4 or 5 dimensions')
 
-        assert len(observation.shape) == 5
+        assert observation.ndim == 5
         batch_size = observation.shape[0]
         # print('observation.shape', observation.shape)
         # observation = observation.squeeze()
         observation_tensors = [_transform_np_image_to_tensor(observation[i]).to(device) for i in range(observation.shape[0])]
-        assert observation.shape[-1] % n_channel == 0
-        batch_states = []
-        with torch.no_grad():
-            for observation_tensor in observation_tensors:
-                # print('observation_tensor type', type(observation_tensor))
-                # print('observation_tensor size', observation_tensor.size())
-                observation_state_batch = encoder(observation_tensor, encode=True)
-                # print('observation_state_batch size', observation_state_batch.size())
-                observation_state = observation_state_batch.flatten()
-                # print('observation_state size', observation_state.size())
-                batch_states.append(observation_state)
-            
-        new_state = torch.stack(batch_states, dim=0)
-        # print('new_state size', new_state.size())
-        assert new_state.size(0) == batch_size
-
-        return new_state.cpu()
     elif isinstance(observation, torch.Tensor):
         assert len(observation.size()) == 5
 
         batch_size = observation.shape[0]
 
-        observation_tensors = [_normalize_transform(observation[i]).to(device) for i in range(observation.size(0))]
-        batch_states = []
-        with torch.no_grad():
-            for observation_tensor in observation_tensors:
-                # print('observation_tensor type', type(observation_tensor))
-                # print('observation_tensor size', observation_tensor.size())
-                observation_state_batch = encoder(observation_tensor, encode=True)
-                # print('observation_state_batch size', observation_state_batch.size())
-                observation_state = observation_state_batch.flatten()
-                # print('observation_state size', observation_state.size())
-                batch_states.append(observation_state)
-            
-        new_state = torch.stack(batch_states, dim=0)
-        # print('new_state size', new_state.size())
-        assert new_state.size(0) == batch_size
+        observation_tensors = [_transform_tensor(observation[i]).to(device) for i in range(observation.size(0))]
 
-        return new_state
+    batch_states = []
+    with torch.no_grad():
+        for observation_tensor in observation_tensors:
+            # print('observation_tensor type', type(observation_tensor))
+            # print('observation_tensor size', observation_tensor.size())
+            observation_state_batch = encoder(observation_tensor, encode=True)
+            # print('observation_state_batch size', observation_state_batch.size())
+            observation_state = observation_state_batch.flatten()
+            # print('observation_state size', observation_state.size())
+            batch_states.append(observation_state)
+        
+    new_state = torch.stack(batch_states, dim=0)
+    # print('new_state size', new_state.size())
+    assert new_state.size(0) == batch_size
+
+    return new_state.cpu()
