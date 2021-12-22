@@ -7,8 +7,8 @@ import torch.nn as nn
 import torch.optim as optim
 
 from common.collector import Collector
-from common.network import Container
-from common.utils import clone_network, sync_params, init_optimizer, clip_grad_norm
+from common.network import Container, ConvVAE
+from common.utils import clone_network, sync_params, init_optimizer, clip_grad_norm, encode_vae_observation
 from .network import StateEncoderWrapper, Actor, Critic
 
 
@@ -165,10 +165,15 @@ class Trainer(ModelBase):
 
         self.global_step = 0
 
-        self.optimizer = optim.Adam(itertools.chain(self.state_encoder.parameters(),
-                                                    self.critic.parameters(),
-                                                    self.actor.parameters()),
-                                    lr=critic_lr, weight_decay=weight_decay)
+        if isinstance(self.state_encoder.encoder, ConvVAE):
+            self.optimizer = optim.Adam(itertools.chain(self.critic.parameters(),
+                                                        self.actor.parameters()),
+                                        lr=critic_lr, weight_decay=weight_decay)
+        else:
+            self.optimizer = optim.Adam(itertools.chain(self.state_encoder.parameters(),
+                                                        self.critic.parameters(),
+                                                        self.actor.parameters()),
+                                        lr=critic_lr, weight_decay=weight_decay)
         init_optimizer(self.optimizer)
         self.actor_loss_weight = actor_lr / critic_lr
         self.alpha_optimizer = optim.Adam([self.log_alpha], lr=alpha_lr)
@@ -259,9 +264,17 @@ class Trainer(ModelBase):
                 = tuple(map(lambda tensor: torch.FloatTensor(tensor).to(self.model_device),
                             self.replay_buffer.sample(batch_size)))
 
-        state = self.state_encoder(observation)
-        with torch.no_grad():
-            next_state = self.state_encoder(next_observation)
+        if isinstance(self.state_encoder.encoder, ConvVAE):
+            with torch.no_grad():
+                self.state_encoder.eval()
+                # print('observation size', observation.size())
+                # print('next_observation size', next_observation.size())
+                state = encode_vae_observation(observation, self.state_encoder, device=self.model_device)
+                next_state = encode_vae_observation(next_observation, self.state_encoder, device=self.model_device)
+        else:
+            state = self.state_encoder(observation)
+            with torch.no_grad():
+                next_state = self.state_encoder(next_observation)
 
         if self.n_past_actions > 1:
             state = torch.cat((state, past_actions.view(batch_size, -1)), dim=1)
