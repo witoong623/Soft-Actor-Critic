@@ -171,7 +171,7 @@ def test_render(model, config):
             actions_tensor = torch.FloatTensor(prev_actions.reshape(-1))
             state = torch.cat((state_tensor, actions_tensor))
 
-        action = model.actor.get_action(state, deterministic=config.deterministic)
+        action = model.actor.get_action(state, deterministic=True)
 
         next_observation, reward, done, info = model.env.step(action)
 
