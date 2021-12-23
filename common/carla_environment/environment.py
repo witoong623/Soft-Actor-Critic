@@ -9,7 +9,7 @@ import numpy as np
 from carla import ColorConverter as cc
 from collections import deque
 from gym import spaces
-from gym.envs.registration import register
+from PIL import Image
 
 from misc import set_carla_transform, get_pos, get_lane_dis
 from route_planner import RoutePlanner
@@ -17,14 +17,17 @@ from route_planner import RoutePlanner
 
 class CarlaEnv(gym.Env):
     def __init__(self, **params):
+        self.host = 'witoon-carla'
+        self.port = 2000
+
         self.n_images = 1
-        self.obs_width = 800
-        self.obs_height = 600
+        self.obs_width = 512
+        self.obs_height = 256
 
         self.map = 'Town03'
         self.dt = 0.1
         self.reload_world = True
-        self.use_semantic_camera = False
+        self.use_semantic_camera = True
 
         self.camera_width = 800
         self.camera_height = 600
@@ -33,6 +36,7 @@ class CarlaEnv(gym.Env):
         self.number_of_walkers = 0
         self.number_of_vehicles = 10
         self.max_ego_spawn_times = 200
+        self.max_time_episode = 1000
         self.max_waypt = 12
         # in m/s. 5.5 is 20KMH
         self.desired_speed = 5.5
@@ -41,13 +45,15 @@ class CarlaEnv(gym.Env):
         # random or roundabout
         self.task_mode = 'random'
 
+        self.dests = None
+
         # action and observation spaces
         self.observation_space = spaces.Box(low=0, high=255, shape=(self.obs_height, self.obs_width, 3), dtype=np.uint8)
         # steering, accel/brake
         self.action_space = spaces.Box(low=np.array([-1., -1.]), high=np.array([1., 1.]), dtype=np.float32)
 
         print('connecting to Carla server...')
-        client = carla.Client('localhost', 2000)
+        client = carla.Client(self.host, self.port)
         client.set_timeout(20.0)
         if self.reload_world:
             self.world = client.load_world(self.map)
@@ -85,7 +91,6 @@ class CarlaEnv(gym.Env):
         self.camera_bp.set_attribute('image_size_x', str(self.camera_width))
         self.camera_bp.set_attribute('image_size_y', str(self.camera_height))
         self.camera_bp.set_attribute('fov', str(self.camera_fov))
-        self.camera_bp.set_attribute('sensor_tick', '0.0')
 
         # Set fixed simulation step for synchronous mode
         self.settings = self.world.get_settings()
@@ -172,12 +177,15 @@ class CarlaEnv(gym.Env):
         self.camera_sensor = self.world.spawn_actor(self.camera_bp, self.camera_trans, attach_to=self.ego)
         self.camera_sensor.listen(lambda data: get_camera_img(data))
         def get_camera_img(data):
-            data.convert(cc.CityScapesPalette)
+            if self.use_semantic_camera:
+                data.convert(cc.CityScapesPalette)
             array = np.frombuffer(data.raw_data, dtype=np.uint8)
             array = np.reshape(array, (data.height, data.width, 4))
             array = array[:, :, :3]
-            # BRG > RGB
-            # array = array[:, :, ::-1]
+            array = cv2.resize(array, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
+
+            # BGR(OpenCV) > RGB
+            array = array[:, :, ::-1]
             self.camera_img = array
 
         # Update timesteps
@@ -199,12 +207,24 @@ class CarlaEnv(gym.Env):
         acc = action[0]
         steer = action[1]
 
-        self.ego.apply_control(carla.VehicleControl(throttle=acc, steer=steer))
+        if acc > 0:
+            throttle = np.clip(acc, 0, 1)
+            brake = 0
+        else:
+            throttle = 0
+            brake = np.clip(-acc, 0, 1)
+
+        self.ego.apply_control(carla.VehicleControl(throttle=float(throttle), steer=float(steer), brake=float(brake)))
+
         self.world.tick()
 
         self.waypoints = self.routeplanner.run_step()
 
-        return self._get_obs(), self._get_reward(), self._get_terminal(), None
+        # Update timesteps
+        self.time_step += 1
+        self.total_step += 1
+
+        return self._get_obs(), self._get_reward(), self._get_terminal(), {}
 
     def render(self, mode='human'):
         if mode == 'human':
@@ -214,7 +234,7 @@ class CarlaEnv(gym.Env):
 
             cv2.imshow('Carla environment', self.camera_img)
             cv2.waitKey(1)
-        else:
+        elif mode == 'rgb':
             return self.camera_img
 
     def _get_reward(self):
@@ -256,7 +276,30 @@ class CarlaEnv(gym.Env):
         return r
 
     def _get_terminal(self):
-        pass
+        """ Calculate whether to terminate the current episode. """
+        # Get ego state
+        ego_x, ego_y = get_pos(self.ego)
+
+        # If collides
+        if len(self.collision_hist) > 0:
+            return True
+
+        # If reach maximum timestep
+        if self.time_step > self.max_time_episode:
+            return True
+
+        # If at destination
+        if self.dests is not None: # If at destination
+            for dest in self.dests:
+                if np.sqrt((ego_x-dest[0])**2 + (ego_y-dest[1])**2) < 4:
+                    return True
+
+        # If out of lane
+        dis, _ = get_lane_dis(self.waypoints, ego_x, ego_y)
+        if abs(dis) > self.out_lane_thres:
+            return True
+
+        return False
 
     def _get_obs(self):
         if self.n_images == 1:
@@ -429,10 +472,14 @@ if __name__ == '__main__':
     excep_count = 1
     for i in range(50):
         new_obs, reward, done, info = env.step([0.5, 0])
-        print('new_obs shape', new_obs.shape)
-        print('reward', reward)
-        cv2.imwrite(f'carla_images/step_{i+1}.jpeg', new_obs)
+        img = Image.fromarray(env.camera_img)
+        img.save(f'carla_images/step_{i+1}.jpeg')
         # env.render()
+        obs = new_obs
+
+        if done:
+            print('done')
+            break
 
     key = input('pass anykey to exit')
     env.close()
