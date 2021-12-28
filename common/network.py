@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .efficientnet import efficientnet_b0
+
 
 __all__ = [
     'build_encoder',
@@ -67,6 +69,8 @@ def build_encoder(config):
             raise ValueError('--weight-path must be provided if encoder is VAE.')
         state_encoder.load_model(config.weight_path)
         state_encoder.eval()
+    elif config.EFFICIENTNET_encoder:
+        state_encoder = efficientnet_b0(pretrained=True, progress=True, use_modified_ver=True)
 
     config.state_encoder = state_encoder
     config.state_dim = state_dim

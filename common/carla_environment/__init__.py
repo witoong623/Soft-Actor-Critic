@@ -1,1 +1,1 @@
-from environment import CarlaEnv
+from .environment import CarlaEnv

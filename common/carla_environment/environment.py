@@ -11,8 +11,8 @@ from collections import deque
 from gym import spaces
 from PIL import Image
 
-from misc import set_carla_transform, get_pos, get_lane_dis
-from route_planner import RoutePlanner
+from .misc import set_carla_transform, get_pos, get_lane_dis
+from .route_planner import RoutePlanner
 
 
 class CarlaEnv(gym.Env):
@@ -21,8 +21,8 @@ class CarlaEnv(gym.Env):
         self.port = 2000
 
         self.n_images = 1
-        self.obs_width = 512
-        self.obs_height = 256
+        self.obs_width = 480
+        self.obs_height = 270
 
         self.map = 'Town03'
         self.dt = 0.1
@@ -451,7 +451,11 @@ class CarlaEnv(gym.Env):
         return False
 
     def close(self):
-        cv2.destroyAllWindows()
+        try:
+            cv2.destroyAllWindows()
+        except cv2.error:
+            pass
+
         return super().close()
 
 
