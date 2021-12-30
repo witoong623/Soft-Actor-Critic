@@ -16,11 +16,11 @@ from .route_planner import RoutePlanner
 
 
 class CarlaEnv(gym.Env):
-    def __init__(self, **params):
+    def __init__(self, **kwargs):
         self.host = 'witoon-carla'
         self.port = 2000
 
-        self.n_images = 1
+        self.n_images = 2
         self.obs_width = 480
         self.obs_height = 270
 
@@ -52,13 +52,18 @@ class CarlaEnv(gym.Env):
         # steering, accel/brake
         self.action_space = spaces.Box(low=np.array([-1., -1.]), high=np.array([1., 1.]), dtype=np.float32)
 
+        dry_run = kwargs.get('dry_run', False)
+        if dry_run:
+            print('dry run, exit init')
+            return
+
         print('connecting to Carla server...')
-        client = carla.Client(self.host, self.port)
-        client.set_timeout(20.0)
+        self.client = carla.Client(self.host, self.port)
+        self.client.set_timeout(30.0)
         if self.reload_world:
-            self.world = client.load_world(self.map)
+            self.world = self.client.load_world(self.map)
         else:
-            self.world = client.get_world()
+            self.world = self.client.get_world()
         print('Carla server connected!')
 
         # spawn points
@@ -83,10 +88,10 @@ class CarlaEnv(gym.Env):
         # camera
         # self.camera_img = np.zeros((self.camera_height, self.camera_width, 3), dtype=np.uint8)
         self.camera_trans = carla.Transform(carla.Location(x=0.8, z=1.7))
+        self.camera_sensor_type = 'sensor.camera.rgb'
         if self.use_semantic_camera:
-            self.camera_bp = self.world.get_blueprint_library().find('sensor.camera.semantic_segmentation')
-        else:
-            self.camera_bp = self.world.get_blueprint_library().find('sensor.camera.rgb')
+            self.camera_sensor_type = 'sensor.camera.semantic_segmentation'
+        self.camera_bp = self.world.get_blueprint_library().find(self.camera_sensor_type)
         # Modify the attributes of the blueprint to set image resolution and field of view.
         self.camera_bp.set_attribute('image_size_x', str(self.camera_width))
         self.camera_bp.set_attribute('image_size_y', str(self.camera_height))
@@ -101,14 +106,20 @@ class CarlaEnv(gym.Env):
         self.total_step = 0
 
         # frame buffer
-        self.camera_img = None
+        self.camera_img = np.zeros((self.obs_width, self.obs_height, 3), dtype=np.uint8)
         self.img_buff = deque(maxlen=self.n_images)
 
+        # action buffer
+        self.num_past_actions = 10
+        self.actions_queue = deque(maxlen=self.num_past_actions)
+
     def reset(self):
+        # Clear sensor objects
         self.camera_sensor = None
+        self.collision_sensor = None
 
         # delete sensor, vehicles and walkers
-        self._clear_all_actors(['sensor.other.collision', 'sensor.camera.semantic_segmentation', 'vehicle.*', 'controller.ai.walker', 'walker.*'])
+        self._clear_all_actors(['sensor.other.collision', self.camera_sensor_type, 'vehicle.*', 'controller.ai.walker', 'walker.*'])
 
         # Disable sync mode
         self._set_synchronous_mode(False)
@@ -185,7 +196,7 @@ class CarlaEnv(gym.Env):
             array = cv2.resize(array, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
 
             # BGR(OpenCV) > RGB
-            array = array[:, :, ::-1]
+            array = np.ascontiguousarray(array[:, :, ::-1])
             self.camera_img = array
 
         # Update timesteps
@@ -196,10 +207,11 @@ class CarlaEnv(gym.Env):
         self.settings.synchronous_mode = True
         self.world.apply_settings(self.settings)
 
-        self.world.tick()
-
         self.routeplanner = RoutePlanner(self.ego, self.max_waypt)
         self.waypoints = self.routeplanner.run_step()
+
+        for _ in range(self.num_past_actions):
+            self.actions_queue.append(np.array([0, 0]))
 
         return self._get_obs()
 
@@ -224,7 +236,12 @@ class CarlaEnv(gym.Env):
         self.time_step += 1
         self.total_step += 1
 
-        return self._get_obs(), self._get_reward(), self._get_terminal(), {}
+        info = {}
+        info['past_actions'] = np.array(self.actions_queue)
+        self.actions_queue.append(action)
+        info['next_past_actions'] = np.array(self.actions_queue)
+
+        return self._get_obs(), self._get_reward(), self._get_terminal(), info
 
     def render(self, mode='human'):
         if mode == 'human':
@@ -303,15 +320,13 @@ class CarlaEnv(gym.Env):
 
     def _get_obs(self):
         if self.n_images == 1:
-            return self.camera_img
+            return self._transform_observation(self.camera_img)
 
         self.img_buff.append(self.camera_img)
         while len(self.img_buff) < self.n_images:
             self.img_buff.append(self.camera_img)
 
-        # print([type(o) for o in self.img_buff])
-
-        return np.array(self.img_buff)
+        return np.concatenate([self._transform_observation(img) for img in self.img_buff], axis=0)
 
     def _create_vehicle_bluepprint(self, actor_filter, color=None, number_of_wheels=[4]):
         """Create the blueprint for a specific actor type.
@@ -335,12 +350,15 @@ class CarlaEnv(gym.Env):
 
     def _clear_all_actors(self, actor_filters):
         """ Clear specific actors. """
+        destroy_commands = []
         for actor_filter in actor_filters:
             for actor in self.world.get_actors().filter(actor_filter):
                 if actor.is_alive:
                     if actor.type_id == 'controller.ai.walker':
                         actor.stop()
-                actor.destroy()
+                destroy_commands.append(carla.command.DestroyActor(actor))
+
+        self.client.apply_batch(destroy_commands)
 
     def _set_synchronous_mode(self, synchronous = True):
         """Set whether to use the synchronous mode.
@@ -449,6 +467,11 @@ class CarlaEnv(gym.Env):
             return True
 
         return False
+
+    def _transform_observation(self, obs):
+        ''' Transform image observation to ``C`` x ``H`` x ``W``, and normalize '''
+        return obs.transpose((2, 0, 1)) / 255.
+        
 
     def close(self):
         try:

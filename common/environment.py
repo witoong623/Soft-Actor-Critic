@@ -25,7 +25,13 @@ except Exception:
 
 
 def build_env(**kwargs):
-    env = gym.make(kwargs['name'])
+    # pass dry run only if it's available to gym.make
+    make_kwargs = {}
+    dry_run = kwargs.get('dry_run', False)
+    if dry_run:
+        make_kwargs['dry_run'] = True
+
+    env = gym.make(kwargs['name'], **make_kwargs)
     env.seed(kwargs['random_seed'])
 
     env = NormalizedAction(FlattenedAction(env))
@@ -34,6 +40,8 @@ def build_env(**kwargs):
                                   n_past_actions=kwargs['n_past_actions'], to_grayscale=kwargs['encoder_arch'] != 'VAE')
     elif kwargs['vision_observation']:
         env = VisionObservation(env, image_size=(kwargs['image_size'], kwargs['image_size']))
+    elif kwargs['name'] == 'Carla-v0':
+        pass
     else:
         env = FlattenedObservation(env)
 
@@ -64,6 +72,10 @@ def initialize_environment(config):
                                                 'encoder_arch'])
     config.env_kwargs.update(name=config.env)
 
+    # pass dry_run only if it is true
+    if config.dry_run_init_env:
+        config.env_kwargs.update(dry_run=config.dry_run_init_env)
+
     with config.env_func(**config.env_kwargs) as env:
         print(f'env = {env}')
         print(f'observation_space.shape = {env.observation_space.shape}')
@@ -80,6 +92,9 @@ def initialize_environment(config):
         config.env_kwargs['max_episode_steps'] = config.max_episode_steps
         if config.RNN_encoder:
             assert config.step_size <= config.max_episode_steps
+
+    # use this option only if in this function
+    del config.env_kwargs['dry_run']
 
 
 class FlattenedAction(gym.ActionWrapper):

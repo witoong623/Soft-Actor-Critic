@@ -60,6 +60,8 @@ def get_config():
                         help='hidden dimensions of FC controller')
     parser.add_argument('--activation', type=str, choices=['ReLU', 'LeakyReLU', 'Tanh'], default='ReLU',
                         help='activation function in controller networks (default: ReLU)')
+    parser.add_argument('--dry-run-init-env', action='store_true', default=False,
+                        help='dry run when initialize environment for the first time only')
     encoder_group = parser.add_argument_group('state encoder')
     encoder_group.add_argument('--encoder-arch', type=str, choices=['FC', 'RNN', 'CNN', 'VAE', 'EFFICIENTNET'], default='FC',
                                help='architecture of state encoder network (default: FC)')

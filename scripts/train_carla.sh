@@ -17,17 +17,15 @@ cp "$0" "$LOG_DIR"
 python main.py \
 	--mode train --gpu 0 \
 	--env "$ENV" \
-	--vision-observation --image-size 96 \
-	--n-frames 4 \
-    --n-past-actions 8 \
+    --n-past-actions 10 \
 	--hidden-dims 256 128 \
 	--activation LeakyReLU \
 	--encoder-arch EFFICIENTNET \
-	--state-dim 1408 \
+	--state-dim 1280 \
 	--max-episode-steps 999 \
-	--n-epochs 1000 --n-updates 256 --batch-size 64 \
+	--n-epochs 1000 --n-updates 256 --batch-size 16 \
 	--n-samplers 1 \
-	--buffer-capacity 5000 \
+	--buffer-capacity 1000 \
 	--update-sample-ratio 8.0 \
 	--critic-lr 3E-4 --actor-lr 3E-4 \
 	--alpha-lr 3E-4 --initial-alpha 1.0 --adaptive-entropy \
@@ -35,4 +33,5 @@ python main.py \
 	--gamma 0.99 --soft-tau 0.005 --random-seed 69 \
 	--log-dir "$LOG_DIR" \
 	--checkpoint-dir "$CHECKPOINT_DIR" \
+	--dry-run-init-env \
 	"$@" # script arguments (can override args above)

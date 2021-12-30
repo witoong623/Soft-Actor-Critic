@@ -189,10 +189,11 @@ class EfficientNet(nn.Module):
         layers: List[nn.Module] = []
 
         # building first layer
+        input_channels = kwargs.get('input_channels', 3)
         firstconv_output_channels = inverted_residual_setting[0].input_channels
         layers.append(
             ConvNormActivation(
-                3, firstconv_output_channels, kernel_size=3, stride=2, norm_layer=norm_layer, activation_layer=nn.SiLU
+                input_channels, firstconv_output_channels, kernel_size=3, stride=2, norm_layer=norm_layer, activation_layer=nn.SiLU
             )
         )
 
@@ -259,11 +260,10 @@ class EfficientNet(nn.Module):
 
     def _forward_impl(self, x: Tensor) -> Tensor:
         x = self.features(x)
-        if self.use_modified_ver:
-            x = self.avgpool(x)
-            return x
-
+        x = self.avgpool(x)
         x = torch.flatten(x, 1)
+        if self.use_modified_ver:
+            return x
 
         x = self.classifier(x)
 
@@ -299,7 +299,8 @@ def _efficientnet(
         if model_urls.get(arch, None) is None:
             raise ValueError(f"No checkpoint is available for model type {arch}")
         state_dict = load_state_dict_from_url(model_urls[arch], progress=progress)
-        unused_keys = ['features.8.0.weight',
+        unused_keys = ['features.0.0.weight',
+            'features.8.0.weight',
             'features.8.1.weight',
             'features.8.1.bias',
             'features.8.1.running_mean',
@@ -364,7 +365,7 @@ def _make_divisible(v: float, divisor: int, min_value: Optional[int] = None) -> 
 
 if __name__ == '__main__':
     d = 'cuda:0'
-    model = efficientnet_b2(pretrained=True, progress=True, device=d)
-    dummy = torch.randn((1, 3, 270, 480), device=d)
+    model = efficientnet_b0(pretrained=True, progress=True, use_modified_ver=True, device=d, input_channels=6)
+    dummy = torch.randn((1, 6, 270, 480), device=d)
     out = model(dummy)
-    print(out.flatten(1).size())
+    print(out.size())
