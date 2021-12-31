@@ -158,6 +158,8 @@ def get_config():
                         help='folder to save checkpoint')
     parser.add_argument('--load-checkpoint', action='store_true',
                         help='load latest checkpoint in checkpoint dir')
+    parser.add_argument('--record-video', action='store_true',
+                        help='record video directly from environment')
     args = parser.parse_args()
     if len(sys.argv) == 1:
         parser.print_help()

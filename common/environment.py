@@ -4,7 +4,7 @@ import gym
 import numpy as np
 import torchvision.transforms as transforms
 from gym.spaces import Box
-from gym.wrappers import TimeLimit
+from gym.wrappers import TimeLimit, RecordVideo
 
 
 __all__ = [
@@ -48,6 +48,9 @@ def build_env(**kwargs):
     if kwargs['n_frames'] > 1 and kwargs['name'] != 'CarRacing-v0' :
         env = ConcatenatedObservation(env, n_frames=kwargs['n_frames'], dim=0)
 
+    if kwargs['record_video']:
+        env = RecordVideo(env, 'carla_videos')
+
     max_episode_steps = kwargs['max_episode_steps']
     try:
         max_episode_steps = min(max_episode_steps, env.spec.max_episode_steps)
@@ -69,7 +72,8 @@ def initialize_environment(config):
                                                 'random_seed',
                                                 'n_repeat_actions',
                                                 'n_past_actions',
-                                                'encoder_arch'])
+                                                'encoder_arch',
+                                                'record_video'])
     config.env_kwargs.update(name=config.env)
 
     # pass dry_run only if it is true
@@ -94,7 +98,7 @@ def initialize_environment(config):
             assert config.step_size <= config.max_episode_steps
 
     # use this option only if in this function
-    del config.env_kwargs['dry_run']
+    config.env_kwargs.pop('dry_run', None)
 
 
 class FlattenedAction(gym.ActionWrapper):

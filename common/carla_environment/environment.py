@@ -26,6 +26,7 @@ class CarlaEnv(gym.Env):
 
         self.map = 'Town03'
         self.dt = 0.1
+        self.frame_per_second = round(1 / self.dt)
         self.reload_world = True
         self.use_semantic_camera = True
 
@@ -150,7 +151,7 @@ class CarlaEnv(gym.Env):
             if self._try_spawn_random_walker_at(random.choice(self.walker_spawn_points)):
                 count -= 1
 
-            # Get actors polygon list
+        # Get actors polygon list
         self.vehicle_polygons = []
         vehicle_poly_dict = self._get_actor_polygons('vehicle.*')
         self.vehicle_polygons.append(vehicle_poly_dict)
@@ -193,7 +194,7 @@ class CarlaEnv(gym.Env):
             array = np.frombuffer(data.raw_data, dtype=np.uint8)
             array = np.reshape(array, (data.height, data.width, 4))
             array = array[:, :, :3]
-            array = cv2.resize(array, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
+            # array = cv2.resize(array, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
 
             # BGR(OpenCV) > RGB
             array = np.ascontiguousarray(array[:, :, ::-1])
@@ -251,7 +252,7 @@ class CarlaEnv(gym.Env):
 
             cv2.imshow('Carla environment', self.camera_img)
             cv2.waitKey(1)
-        elif mode == 'rgb':
+        elif mode == 'rgb_array':
             return self.camera_img
 
     def _get_reward(self):
@@ -469,7 +470,9 @@ class CarlaEnv(gym.Env):
         return False
 
     def _transform_observation(self, obs):
-        ''' Transform image observation to ``C`` x ``H`` x ``W``, and normalize '''
+        ''' Transform image observation to specified observation size in form of ``C`` x ``H`` x ``W``,
+            and normalize it '''
+        obs = cv2.resize(obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
         return obs.transpose((2, 0, 1)) / 255.
         
 
@@ -480,6 +483,10 @@ class CarlaEnv(gym.Env):
             pass
 
         return super().close()
+
+    @property
+    def metadata(self):
+        return {"render.modes": ["human", "rgb_array"], "video.frames_per_second": self.frame_per_second}
 
 
 # register(
