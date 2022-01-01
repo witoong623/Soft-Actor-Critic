@@ -49,7 +49,7 @@ def build_env(**kwargs):
         env = ConcatenatedObservation(env, n_frames=kwargs['n_frames'], dim=0)
 
     if kwargs['record_video']:
-        env = RecordVideo(env, 'carla_videos')
+        env = RecordVideo(env, video_folder='carla_videos', name_prefix='carla_video')
 
     max_episode_steps = kwargs['max_episode_steps']
     try:

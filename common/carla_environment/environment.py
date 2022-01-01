@@ -5,6 +5,9 @@ import random
 import time
 
 import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
 
 from carla import ColorConverter as cc
 from collections import deque
@@ -114,7 +117,20 @@ class CarlaEnv(gym.Env):
         self.num_past_actions = 10
         self.actions_queue = deque(maxlen=self.num_past_actions)
 
+        # control history
+        self.store_history = False
+        if self.store_history:
+            self.throttle_hist = []
+            self.brakes_hist = []
+            self.steers_hist = []
+
     def reset(self):
+        # Clear history if exist
+        if self.store_history:
+            self.throttle_hist.clear()
+            self.brakes_hist.clear()
+            self.steers_hist.clear()
+
         # Clear sensor objects
         self.camera_sensor = None
         self.collision_sensor = None
@@ -228,6 +244,11 @@ class CarlaEnv(gym.Env):
             brake = np.clip(-acc, 0, 1)
 
         self.ego.apply_control(carla.VehicleControl(throttle=float(throttle), steer=float(steer), brake=float(brake)))
+
+        if self.store_history:
+            self.throttle_hist.append(float(throttle))
+            self.brakes_hist.append(float(brake))
+            self.steers_hist.append(float(steer))
 
         self.world.tick()
 
@@ -484,15 +505,21 @@ class CarlaEnv(gym.Env):
 
         return super().close()
 
+    def plot_control_graph(self, name):
+        if not self.store_history:
+            raise Exception('Cannot plot graph because environment does not store history')
+
+        data_np = np.array([self.throttle_hist, self.brakes_hist, self.steers_hist]).transpose()
+        data = pd.DataFrame(data_np, columns=['throttle', 'brake', 'steer']).reset_index()
+        data = pd.melt(data, id_vars='index', var_name='command', value_name='value')
+
+        sns.lineplot(data=data, hue='command', x='index', y='value')
+        plt.title('Throttle, Brake and Steer')
+        plt.savefig(name)
+
     @property
     def metadata(self):
         return {"render.modes": ["human", "rgb_array"], "video.frames_per_second": self.frame_per_second}
-
-
-# register(
-#     id='carla-v0',
-#     entry_point='carla_environment:CarlaEnv',
-# )
 
 
 if __name__ == '__main__':

@@ -1,5 +1,7 @@
 import os
 import time
+import pytz
+from datetime import datetime
 from collections import OrderedDict
 
 import numpy as np
@@ -186,3 +188,8 @@ def test_render(model, config):
 
     model.env.close()
     print(f'accumulate reward is {rewards}')
+    
+    bkk_tz = pytz.timezone('Asia/Bangkok')
+    now = datetime.now(bkk_tz)
+    now_str = now.strftime('%Y-%m-%dT%H-%M-%S')
+    model.env.plot_control_graph(f'test_commands_{now_str}.jpeg')

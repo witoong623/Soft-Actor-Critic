@@ -267,8 +267,6 @@ class Trainer(ModelBase):
         if isinstance(self.state_encoder.encoder, ConvVAE):
             with torch.no_grad():
                 self.state_encoder.eval()
-                # print('observation size', observation.size())
-                # print('next_observation size', next_observation.size())
                 state = encode_vae_observation(observation, self.state_encoder, device=self.model_device)
                 next_state = encode_vae_observation(next_observation, self.state_encoder, device=self.model_device)
         else:

@@ -12,5 +12,5 @@ python main.py \
 	--record-video \
 	--load-checkpoint \
 	--dry-run-init-env \
-	--log-dir "logs/Carla-v0_test_render/CNN" \
-	--checkpoint-dir "savedcheckpoints/Carla-v0/CNN"
+	--log-dir "logs/Carla-v0_test_render/EFFICIENTNET" \
+	--checkpoint-dir "savedcheckpoints/Carla-v0/EFFICIENTNET"
