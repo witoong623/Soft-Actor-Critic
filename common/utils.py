@@ -2,6 +2,7 @@ import copy
 import glob
 import json
 import os
+import random
 import re
 from functools import partial
 
@@ -114,11 +115,12 @@ def check_logging(config):
     else:
         initial_epoch = 0
 
+    print(f'load checkpoint from {initial_checkpoint}')
     config.initial_checkpoint = initial_checkpoint
     config.initial_epoch = initial_epoch
 
 
-def sample_bias_action(prev_action):
+def sample_carracing_bias_action(prev_action):
     ''' Sample bias action for CarRacing-v0 '''
     if np.random.randint(3) % 3:
         return prev_action
@@ -138,10 +140,24 @@ def sample_bias_action(prev_action):
     return action * mask
 
 
-_img_transform = T.Compose([
-    T.ToPILImage(),
-    T.ToTensor()
-])
+def sample_carla_bias_action():
+    ''' Sample bias action for Carla-v0 '''
+    longitudinal = random.random()
+    if longitudinal > 0.3:
+        # 70% chance of accelerating at least 10%
+        acc = random.random() + 0.1
+    else:
+        # 30% chance of brake between 10% and 70%
+        acc = -random.random()
+        acc = max(-0.1, min(acc, -0.7))
+
+    lateral = random.random()
+    if lateral > 0.5:
+        steer = 0
+    else:
+        steer = random.gauss(0, 1)
+
+    return np.array([acc, steer], dtype=np.float32)
 
 
 def _transform_np_image_to_tensor(imgs, normalize=True):

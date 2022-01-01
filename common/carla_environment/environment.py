@@ -524,23 +524,28 @@ class CarlaEnv(gym.Env):
 
 if __name__ == '__main__':
     # env = gym.make('carla-v0')
-    env = CarlaEnv()
+    env = CarlaEnv(dry_run=True)
     # print('action_space', env.action_space)
     # print('action_space.shape', env.action_space.shape)
-    # print('observation_space', env.observation_space)
-    obs = env.reset()
+    sample_action = env.action_space.sample()
+    print(type(sample_action))
+    print(sample_action)
+    print(sample_action.dtype)
+    print(sample_action.shape)
 
-    excep_count = 1
-    for i in range(50):
-        new_obs, reward, done, info = env.step([0.5, 0])
-        img = Image.fromarray(env.camera_img)
-        img.save(f'carla_images/step_{i+1}.jpeg')
-        # env.render()
-        obs = new_obs
+    # obs = env.reset()
 
-        if done:
-            print('done')
-            break
+    # excep_count = 1
+    # for i in range(50):
+    #     new_obs, reward, done, info = env.step([0.5, 0])
+    #     img = Image.fromarray(env.camera_img)
+    #     img.save(f'carla_images/step_{i+1}.jpeg')
+    #     # env.render()
+    #     obs = new_obs
 
-    key = input('pass anykey to exit')
-    env.close()
+    #     if done:
+    #         print('done')
+    #         break
+
+    # key = input('pass anykey to exit')
+    # env.close()

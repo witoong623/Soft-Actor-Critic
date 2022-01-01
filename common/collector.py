@@ -12,7 +12,7 @@ from setproctitle import setproctitle
 from torch.utils.tensorboard import SummaryWriter
 
 from .buffer import ReplayBuffer, EpisodeReplayBuffer
-from .utils import clone_network, sync_params, encode_vae_observation
+from .utils import clone_network, sync_params, sample_carla_bias_action 
 
 
 __all__ = ['Collector', 'EpisodeCollector']
@@ -108,7 +108,7 @@ class Sampler(mp.Process):
             self.save_frame(step=0, reward=np.nan, episode_reward=0.0)
             for step in range(self.max_episode_steps):
                 if self.random_sample:
-                    action = self.env.action_space.sample()
+                    action = sample_carla_bias_action()
                 else:
                     # state = encode_vae_observation(observation, self.state_encoder, device=self.device)
                     state = self.state_encoder.encode(observation)
