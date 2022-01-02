@@ -8,11 +8,11 @@ import torch.optim.lr_scheduler as lr_scheduler
 import multiprocessing
 import time
 from functools import partial
-from torchvision.utils import save_image
+# from torchvision.utils import save_image
 from tqdm import tqdm
 
 from dataloader import get_train_dataloader
-from vae.model import ConvVAE
+from common.network import ConvVAE
 
 
 def train(model, device, train_loader, optimizer, epoch, log_interval):
@@ -79,15 +79,15 @@ CHECKPOINT_FORMAT = '{prefix}epoch({epoch})-loss({loss:+.3E}){suffix}.pkl'
 CHECKPOINT_FORMAT = partial(CHECKPOINT_FORMAT.format, prefix='', suffix='')
 
 # parameters
-BATCH_SIZE = 512
+BATCH_SIZE = 128
 TEST_BATCH_SIZE = 10
-EPOCHS = 400
+EPOCHS = 100
 
-LATENT_SIZE = 128
+LATENT_SIZE = 512
 LEARNING_RATE = 5e-4
 
 USE_CUDA = True
-PRINT_INTERVAL = 100
+PRINT_INTERVAL = 200
 LOG_PATH = './logs/log.pkl'
 MODEL_PATH = './checkpoints/'
 COMPARE_PATH = './comparisons/'
@@ -99,11 +99,11 @@ if __name__ == "__main__":
     print('Using device', device)
     print('num cpus:', multiprocessing.cpu_count())
 
-    train_loader = get_train_dataloader('/root/image_dataset', BATCH_SIZE, 2)
+    train_loader = get_train_dataloader('/root/thesis/thesis-code/Soft-Actor-Critic/carla_images', BATCH_SIZE, 3)
     # test_loader = torch.utils.data.DataLoader(data_test, batch_size=TEST_BATCH_SIZE, shuffle=True, **kwargs)
 
     print('latent size:', LATENT_SIZE)
-    model = ConvVAE((96, 96), latent_size=LATENT_SIZE).to(device)
+    model = ConvVAE((270, 480), latent_size=LATENT_SIZE).to(device)
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
     scheduler = lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, cooldown=30, verbose=True)
 
@@ -121,4 +121,4 @@ if __name__ == "__main__":
 
         if epoch % 10 == 0:
             print(f'save weight at epoch {epoch}')
-            model.save_model(os.path.join('/root/thesis/thesis-code/Soft-Actor-Critic/vae_weights2', CHECKPOINT_FORMAT(epoch=epoch, loss=train_loss)))
+            model.save_model(os.path.join('/root/thesis/thesis-code/Soft-Actor-Critic/vae_weights/Carla-v0', CHECKPOINT_FORMAT(epoch=epoch, loss=train_loss)))

@@ -222,13 +222,13 @@ def encode_vae_observation(observation, encoder, normalize=True, device='cpu'):
         batch_size = observation.shape[0]
         # print('observation.shape', observation.shape)
         # observation = observation.squeeze()
-        observation_tensors = [_transform_np_image_to_tensor(observation[i]).to(device) for i in range(observation.shape[0])]
+        observation_tensors = [_transform_np_image_to_tensor(observation[i], normalize).to(device) for i in range(observation.shape[0])]
     elif isinstance(observation, torch.Tensor):
         assert len(observation.size()) == 5
 
         batch_size = observation.shape[0]
 
-        observation_tensors = [_transform_tensor(observation[i]).to(device) for i in range(observation.size(0))]
+        observation_tensors = [_transform_tensor(observation[i], normalize).to(device) for i in range(observation.size(0))]
 
     batch_states = []
     with torch.no_grad():

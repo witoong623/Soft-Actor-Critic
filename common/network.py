@@ -425,10 +425,10 @@ class CarRacingCNN(NetworkBase):
 
 
 class ConvVAE(NetworkBase):
-    def __init__(self, image_size,  input_channel=3, latent_size=64):
+    def __init__(self, image_size,  input_channel=3, latent_size=64, beta=3):
         super(ConvVAE, self).__init__()
 
-        self.beta = 3
+        self.beta = beta
 
         self.encoder = nn.Sequential(
             nn.Conv2d(input_channel, 32, 4, stride=2),
@@ -452,6 +452,7 @@ class ConvVAE(NetworkBase):
 
         self.latent = nn.Linear(latent_size, 64 * self.encoder_h * self.encoder_w)
 
+        # control output size by controlling output_padding
         self.decoder = nn.Sequential(
             nn.ConvTranspose2d(64, 64, 4, stride=2),
             nn.BatchNorm2d(64),
@@ -459,7 +460,7 @@ class ConvVAE(NetworkBase):
             nn.ConvTranspose2d(64, 32, 4, stride=2),
             nn.BatchNorm2d(32),
             nn.ReLU(),
-            nn.ConvTranspose2d(32, 32, 4, stride=2, output_padding=1),
+            nn.ConvTranspose2d(32, 32, 4, stride=2, output_padding=(0, 1)),
             nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.ConvTranspose2d(32, 3, 4, stride=2),
@@ -528,8 +529,9 @@ CNN = ConvolutionalNeuralNetwork
 
 
 if __name__ == '__main__':
-    image_size = (96, 96)
-    model = ConvVAE(image_size, latent_size=128)
+    image_size = (270, 480)
+    model = ConvVAE(image_size, latent_size=512)
+    print(model)
     dummy = torch.zeros((1, 3, *image_size))
 
     reconstruct, mu, logvar = model(dummy)
