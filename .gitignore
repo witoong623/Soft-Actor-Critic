@@ -238,3 +238,4 @@ tags
 *.bat
 videos/
 vae_weights/
+carla_images/

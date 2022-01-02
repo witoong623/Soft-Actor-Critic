@@ -10,12 +10,15 @@ import pandas as pd
 import seaborn as sns
 
 from carla import ColorConverter as cc
+from agents.navigation.behavior_agent import BehaviorAgent
 from collections import deque
 from gym import spaces
 from PIL import Image
 
 from .misc import set_carla_transform, get_pos, get_lane_dis
 from .route_planner import RoutePlanner
+
+from agents.navigation.behavior_agent import BehaviorAgent
 
 
 class CarlaEnv(gym.Env):
@@ -81,7 +84,7 @@ class CarlaEnv(gym.Env):
                 self.walker_spawn_points.append(spawn_point)
 
         # ego vehicle bp
-        self.ego_bp = self._create_vehicle_bluepprint('vehicle.nissan.micra', color='49,8,8')
+        self.ego_bp = self._create_vehicle_bluepprint('vehicle.tesla.model3', color='49,8,8')
 
         # Collision sensor
         self.collision_hist = []
@@ -495,7 +498,10 @@ class CarlaEnv(gym.Env):
             and normalize it '''
         obs = cv2.resize(obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
         return obs.transpose((2, 0, 1)) / 255.
-        
+
+    def _get_image(self):
+        ''' Return RGB image in `H` x `W` x `C` format, its size match observation size. '''
+        return cv2.resize(self.camera_img, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
 
     def close(self):
         try:
@@ -520,6 +526,17 @@ class CarlaEnv(gym.Env):
     @property
     def metadata(self):
         return {"render.modes": ["human", "rgb_array"], "video.frames_per_second": self.frame_per_second}
+
+    def collect_env_images(self, num_steps, observation_callback=None):
+        agent = BehaviorAgent(self.ego)
+
+        for _ in range(num_steps):
+            self.ego.apply_control(agent.run_step())
+
+            self.world.tick()
+
+            if observation_callback is not None:
+                observation_callback(self._get_image())
 
 
 if __name__ == '__main__':
