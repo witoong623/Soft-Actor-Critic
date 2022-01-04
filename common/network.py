@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from torchinfo import summary
+
 from .efficientnet import efficientnet_b0
 
 
@@ -430,60 +432,91 @@ class ConvVAE(NetworkBase):
 
         self.beta = beta
 
-        self.encoder = nn.Sequential(
-            nn.Conv2d(input_channel, 32, 4, stride=2),
-            nn.BatchNorm2d(32),
-            nn.ReLU(),
-            nn.Conv2d(32, 32, 4, stride=2),
-            nn.BatchNorm2d(32),
-            nn.ReLU(),
-            nn.Conv2d(32, 64, 4, stride=2),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-            nn.Conv2d(64, 64, 4, stride=2),
-            nn.BatchNorm2d(64),
-            nn.ReLU()
-        )
+        self.settings = [
+            # out channel, k, s, p
+            (16, 4, 2, 0),
+            (32, 4, 2, 0),
+            (32, 4, 2, 0),
+            (64, 4, 2, 0),
+            (64, 4, 2, 0),
+        ]
 
-        self.encoder_h, self.encoder_w = self._calculate_spatial_size(image_size, self.encoder)
+        self.last_encoder_output_channels = self.settings[-1][0]
 
-        self.mu = nn.Linear(64 * self.encoder_h * self.encoder_w, latent_size)
-        self.var = nn.Linear(64 * self.encoder_h * self.encoder_w, latent_size)
+        next_block_input_channels = input_channel
+        encoders = []
+        for (out_channel, kernel, stride, padding) in self.settings:
+            encoders.extend([
+                nn.Conv2d(next_block_input_channels, out_channels=out_channel, kernel_size=kernel, stride=stride, padding=padding),
+                nn.BatchNorm2d(out_channel),
+                nn.ReLU()
+            ])
 
-        self.latent = nn.Linear(latent_size, 64 * self.encoder_h * self.encoder_w)
+            next_block_input_channels = out_channel
 
-        # control output size by controlling output_padding
-        self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(64, 64, 4, stride=2),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-            nn.ConvTranspose2d(64, 32, 4, stride=2),
-            nn.BatchNorm2d(32),
-            nn.ReLU(),
-            nn.ConvTranspose2d(32, 32, 4, stride=2, output_padding=(0, 1)),
-            nn.BatchNorm2d(32),
-            nn.ReLU(),
-            nn.ConvTranspose2d(32, 3, 4, stride=2),
-            nn.BatchNorm2d(3),
-            nn.Sigmoid()
-        )
+        self.encoder = nn.Sequential(*encoders)
+
+        (self.encoded_h, self.encoded_w), size_hist = self._calculate_spatial_size(image_size, self.encoder)
+
+        self.mu = nn.Linear(self.last_encoder_output_channels * self.encoded_h * self.encoded_w, latent_size)
+        self.var = nn.Linear(self.last_encoder_output_channels * self.encoded_h * self.encoded_w, latent_size)
+        self.latent = nn.Linear(latent_size, self.last_encoder_output_channels * self.encoded_h * self.encoded_w)
+
+        decoder_settings = self._generate_transposed_conv_settings(size_hist)
+        # build decoders in the same order (small to big channel) as encoders
+        # then reverse the order to make it transposed conv from big to small channel
+        next_block_output_channels = input_channel
+        decoders = []
+        for i, (in_channel, k, s, p, out_p) in enumerate(decoder_settings, 1):
+            # order is reverse here because when calling reverse later, layer inside block will order correctly
+            decoders.extend([
+                nn.ReLU(),
+                nn.BatchNorm2d(next_block_output_channels),
+                nn.ConvTranspose2d(in_channel, next_block_output_channels, k, stride=s, padding=p, output_padding=out_p),
+            ])
+
+            # activation of last (it's first in reverse order) layer must be sigmoid
+            if i == 1:
+                decoders[0] = nn.Sigmoid()
+
+            next_block_output_channels = in_channel
+
+        self.decoder = nn.Sequential(*reversed(decoders))
 
     def _calculate_spatial_size(self, image_size, conv_layers):
+        ''' Calculate spatial size after convolution layers '''
         H, W = image_size
+        size_hist = []
+        size_hist.append((H, W))
 
         for layer in conv_layers:
             if layer.__class__.__name__ != 'Conv2d':
                 continue
             conv = layer
-            H = (H + 2 * conv.padding[0] - conv.dilation[0] * (conv.kernel_size[0] - 1) - 1) / conv.stride[0] + 1
-            W = (W + 2 * conv.padding[1] - conv.dilation[1] * (conv.kernel_size[1] - 1) - 1) / conv.stride[1] + 1
+            H = int((H + 2 * conv.padding[0] - conv.dilation[0] * (conv.kernel_size[0] - 1) - 1) / conv.stride[0] + 1)
+            W = int((W + 2 * conv.padding[1] - conv.dilation[1] * (conv.kernel_size[1] - 1) - 1) / conv.stride[1] + 1)
 
-        return (int(H), int(W))
+            size_hist.append((H, W))
 
+        return (H, W), size_hist
+
+    def _generate_transposed_conv_settings(self, size_hist):
+        ''' Generate transposed convolution setting in the same order as convolution setting '''
+        decoder_settings = []
+        # don't use the last size hist because it is the size after last conv
+        # at each transposed conv, we use desired size to calculate output padding
+        for (output_channels, kernel, stride, padding), (desired_H, desired_W) in zip(self.settings, size_hist[:-1]):
+            output_padding_h = (desired_H + 2 * padding - kernel) % 2
+            output_padding_w = (desired_W + 2 * padding - kernel) % 2
+            output_padding = (output_padding_h, output_padding_w)
+
+            decoder_settings.append((output_channels, kernel, stride, padding, output_padding))
+
+        return decoder_settings
 
     def encode(self, x):
         x = self.encoder(x)
-        x = x.view(-1, 64 * self.encoder_h * self.encoder_w)
+        x = x.flatten(start_dim=1)
         return self.mu(x), self.var(x)
 
 
@@ -495,7 +528,7 @@ class ConvVAE(NetworkBase):
 
     def decode(self, z):
         z = self.latent(z)
-        z = z.view(-1, 64, self.encoder_h, self.encoder_w)
+        z = z.view(-1, self.last_encoder_output_channels, self.encoded_h, self.encoded_w)
         z = self.decoder(z)
         return z
 
@@ -531,8 +564,10 @@ CNN = ConvolutionalNeuralNetwork
 if __name__ == '__main__':
     image_size = (270, 480)
     model = ConvVAE(image_size, latent_size=512)
-    print(model)
     dummy = torch.zeros((1, 3, *image_size))
 
+    print(model)
     reconstruct, mu, logvar = model(dummy)
     print('reconstruct', reconstruct.size())
+
+    # summary(model, input_size=(1, 3, *image_size))

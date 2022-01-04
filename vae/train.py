@@ -54,7 +54,7 @@ def test(model, device, test_loader, return_images=0, log_interval=None):
             data = data.to(device)
             output, mu, logvar = model(data)
             loss = model.loss(output, data, mu, logvar)
-            test_loss += loss.item()
+            test_loss += loss.cpu().item()
 
             if return_images > 0 and len(original_images) < return_images:
                 original_images.append(data[0].cpu())
@@ -79,9 +79,9 @@ CHECKPOINT_FORMAT = '{prefix}epoch({epoch})-loss({loss:+.3E}){suffix}.pkl'
 CHECKPOINT_FORMAT = partial(CHECKPOINT_FORMAT.format, prefix='', suffix='')
 
 # parameters
-BATCH_SIZE = 128
+BATCH_SIZE = 256
 TEST_BATCH_SIZE = 10
-EPOCHS = 100
+EPOCHS = 10
 
 LATENT_SIZE = 512
 LEARNING_RATE = 5e-4
@@ -105,7 +105,7 @@ if __name__ == "__main__":
     print('latent size:', LATENT_SIZE)
     model = ConvVAE((270, 480), latent_size=LATENT_SIZE).to(device)
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
-    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, cooldown=30, verbose=True)
+    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, verbose=True)
 
     for epoch in range(0, EPOCHS + 1):
         train_loss = train(model, device, train_loader, optimizer, epoch, PRINT_INTERVAL)
@@ -118,6 +118,8 @@ if __name__ == "__main__":
         # train_losses.append((epoch, train_loss))
         # test_losses.append((epoch, test_loss))
         # utils.write_log(LOG_PATH, (train_losses, test_losses))
+
+        model.save_model('/root/thesis/thesis-code/Soft-Actor-Critic/vae_weights/Carla-v0/latest.pkl')
 
         if epoch % 10 == 0:
             print(f'save weight at epoch {epoch}')
