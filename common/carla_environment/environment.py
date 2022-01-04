@@ -84,7 +84,7 @@ class CarlaEnv(gym.Env):
                 self.walker_spawn_points.append(spawn_point)
 
         # ego vehicle bp
-        self.ego_bp = self._create_vehicle_bluepprint('vehicle.tesla.model3', color='49,8,8')
+        self.ego_bp = self._create_vehicle_bluepprint('vehicle.nissan.micra', color='49,8,8')
 
         # Collision sensor
         self.collision_hist = []
@@ -351,7 +351,7 @@ class CarlaEnv(gym.Env):
         while len(self.img_buff) < self.n_images:
             self.img_buff.append(self.camera_img)
 
-        return np.concatenate([self._transform_observation(img) for img in self.img_buff], axis=0)
+        return np.array([self._transform_observation(img) for img in self.img_buff], dtype=np.float32)
 
     def _create_vehicle_bluepprint(self, actor_filter, color=None, number_of_wheels=[4]):
         """Create the blueprint for a specific actor type.
@@ -497,7 +497,7 @@ class CarlaEnv(gym.Env):
         ''' Transform image observation to specified observation size in form of ``C`` x ``H`` x ``W``,
             and normalize it '''
         obs = cv2.resize(obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
-        return obs.transpose((2, 0, 1)) / 255.
+        return obs / 255.
 
     def _get_image(self):
         ''' Return RGB image in `H` x `W` x `C` format, its size match observation size. '''

@@ -144,8 +144,8 @@ def sample_carla_bias_action():
     ''' Sample bias action for Carla-v0 '''
     longitudinal = random.random()
     if longitudinal > 0.3:
-        # 70% chance of accelerating at least 10%
-        acc = random.random() + 0.1
+        # 70% chance of accelerating at least 15%
+        acc = min(15, random.random())
     else:
         # 30% chance of brake between 10% and 70%
         acc = -random.random()
@@ -172,6 +172,7 @@ def _transform_np_image_to_tensor(imgs, normalize=True):
 
         img_tensor = torch.from_numpy(img)
         # print('img_tensor', img_tensor.size())
+        # print('img_tensor type', img_tensor.dtype)
         tensors.append(img_tensor)
 
     return torch.stack(tensors, dim=0)
@@ -201,7 +202,7 @@ def _transform_tensor(img_tensors, normalize=True):
     return torch.stack(tensors, dim=0)
 
 
-def encode_vae_observation(observation, encoder, normalize=True, device='cpu'):
+def encode_vae_observation(observation, encoder, normalize=True, device='cpu', output_device='cpu'):
     ''' transforms ``Tensor`` or numpy's ``ndarray`` to state vector.
 
     If observation is ``ndarray``, it must be in form of ``batch`` x ``n_images`` x ``H`` x ``W`` x ``C``.
@@ -216,7 +217,7 @@ def encode_vae_observation(observation, encoder, normalize=True, device='cpu'):
         if len(observation.shape) == 4:
             observation = np.expand_dims(observation, axis=0)
         elif len(observation.shape) != 5:
-            raise ValueError('observation must have 4 or 5 dimensions')
+            raise ValueError(f'observation must have 4 or 5 dimensions, current input shape is {observation.shape}')
 
         assert observation.ndim == 5
         batch_size = observation.shape[0]
@@ -245,4 +246,4 @@ def encode_vae_observation(observation, encoder, normalize=True, device='cpu'):
     # print('new_state size', new_state.size())
     assert new_state.size(0) == batch_size
 
-    return new_state.cpu()
+    return new_state.to(output_device)

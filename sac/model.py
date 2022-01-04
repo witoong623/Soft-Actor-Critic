@@ -254,7 +254,6 @@ class Trainer(ModelBase):
                                clip_gradient, gamma, soft_tau, epsilon)
 
     def prepare_batch(self, batch_size):
-        # size: (batch_size, item_size)
         if self.n_past_actions > 1:
             observation, action, past_actions, next_past_actions, reward, next_observation, done \
                 = tuple(map(lambda tensor: torch.FloatTensor(tensor).to(self.model_device),
@@ -267,8 +266,16 @@ class Trainer(ModelBase):
         if isinstance(self.state_encoder.encoder, ConvVAE):
             with torch.no_grad():
                 self.state_encoder.eval()
-                state = encode_vae_observation(observation, self.state_encoder, device=self.model_device)
-                next_state = encode_vae_observation(next_observation, self.state_encoder, device=self.model_device)
+                state = encode_vae_observation(observation,
+                                               self.state_encoder,
+                                               device=self.model_device,
+                                               output_device=self.model_device,
+                                               normalize=False)
+                next_state = encode_vae_observation(next_observation,
+                                                    self.state_encoder,
+                                                    device=self.model_device,
+                                                    output_device=self.model_device,
+                                                    normalize=False)
         else:
             state = self.state_encoder(observation)
             with torch.no_grad():

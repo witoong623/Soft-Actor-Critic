@@ -35,7 +35,7 @@ class StateEncoderWrapper(Container):
     @torch.no_grad()
     def encode(self, observation):
         if isinstance(self.encoder, ConvVAE):
-            encoded = encode_vae_observation(observation, self.encoder, device=self.device)
+            encoded = encode_vae_observation(observation, self.encoder, device=self.device, normalize=False)
         elif isinstance(observation, np.ndarray):
             observation = torch.FloatTensor(observation).unsqueeze(dim=0).to(self.device)
             encoded = self(observation)
