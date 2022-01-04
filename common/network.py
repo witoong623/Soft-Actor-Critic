@@ -3,9 +3,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from torchinfo import summary
-
 from .efficientnet import efficientnet_b0
+
+
+try:
+    from torchinfo import summary
+except Exception:
+    pass
 
 
 __all__ = [
