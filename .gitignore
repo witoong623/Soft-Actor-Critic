@@ -239,3 +239,5 @@ tags
 videos/
 vae_weights/
 carla_images/
+carla_test_images/
+vae_comparisions/

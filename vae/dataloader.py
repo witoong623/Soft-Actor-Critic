@@ -22,7 +22,7 @@ class VAEImageFolder(Dataset):
         return len(self.images_list)
 
 
-def get_train_dataloader(root, batch_size, num_workers=0):
+def get_dataloader(root, batch_size, num_workers=0):
     dataset = VAEImageFolder(root)
 
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=num_workers)
