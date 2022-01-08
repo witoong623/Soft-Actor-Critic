@@ -1,0 +1,17 @@
+python main.py \
+	--mode test_render \
+	--env Carla-v0 \
+	--gpu 0 \
+	--n-past-actions 10 \
+	--hidden-dims 256 128 \
+	--activation LeakyReLU \
+	--encoder-arch VAE \
+	--state-dim 1024 \
+	--max-episode-steps 999 \
+	--random-seed 69 \
+	--record-video \
+	--load-checkpoint \
+	--dry-run-init-env \
+	--weight-path "/root/thesis/thesis-code/Soft-Actor-Critic/vae_weights/Carla-v0/epoch(10)-loss(+2.294E+05).pkl" \
+	--log-dir "logs/Carla-v0_test_render/VAE" \
+	--checkpoint-dir "savedcheckpoints/Carla-v0/VAE"

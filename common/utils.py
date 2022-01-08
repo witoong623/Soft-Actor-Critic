@@ -81,11 +81,18 @@ def check_devices(config):
     return devices
 
 
-def get_checkpoint(checkpoint_dir, by='epoch'):
+def get_checkpoint(checkpoint_dir, by='epoch', specified_epoch=None):
     ''' get checkpoint file by epoch or reward '''
     try:
         checkpoints = glob.iglob(os.path.join(checkpoint_dir, '*.pkl'))
         matches = filter(None, map(CHECKPOINT_PATTERN.match, checkpoints))
+
+        if specified_epoch is not None and isinstance(specified_epoch, int):
+            for match in matches:
+                checkpoint_epoch = int(match.group('epoch'))
+                if checkpoint_epoch == specified_epoch:
+                    return match.group()
+
         max_match = max(matches, key=lambda match: float(match.group(by)), default=None)
         return max_match.group()
     except AttributeError:

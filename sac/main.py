@@ -192,4 +192,4 @@ def test_render(model, config):
     bkk_tz = pytz.timezone('Asia/Bangkok')
     now = datetime.now(bkk_tz)
     now_str = now.strftime('%Y-%m-%dT%H-%M-%S')
-    model.env.plot_control_graph(f'test_commands_{now_str}.jpeg')
+    model.env.plot_control_graph(f'test_render_command_epoch_{config.initial_epoch}_{now_str}.jpeg')
