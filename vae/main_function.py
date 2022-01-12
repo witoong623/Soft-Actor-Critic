@@ -1,6 +1,6 @@
 import torch
 import time
-import tqdm
+from tqdm import tqdm
 
 
 def train(model, device, train_loader, optimizer, epoch, log_interval):
