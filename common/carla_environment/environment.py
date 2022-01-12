@@ -147,15 +147,22 @@ class CarlaEnv(gym.Env):
         # Spawn surrounding vehicles
         random.shuffle(self.vehicle_spawn_points)
         count = self.number_of_vehicles
+        vehicles = []
         if count > 0:
             for spawn_point in self.vehicle_spawn_points:
-                if self._try_spawn_random_vehicle_at(spawn_point, number_of_wheels=[4]):
+                success_spwan, vehicle = self._try_spawn_random_vehicle_at(spawn_point, number_of_wheels=[4], set_autopilot=False)
+                if success_spwan:
                     count -= 1
+                    vehicles.append(vehicle)
                 if count <= 0:
                     break
         while count > 0:
-            if self._try_spawn_random_vehicle_at(random.choice(self.vehicle_spawn_points), number_of_wheels=[4]):
+            success_spwan, vehicle = self._try_spawn_random_vehicle_at(random.choice(self.vehicle_spawn_points), number_of_wheels=[4], set_autopilot=False)
+            if success_spwan:
                 count -= 1
+
+        # Set autopilot batch
+        self.client.apply_batch([carla.command.SetAutopilot(v, True) for v in vehicles])
 
         # Spawn pedestrians
         random.shuffle(self.walker_spawn_points)
@@ -391,7 +398,7 @@ class CarlaEnv(gym.Env):
         self.settings.synchronous_mode = synchronous
         self.world.apply_settings(self.settings)
 
-    def _try_spawn_random_vehicle_at(self, transform, number_of_wheels=[4]):
+    def _try_spawn_random_vehicle_at(self, transform, number_of_wheels=[4], set_autopilot=True):
         """Try to spawn a surrounding vehicle at specific transform with random bluprint.
 
         Args:
@@ -404,9 +411,10 @@ class CarlaEnv(gym.Env):
         blueprint.set_attribute('role_name', 'autopilot')
         vehicle = self.world.try_spawn_actor(blueprint, transform)
         if vehicle is not None:
-            vehicle.set_autopilot()
-            return True
-        return False
+            if set_autopilot:
+                vehicle.set_autopilot()
+            return True, vehicle
+        return False, vehicle
 
     def _try_spawn_random_walker_at(self, transform):
         """Try to spawn a walker at specific transform with random bluprint.
