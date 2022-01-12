@@ -30,7 +30,7 @@ class CarlaEnv(gym.Env):
         self.obs_width = 480
         self.obs_height = 270
 
-        self.map = 'Town03'
+        self.map = 'Town02'
         self.dt = 0.1
         self.frame_per_second = round(1 / self.dt)
         self.reload_world = True
@@ -40,8 +40,9 @@ class CarlaEnv(gym.Env):
         self.camera_height = 600
         self.camera_fov = 110
         
-        self.number_of_walkers = 0
-        self.number_of_vehicles = 10
+        self.number_of_walkers = 50
+        self.number_of_vehicles = 20
+        self.number_of_wheels = [4]
         self.max_ego_spawn_times = 200
         self.max_time_episode = 1000
         self.max_waypt = 12
@@ -73,6 +74,8 @@ class CarlaEnv(gym.Env):
             self.world = self.client.get_world()
         print('Carla server connected!')
 
+        self.bp_library = self.world.get_blueprint_library()
+
         # spawn points
         self.vehicle_spawn_points = list(self.world.get_map().get_spawn_points())
         self.walker_spawn_points = []
@@ -90,7 +93,7 @@ class CarlaEnv(gym.Env):
         self.collision_hist = []
          # collision history length
         self.collision_hist_l = 1
-        self.collision_bp = self.world.get_blueprint_library().find('sensor.other.collision')
+        self.collision_bp = self.bp_library.find('sensor.other.collision')
 
         # camera
         # self.camera_img = np.zeros((self.camera_height, self.camera_width, 3), dtype=np.uint8)
@@ -98,7 +101,7 @@ class CarlaEnv(gym.Env):
         self.camera_sensor_type = 'sensor.camera.rgb'
         if self.use_semantic_camera:
             self.camera_sensor_type = 'sensor.camera.semantic_segmentation'
-        self.camera_bp = self.world.get_blueprint_library().find(self.camera_sensor_type)
+        self.camera_bp = self.bp_library.find(self.camera_sensor_type)
         # Modify the attributes of the blueprint to set image resolution and field of view.
         self.camera_bp.set_attribute('image_size_x', str(self.camera_width))
         self.camera_bp.set_attribute('image_size_y', str(self.camera_height))
@@ -127,6 +130,13 @@ class CarlaEnv(gym.Env):
             self.brakes_hist = []
             self.steers_hist = []
 
+        self.spawn_batch = True
+        # cache vehicle blueprints
+        if self.spawn_batch:
+            self.vehicle_bp_caches = {}
+            for nw in self.number_of_wheels:
+                self.vehicle_bp_caches[nw] = self._cache_vehicle_blueprints(number_of_wheels=nw)
+
     def reset(self):
         # Clear history if exist
         if self.store_history:
@@ -146,36 +156,39 @@ class CarlaEnv(gym.Env):
 
         # Spawn surrounding vehicles
         random.shuffle(self.vehicle_spawn_points)
-        count = self.number_of_vehicles
-        vehicles = []
-        if count > 0:
-            for spawn_point in self.vehicle_spawn_points:
-                success_spwan, vehicle = self._try_spawn_random_vehicle_at(spawn_point, number_of_wheels=[4], set_autopilot=False)
+        if self.spawn_batch:
+            self._spawn_random_vehicles_batch(self.vehicle_spawn_points, self.number_of_vehicles, number_of_wheels=self.number_of_wheels)
+        else:
+            count = self.number_of_vehicles
+            vehicles = []
+            if count > 0:
+                for spawn_point in self.vehicle_spawn_points:
+                    success_spwan, vehicle = self._try_spawn_random_vehicle_at(spawn_point, number_of_wheels=self.number_of_wheels)
+                    if success_spwan:
+                        count -= 1
+                        vehicles.append(vehicle)
+                    if count <= 0:
+                        break
+            while count > 0:
+                success_spwan, vehicle = self._try_spawn_random_vehicle_at(random.choice(self.vehicle_spawn_points), number_of_wheels=self.number_of_wheels)
                 if success_spwan:
                     count -= 1
-                    vehicles.append(vehicle)
-                if count <= 0:
-                    break
-        while count > 0:
-            success_spwan, vehicle = self._try_spawn_random_vehicle_at(random.choice(self.vehicle_spawn_points), number_of_wheels=[4], set_autopilot=False)
-            if success_spwan:
-                count -= 1
-
-        # Set autopilot batch
-        self.client.apply_batch([carla.command.SetAutopilot(v, True) for v in vehicles])
 
         # Spawn pedestrians
         random.shuffle(self.walker_spawn_points)
-        count = self.number_of_walkers
-        if count > 0:
-            for spawn_point in self.walker_spawn_points:
-                if self._try_spawn_random_walker_at(spawn_point):
+        if self.spawn_batch:
+            self._spwan_random_walkers_batch(self.walker_spawn_points, self.number_of_walkers)
+        else:
+            count = self.number_of_walkers
+            if count > 0:
+                for spawn_point in self.walker_spawn_points:
+                    if self._try_spawn_random_walker_at(spawn_point):
+                        count -= 1
+                    if count <= 0:
+                        break
+            while count > 0:
+                if self._try_spawn_random_walker_at(random.choice(self.walker_spawn_points)):
                     count -= 1
-                if count <= 0:
-                    break
-        while count > 0:
-            if self._try_spawn_random_walker_at(random.choice(self.walker_spawn_points)):
-                count -= 1
 
         # Get actors polygon list
         self.vehicle_polygons = []
@@ -369,7 +382,7 @@ class CarlaEnv(gym.Env):
         Returns:
         bp: the blueprint object of carla.
         """
-        blueprints = self.world.get_blueprint_library().filter(actor_filter)
+        blueprints = self.bp_library.filter(actor_filter)
         blueprint_library = []
         for nw in number_of_wheels:
             blueprint_library = blueprint_library + [x for x in blueprints if int(x.get_attribute('number_of_wheels')) == nw]
@@ -379,6 +392,22 @@ class CarlaEnv(gym.Env):
                 color = random.choice(bp.get_attribute('color').recommended_values)
             bp.set_attribute('color', color)
         return bp
+
+    def _cache_vehicle_blueprints(self, number_of_wheels=4):
+        if not isinstance(number_of_wheels, int):
+            raise TypeError(f'number_of_wheels must be int not {type(number_of_wheels)}')
+
+        blueprint_library = []
+        blueprints = self.bp_library.filter('vehicle.*')
+        for bp in blueprints:
+            if bp.get_attribute('number_of_wheels').as_int() == number_of_wheels:
+                if bp.has_attribute('color'):
+                    color = random.choice(bp.get_attribute('color').recommended_values)
+                    bp.set_attribute('color', color)
+
+                blueprint_library.append(bp)
+
+        return blueprint_library
 
     def _clear_all_actors(self, actor_filters):
         """ Clear specific actors. """
@@ -416,6 +445,41 @@ class CarlaEnv(gym.Env):
             return True, vehicle
         return False, vehicle
 
+    def _spawn_random_vehicles_batch(self, transforms, number_of_vehicles, number_of_wheels=[4]):
+        bps = []
+        for nw in number_of_wheels:
+            bps.extend(self.vehicle_bp_caches[nw])
+
+        count = 0
+        spawn_commands = []
+        for transform in transforms:
+            bp = random.choice(bps)
+            bp.set_attribute('role_name', 'autopilot')
+            spawn_cmd = carla.command.SpawnActor(bp, transform)
+            spawn_cmd.then(carla.command.SetAutopilot(carla.command.FutureActor, True))
+            spawn_commands.append(spawn_cmd)
+            
+            count += 1
+            if count == number_of_vehicles:
+                break
+
+        self.client.apply_batch(spawn_commands)
+
+        if count < number_of_vehicles:
+            spawn_commands.clear()
+
+            while count < number_of_vehicles:
+                transform = random.choice(transforms)
+                bp = random.choice(bps)
+                bp.set_attribute('role_name', 'autopilot')
+                spawn_cmd = carla.command.SpawnActor(bp, transform)
+                spawn_cmd.then(carla.command.SetAutopilot(carla.command.FutureActor, True))
+                spawn_commands.append(spawn_cmd)
+
+                count += 1
+
+            self.client.apply_batch(spawn_commands)
+
     def _try_spawn_random_walker_at(self, transform):
         """Try to spawn a walker at specific transform with random bluprint.
 
@@ -425,14 +489,14 @@ class CarlaEnv(gym.Env):
         Returns:
         Bool indicating whether the spawn is successful.
         """
-        walker_bp = random.choice(self.world.get_blueprint_library().filter('walker.*'))
+        walker_bp = random.choice(self.bp_library.filter('walker.*'))
         # set as not invencible
         if walker_bp.has_attribute('is_invincible'):
             walker_bp.set_attribute('is_invincible', 'false')
         walker_actor = self.world.try_spawn_actor(walker_bp, transform)
 
         if walker_actor is not None:
-            walker_controller_bp = self.world.get_blueprint_library().find('controller.ai.walker')
+            walker_controller_bp = self.bp_library.find('controller.ai.walker')
             walker_controller_actor = self.world.spawn_actor(walker_controller_bp, carla.Transform(), walker_actor)
             # start walker
             walker_controller_actor.start()
@@ -442,6 +506,62 @@ class CarlaEnv(gym.Env):
             walker_controller_actor.set_max_speed(1 + random.random())    # max speed between 1 and 2 (default is 1.4 m/s)
             return True
         return False
+
+    def _spwan_random_walkers_batch(self, transforms, number_of_walkers):
+        walker_bps = self.bp_library.filter('walker.*')
+
+        # spawn walker
+        count = 0
+        spawn_commands = []
+        for transform in transforms:
+            walker_bp = random.choice(walker_bps)
+
+            if walker_bp.has_attribute('is_invincible'):
+                walker_bp.set_attribute('is_invincible', 'false')
+
+            spawn_commands.append(carla.command.SpawnActor(walker_bp, transform))
+
+            count += 1
+            if count == number_of_walkers:
+                break
+
+        results = self.client.apply_batch_sync(spawn_commands, True)
+        walkers_list = []
+        for result in results:
+            if not result.error:
+                walkers_list.append({'id': result.actor_id})
+
+        # spawn controller
+        spawn_commands.clear()
+        walker_controller_bp = self.bp_library.find('controller.ai.walker')
+        for i in range(len(walkers_list)):
+            spawn_commands.append(carla.command.SpawnActor(walker_controller_bp, carla.Transform(), walkers_list[i]['id']))
+
+        results = self.client.apply_batch_sync(spawn_commands, True)
+        controller_ids = []
+        for i in range(len(results)):
+            if not results[i].error:
+                walkers_list[i]['con_id'] = results[i].actor_id
+                controller_ids.append(results[i].actor_id)
+        
+        controller_actors = self.world.get_actors(controller_ids)
+
+        self.world.wait_for_tick()
+
+        # start controller
+        con_idx = 0
+        for walker in walkers_list:
+            if 'con_id' not in walker:
+                continue
+
+            controller = controller_actors[con_idx]
+            assert walker['con_id'] == controller.id
+
+            controller.start()
+            controller.go_to_location(self.world.get_random_location_from_navigation())
+            controller.set_max_speed(1 + random.random())
+
+            con_idx += 1
 
     def _get_actor_polygons(self, filt):
         """Get the bounding box polygon of actors.
