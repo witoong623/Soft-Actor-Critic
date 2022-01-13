@@ -68,10 +68,7 @@ class CarlaEnv(gym.Env):
         print('connecting to Carla server...')
         self.client = carla.Client(self.host, self.port)
         self.client.set_timeout(30.0)
-        if self.reload_world:
-            self.world = self.client.load_world(self.map)
-        else:
-            self.world = self.client.get_world()
+        self.world = self.client.load_world(self.map)
         print('Carla server connected!')
 
         self.bp_library = self.world.get_blueprint_library()
@@ -136,6 +133,9 @@ class CarlaEnv(gym.Env):
             self.vehicle_bp_caches = {}
             for nw in self.number_of_wheels:
                 self.vehicle_bp_caches[nw] = self._cache_vehicle_blueprints(number_of_wheels=nw)
+
+        # termination condition
+        self.terminate_on_out_of_lane = False
 
     def reset(self):
         # Clear history if exist
@@ -358,7 +358,7 @@ class CarlaEnv(gym.Env):
 
         # If out of lane
         dis, _ = get_lane_dis(self.waypoints, ego_x, ego_y)
-        if abs(dis) > self.out_lane_thres:
+        if abs(dis) > self.out_lane_thres and self.terminate_on_out_of_lane:
             return True
 
         return False

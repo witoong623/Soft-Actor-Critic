@@ -142,7 +142,9 @@ class Sampler(mp.Process):
                 if done:
                     break
 
+            # wait for signal from Collector to stop or continue
             self.running_event.wait()
+            # wait for previous Sampler to set
             self.event.wait(timeout=self.timeout)
             with self.lock:
                 self.save_trajectory()
@@ -150,6 +152,7 @@ class Sampler(mp.Process):
                 self.episode_steps.append(episode_steps)
                 self.episode_rewards.append(episode_reward)
             self.event.clear()
+            # set next Sampler to continue save trajectory
             self.next_sampler_event.set()
             if self.writer is not None:
                 average_reward = episode_reward / episode_steps
