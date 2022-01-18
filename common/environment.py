@@ -45,7 +45,7 @@ def build_env(**kwargs):
     else:
         env = FlattenedObservation(env)
 
-    if kwargs['n_frames'] > 1 and kwargs['name'] != 'CarRacing-v0' :
+    if kwargs['n_frames'] > 1 and kwargs['name'] not in ['CarRacing-v0', 'Carla-v0']:
         env = ConcatenatedObservation(env, n_frames=kwargs['n_frames'], dim=0)
 
     if kwargs['record_video']:

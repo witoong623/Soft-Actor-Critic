@@ -15,19 +15,19 @@ mkdir -p "$LOG_DIR"
 cp "$0" "$LOG_DIR"
 
 python main.py \
-	--mode train --gpu 0 \
+	--mode train --gpu 1 \
 	--env "$ENV" \
     --n-past-actions 10 \
 	--hidden-dims 256 128 \
 	--activation LeakyReLU \
 	--encoder-arch VAE \
-	--weight-path "/root/thesis/thesis-code/Soft-Actor-Critic/vae_weights/Carla-v0/epoch(10)-loss(+2.294E+05).pkl" \
+	--weight-path "/root/thesis/thesis-code/Soft-Actor-Critic/vae_weights/Carla-v0/epoch(10)-loss(+2.276E+05).pkl" \
 	--state-dim 1024 \
 	--max-episode-steps 999 \
 	--n-epochs 1000 --n-updates 256 --batch-size 16 \
 	--n-samplers 1 \
 	--buffer-capacity 2000 \
-	--update-sample-ratio 8.0 \
+	--update-sample-ratio 5.0 \
 	--critic-lr 3E-4 --actor-lr 3E-4 \
 	--alpha-lr 3E-4 --initial-alpha 1.0 --adaptive-entropy \
 	--normalize-rewards --reward-scale 1.0 \
@@ -35,4 +35,5 @@ python main.py \
 	--log-dir "$LOG_DIR" \
 	--checkpoint-dir "$CHECKPOINT_DIR" \
 	--dry-run-init-env \
+	--load-checkpoint \
 	"$@" # script arguments (can override args above)

@@ -15,13 +15,15 @@ mkdir -p "$LOG_DIR"
 cp "$0" "$LOG_DIR"
 
 python main.py \
-	--mode train --gpu 0 \
+	--mode train --gpu 1 \
 	--env "$ENV" \
+	--n-frames 2 \
     --n-past-actions 10 \
-	--hidden-dims 256 128 \
+	--encoder-arch CNN \
+	--encoder-hidden-channels 32 64 128 \
 	--activation LeakyReLU \
-	--encoder-arch EFFICIENTNET \
-	--state-dim 1280 \
+	--state-dim 512 \
+	--hidden-dims 256 128 \
 	--max-episode-steps 999 \
 	--n-epochs 1000 --n-updates 256 --batch-size 16 \
 	--n-samplers 1 \

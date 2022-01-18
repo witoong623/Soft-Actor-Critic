@@ -56,6 +56,11 @@ def build_encoder(config):
                                                                'paddings',
                                                                'poolings',
                                                                'batch_normalization']))
+    elif config.CNN_encoder and config.env == 'Carla-v0':
+        state_encoder = CarlaCNN(image_size=(270, 480),
+                                 input_channels=config.n_frames * 3,
+                                 n_hidden_channels=config.encoder_hidden_channels,
+                                 output_dim=state_dim)
     elif config.CNN_encoder:
         state_encoder = ConvolutionalNeuralNetwork(image_size=(config.image_size, config.image_size),
                                                    input_channels=config.observation_dim,
@@ -430,6 +435,66 @@ class CarRacingCNN(NetworkBase):
         return x
 
 
+class CarlaCNN(NetworkBase):
+
+    def __init__(self, image_size, input_channels, n_hidden_channels,
+                 output_dim, device=None):
+        super().__init__()
+
+        # TODO: delete this
+        assert output_dim == 512
+
+        n_hidden_channels = [input_channels, *n_hidden_channels]
+
+        def conv_block(n_in, n_out):
+            return nn.Sequential(
+                nn.Conv2d(n_in, n_out, kernel_size=3, bias=False),
+                nn.BatchNorm2d(n_out),
+                nn.MaxPool2d(2),
+                nn.LeakyReLU(negative_slope=0.3, inplace=True),
+                nn.Conv2d(n_out, n_out, kernel_size=3, bias=False),
+                nn.BatchNorm2d(n_out),
+                nn.MaxPool2d(2),
+                nn.LeakyReLU(negative_slope=0.3, inplace=True),
+            )
+
+        conv_layers = []
+        for i in range(len(n_hidden_channels) - 1):
+            conv_layer = conv_block(n_hidden_channels[i],
+                                    n_hidden_channels[i + 1])
+
+            conv_layers.append(conv_layer)
+
+        self.conv_layers = nn.Sequential(*conv_layers)
+
+        dummy = torch.zeros(1, input_channels, *image_size)
+        with torch.no_grad():
+            dummy = self(dummy)
+        conv_output_dim = int(np.prod(dummy.size()))
+
+        self.out_features = output_dim
+
+        self.linear_layer = nn.Sequential(
+            nn.Linear(in_features=conv_output_dim,
+                        out_features=self.out_features,
+                        bias=True),
+            nn.LeakyReLU(negative_slope=0.3, inplace=True)
+        )
+
+        self.in_features = (input_channels, *image_size)
+
+        self.to(device)
+
+    def forward(self, x):
+        x = self.conv_layers(x)
+        x = x.flatten(1)
+
+        if hasattr(self, 'linear_layer'):
+            x = self.linear_layer(x)
+
+        return x
+
+
 class ConvVAE(NetworkBase):
     def __init__(self, image_size,  input_channel=3, latent_size=64, beta=3):
         super(ConvVAE, self).__init__()
@@ -567,11 +632,10 @@ CNN = ConvolutionalNeuralNetwork
 
 if __name__ == '__main__':
     image_size = (270, 480)
-    model = ConvVAE(image_size, latent_size=512)
-    dummy = torch.zeros((1, 3, *image_size))
+    model = CarlaCNN(image_size, 6, [32, 64, 128])
+    dummy = torch.zeros((1, 6, *image_size))
+    output = model(dummy)
 
-    print(model)
-    reconstruct, mu, logvar = model(dummy)
-    print('reconstruct', reconstruct.size())
+    print(f'output size {output.size()}')
 
-    # summary(model, input_size=(1, 3, *image_size))
+    summary(model, input_size=(1, 6, *image_size))

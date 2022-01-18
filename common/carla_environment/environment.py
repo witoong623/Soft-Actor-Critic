@@ -21,6 +21,9 @@ from .route_planner import RoutePlanner
 from agents.navigation.behavior_agent import BehaviorAgent
 
 
+_walker_spawn_points_cache = []
+
+
 class CarlaEnv(gym.Env):
     def __init__(self, **kwargs):
         self.host = 'witoon-carla'
@@ -76,12 +79,26 @@ class CarlaEnv(gym.Env):
         # spawn points
         self.vehicle_spawn_points = list(self.world.get_map().get_spawn_points())
         self.walker_spawn_points = []
-        for i in range(self.number_of_walkers):
-            spawn_point = carla.Transform()
-            loc = self.world.get_random_location_from_navigation()
-            if (loc != None):
-                spawn_point.location = loc
-                self.walker_spawn_points.append(spawn_point)
+
+        # if we can cache more than 70% of spawn points then use cache
+        if len(_walker_spawn_points_cache) > self.number_of_walkers * 0.7:
+            def loc_to_transform(loc):
+                x, y, z = loc
+                loc = carla.Location(x=x, y=y, z=z)
+                return carla.Transform(location=loc)
+
+            self.walker_spawn_points = list(map(loc_to_transform, _walker_spawn_points_cache))
+            print('load walker spwan points from cache')
+        else:
+            _walker_spawn_points_cache.clear()
+            for i in range(self.number_of_walkers):
+                spawn_point = carla.Transform()
+                loc = self.world.get_random_location_from_navigation()
+                if (loc != None):
+                    spawn_point.location = loc
+                    self.walker_spawn_points.append(spawn_point)
+                    # save to cache
+                    _walker_spawn_points_cache.append((loc.x, loc.y, loc.z))
 
         # ego vehicle bp
         self.ego_bp = self._create_vehicle_bluepprint('vehicle.nissan.micra', color='49,8,8')
@@ -371,7 +388,10 @@ class CarlaEnv(gym.Env):
         while len(self.img_buff) < self.n_images:
             self.img_buff.append(self.camera_img)
 
-        return np.array([self._transform_observation(img) for img in self.img_buff], dtype=np.float32)
+        img_array = [self._transform_observation(img) for img in self.img_buff]
+        # return np.array(img_array, dtype=np.float32)
+        # TODO: for CNN, concatenate it
+        return np.concatenate(img_array, axis=0)
 
     def _create_vehicle_bluepprint(self, actor_filter, color=None, number_of_wheels=[4]):
         """Create the blueprint for a specific actor type.
@@ -622,9 +642,10 @@ class CarlaEnv(gym.Env):
         return False
 
     def _transform_observation(self, obs):
-        ''' Transform image observation to specified observation size in form of ``C`` x ``H`` x ``W``,
-            and normalize it '''
+        ''' Transform image observation to specified observation size and normalize it '''
         obs = cv2.resize(obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
+        # TODO: for CNN encoder, make it to C x H x W
+        obs = obs.transpose((2, 0, 1))
         return obs / 255.
 
     def _get_image(self):
