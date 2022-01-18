@@ -476,8 +476,7 @@ class CarlaCNN(NetworkBase):
 
         self.linear_layer = nn.Sequential(
             nn.Linear(in_features=conv_output_dim,
-                        out_features=self.out_features,
-                        bias=True),
+                        out_features=self.out_features),
             nn.LeakyReLU(negative_slope=0.3, inplace=True)
         )
 

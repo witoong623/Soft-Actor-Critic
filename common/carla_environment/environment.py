@@ -22,10 +22,12 @@ from agents.navigation.behavior_agent import BehaviorAgent
 
 
 _walker_spawn_points_cache = []
+_load_world = False
 
 
 class CarlaEnv(gym.Env):
     def __init__(self, **kwargs):
+        global _load_world
         self.host = 'witoon-carla'
         self.port = 2000
 
@@ -63,15 +65,19 @@ class CarlaEnv(gym.Env):
         # steering, accel/brake
         self.action_space = spaces.Box(low=np.array([-1., -1.]), high=np.array([1., 1.]), dtype=np.float32)
 
-        dry_run = kwargs.get('dry_run', False)
-        if dry_run:
+        self.dry_run = kwargs.get('dry_run', False)
+        if self.dry_run:
             print('dry run, exit init')
             return
 
         print('connecting to Carla server...')
         self.client = carla.Client(self.host, self.port)
         self.client.set_timeout(30.0)
-        self.world = self.client.load_world(self.map)
+        if _load_world:
+            self.world = self.client.get_world()
+        else:
+            self.world = self.client.load_world(self.map)
+            _load_world = True
         print('Carla server connected!')
 
         self.bp_library = self.world.get_blueprint_library()
@@ -110,7 +116,7 @@ class CarlaEnv(gym.Env):
         self.collision_bp = self.bp_library.find('sensor.other.collision')
 
         # camera
-        # self.camera_img = np.zeros((self.camera_height, self.camera_width, 3), dtype=np.uint8)
+        self.camera_img = None
         self.camera_trans = carla.Transform(carla.Location(x=0.8, z=1.7))
         self.camera_sensor_type = 'sensor.camera.rgb'
         if self.use_semantic_camera:
@@ -130,7 +136,6 @@ class CarlaEnv(gym.Env):
         self.total_step = 0
 
         # frame buffer
-        self.camera_img = np.zeros((self.obs_width, self.obs_height, 3), dtype=np.uint8)
         self.img_buff = deque(maxlen=self.n_images)
 
         # action buffer
@@ -255,6 +260,10 @@ class CarlaEnv(gym.Env):
             # BGR(OpenCV) > RGB
             array = np.ascontiguousarray(array[:, :, ::-1])
             self.camera_img = array
+
+        # wait for camera image from sensor
+        while self.camera_img is None:
+            time.sleep(1)
 
         # Update timesteps
         self.time_step = 0
@@ -657,6 +666,13 @@ class CarlaEnv(gym.Env):
             cv2.destroyAllWindows()
         except cv2.error:
             pass
+
+        if not self.dry_run:
+            # delete all sensor for the next world
+            self._clear_all_actors(['sensor.other.collision', self.camera_sensor_type, 'vehicle.*', 'controller.ai.walker', 'walker.*'])
+
+            # set to async mode the same as when simulator start
+            self._set_synchronous_mode(False)
 
         return super().close()
 

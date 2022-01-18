@@ -27,7 +27,7 @@ python main.py \
 	--max-episode-steps 999 \
 	--n-epochs 1000 --n-updates 256 --batch-size 16 \
 	--n-samplers 1 \
-	--buffer-capacity 2000 \
+	--buffer-capacity 1000 \
 	--update-sample-ratio 8.0 \
 	--critic-lr 3E-4 --actor-lr 3E-4 \
 	--alpha-lr 3E-4 --initial-alpha 1.0 --adaptive-entropy \
