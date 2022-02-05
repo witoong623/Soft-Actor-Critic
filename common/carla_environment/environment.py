@@ -178,7 +178,7 @@ class CarlaEnv(gym.Env):
 
         # Spawn surrounding vehicles
         random.shuffle(self.vehicle_spawn_points)
-        if self.spawn_batch:
+        if self.spawn_batch and self.number_of_vehicles > 0:
             self._spawn_random_vehicles_batch(self.vehicle_spawn_points, self.number_of_vehicles, number_of_wheels=self.number_of_wheels)
         else:
             count = self.number_of_vehicles
@@ -198,7 +198,7 @@ class CarlaEnv(gym.Env):
 
         # Spawn pedestrians
         random.shuffle(self.walker_spawn_points)
-        if self.spawn_batch:
+        if self.spawn_batch and self.number_of_walkers > 0:
             self._spwan_random_walkers_batch(self.walker_spawn_points, self.number_of_walkers)
         else:
             count = self.number_of_walkers

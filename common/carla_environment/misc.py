@@ -134,6 +134,7 @@ def get_lane_dis(waypoints, x, y):
     dis_min = 1000
     waypt = waypoints[0]
     for pt in waypoints:
+        # distance between two 2D vectors
         d = np.sqrt((x-pt[0])**2 + (y-pt[1])**2)
         if d < dis_min:
             dis_min = d
