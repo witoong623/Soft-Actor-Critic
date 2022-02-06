@@ -82,11 +82,16 @@ class RoutePlanner():
                 road_options_list = retrieve_options(
                     next_waypoints, last_waypoint)
 
-                road_option = road_options_list[1]
-                # road_option = random.choice(road_options_list)
+                # prefer goes straight
+                try:
+                    road_option_idx = road_options_list.index(RoadOption.STRAIGHT)
+                    road_option = road_options_list[road_option_idx]
+                except ValueError:
+                    road_option_idx = 1
+                    road_option = road_options_list[road_option_idx]
+                    # road_option = random.choice(road_options_list)
 
-                next_waypoint = next_waypoints[road_options_list.index(
-                    road_option)]
+                next_waypoint = next_waypoints[road_option_idx]
 
             self._waypoints_queue.append((next_waypoint, road_option))
 

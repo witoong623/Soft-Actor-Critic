@@ -148,6 +148,8 @@ class CarlaEnv(gym.Env):
             self.throttle_hist = []
             self.brakes_hist = []
             self.steers_hist = []
+            self.speed_hist = []
+            self.lspeed_lon_hist = []
 
         self.spawn_batch = True
         # cache vehicle blueprints
@@ -157,7 +159,7 @@ class CarlaEnv(gym.Env):
                 self.vehicle_bp_caches[nw] = self._cache_vehicle_blueprints(number_of_wheels=nw)
 
         # termination condition
-        self.terminate_on_out_of_lane = False
+        self.terminate_on_out_of_lane = True
 
     def reset(self):
         # Clear history if exist
@@ -345,7 +347,7 @@ class CarlaEnv(gym.Env):
         dis, w = get_lane_dis(self.waypoints, ego_x, ego_y)
         r_out = 0
         if abs(dis) > self.out_lane_thres:
-            r_out = -1
+            r_out = -100
 
         # longitudinal speed
         lspeed = np.array([v.x, v.y])
@@ -356,10 +358,18 @@ class CarlaEnv(gym.Env):
         if lspeed_lon > self.desired_speed:
             r_fast = -1
 
+        # if it is faster than desired speed, minus the excess speed
+        # and don't give reward from speed
+        r_fast *= lspeed_lon
+
         # cost for lateral acceleration
         r_lat = - abs(self.ego.get_control().steer) * lspeed_lon**2
 
-        r = 200 * r_collision + 1 * lspeed_lon + 10 * r_fast + 1 * r_out + r_steer * 5 + 0.2 * r_lat - 0.1
+        r = 200 * r_collision + 1 * lspeed_lon + r_fast + 1 * r_out + r_steer * 5 + 0.2 * r_lat - 0.1
+
+        if self.store_history:
+            self.speed_hist.append(speed)
+            self.lspeed_lon_hist.append(lspeed_lon)
 
         return r
 
@@ -671,9 +681,6 @@ class CarlaEnv(gym.Env):
             # delete all sensor for the next world
             self._clear_all_actors(['sensor.other.collision', self.camera_sensor_type, 'vehicle.*', 'controller.ai.walker', 'walker.*'])
 
-            # set to async mode the same as when simulator start
-            self._set_synchronous_mode(False)
-
         return super().close()
 
     def plot_control_graph(self, name):
@@ -686,6 +693,18 @@ class CarlaEnv(gym.Env):
 
         sns.lineplot(data=data, hue='command', x='index', y='value')
         plt.title('Throttle, Brake and Steer')
+        plt.savefig(name)
+
+    def plot_speed_graph(self, name):
+        if not self.store_history:
+            raise Exception('Cannot plot graph because environment does not store history')
+
+        data_np = np.array([self.speed_hist, self.lspeed_lon_hist]).transpose()
+        data = pd.DataFrame(data_np, columns=['speed', 'speed_lon']).reset_index()
+        data = pd.melt(data, id_vars='index', var_name='command', value_name='value')
+
+        sns.lineplot(data=data, hue='command', x='index', y='value')
+        plt.title('Speed and Longitudinal speed')
         plt.savefig(name)
 
     @property

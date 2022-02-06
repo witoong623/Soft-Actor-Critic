@@ -5,6 +5,7 @@ from datetime import datetime
 from collections import OrderedDict
 
 import numpy as np
+import matplotlib.pyplot as plt
 import torch
 import tqdm
 from setproctitle import setproctitle
@@ -192,4 +193,6 @@ def test_render(model, config):
     bkk_tz = pytz.timezone('Asia/Bangkok')
     now = datetime.now(bkk_tz)
     now_str = now.strftime('%Y-%m-%dT%H-%M-%S')
-    model.env.plot_control_graph(f'test_render_command_epoch_{config.initial_epoch}_{now_str}.jpeg')
+    model.env.plot_control_graph(f'command_epoch_{config.initial_epoch}_{now_str}.jpeg')
+    plt.clf()
+    model.env.plot_speed_graph(f'speed_epoch_{config.initial_epoch}_{now_str}.jpeg')
