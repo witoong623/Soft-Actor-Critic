@@ -17,19 +17,19 @@ cp "$0" "$LOG_DIR"
 python main.py \
 	--mode train --gpu 1 \
 	--env "$ENV" \
-    --n-past-actions 10 \
+    --n-past-actions 8 \
 	--hidden-dims 256 128 \
 	--activation LeakyReLU \
 	--encoder-arch VAE \
-	--weight-path "/root/thesis/thesis-code/Soft-Actor-Critic/vae_weights/Carla-v0/epoch(10)-loss(+2.276E+05).pkl" \
+	--weight-path "/root/thesis/thesis-code/Soft-Actor-Critic/vae_weights/Carla-v0/epoch(10)-loss(+2.431E+05).pkl" \
 	--state-dim 1024 \
 	--max-episode-steps 999 \
 	--n-epochs 1000 --n-updates 256 --batch-size 16 \
 	--n-samplers 1 \
-	--buffer-capacity 2000 \
+	--buffer-capacity 2500 \
 	--update-sample-ratio 5.0 \
-	--critic-lr 3E-4 --actor-lr 3E-4 \
-	--alpha-lr 3E-4 --initial-alpha 1.0 --adaptive-entropy \
+	--critic-lr 1E-4 --actor-lr 1E-4 \
+	--alpha-lr 1E-4 --initial-alpha 1.0 --adaptive-entropy \
 	--normalize-rewards --reward-scale 1.0 \
 	--gamma 0.99 --soft-tau 0.005 --random-seed 69 \
 	--log-dir "$LOG_DIR" \
