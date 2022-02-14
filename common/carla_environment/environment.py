@@ -84,8 +84,10 @@ class CarlaEnv(gym.Env):
 
         # spawn points
         self.vehicle_spawn_points = list(self.world.get_map().get_spawn_points())
-        self.walker_spawn_points = []
+        # top left spawn point of town4
+        self.lap_spwan_point_wp = self.world.get_map().get_waypoint(self.vehicle_spawn_points[1].location)
 
+        self.walker_spawn_points = []
         # if we can cache more than 70% of spawn points then use cache
         if len(_walker_spawn_points_cache) > self.number_of_walkers * 0.7:
             def loc_to_transform(loc):
@@ -139,7 +141,7 @@ class CarlaEnv(gym.Env):
         self.img_buff = deque(maxlen=self.n_images)
 
         # action buffer
-        self.num_past_actions = 10
+        self.num_past_actions = 8
         self.actions_queue = deque(maxlen=self.num_past_actions)
 
         # control history

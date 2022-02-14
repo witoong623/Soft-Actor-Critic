@@ -11,22 +11,12 @@
 
 from enum import Enum
 from collections import deque
+from agents.navigation.local_planner import RoadOption
 import random
 import numpy as np
 import carla
 
 from .misc import distance_vehicle, is_within_distance_ahead, compute_magnitude_angle
-
-
-class RoadOption(Enum):
-    """
-    RoadOption represents the possible topological configurations when moving from a segment of lane to other.
-    """
-    VOID = -1
-    LEFT = 1
-    RIGHT = 2
-    STRAIGHT = 3
-    LANEFOLLOW = 4
 
 
 class RoutePlanner():

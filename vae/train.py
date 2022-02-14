@@ -22,7 +22,7 @@ CHECKPOINT_FORMAT = partial(CHECKPOINT_FORMAT.format, prefix='', suffix='')
 # parameters
 BATCH_SIZE = 256
 TEST_BATCH_SIZE = 10
-EPOCHS = 11
+EPOCHS = 21
 
 LATENT_SIZE = 512
 LEARNING_RATE = 5e-4
@@ -36,7 +36,7 @@ COMPARE_PATH = './comparisons/'
 if __name__ == "__main__":
 
     use_cuda = USE_CUDA and torch.cuda.is_available()
-    device = torch.device("cuda:2" if use_cuda else "cpu")
+    device = torch.device("cuda:1" if use_cuda else "cpu")
     print('Using device', device)
     print('num cpus:', multiprocessing.cpu_count())
 
