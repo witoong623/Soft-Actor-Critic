@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import torch
 import tqdm
 from setproctitle import setproctitle
+from PIL import Image
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import trange
 
@@ -157,6 +158,12 @@ def test(model, config):
                 print(f'{metric}: {dict(mean=mean, stddev=stddev)}')
 
 
+def save_image(image, num):
+    ''' image is RGB numpy array'''
+    img = Image.fromarray(image)
+    img.save(f'/root/thesis/thesis-code/Soft-Actor-Critic/town7_eval_images/eval_image_{num}.jpeg')
+
+
 def test_render(model, config):
     model.state_encoder.reset()
     observation = model.env.reset()
@@ -166,7 +173,11 @@ def test_render(model, config):
 
     rewards = 0
 
-    for step in trange(config.max_episode_steps):
+    # get the first image
+    # rgb_array = model.env.render(mode='rgb_array')
+    # save_image(rgb_array, num=0)
+
+    for step in trange(1, config.max_episode_steps + 1):
         state = model.state_encoder.encode(observation)
 
         if prev_actions is not None:
@@ -177,6 +188,9 @@ def test_render(model, config):
         action = model.actor.get_action(state, deterministic=True)
 
         next_observation, reward, done, info = model.env.step(action)
+
+        # rgb_array = model.env.render(mode='rgb_array')
+        # save_image(rgb_array, step)
 
         if 'past_actions' in info:
             prev_actions = info['past_actions']

@@ -5,7 +5,7 @@ import carla
 from agents.navigation.local_planner import RoadOption
 from agents.navigation.global_route_planner import GlobalRoutePlanner
 from agents.tools.misc import vector
-
+from .misc import distance_vehicle
 
 # cache waypoint for entire lifecycle of application
 _waypoint_routes = None
@@ -23,19 +23,24 @@ def carla_to_vector(obj):
 
 
 class ManualRoutePlanner:
-    def __init__(self, start_waypoint, end_waypoint, resolution=1.0, plan=None):
+    def __init__(self, start_waypoint, end_waypoint, resolution=2.0, plan=None):
+        assert resolution >= 2
+
         self._vehicle = None
         self._world = None
         self._map = None
 
         self._sampling_radius = resolution
+        self._min_distance = self._sampling_radius - 1
 
         self.start_waypoint = start_waypoint
         self.end_waypoint = end_waypoint
         self.spawn_transform = start_waypoint.transform
+        self.lap_count = 0
 
         self._current_waypoint_index = 0
         self._checkpoint_waypoint_index = 0
+        self._start_waypoint_index = 0
         self._checkpoint_frequency = 50
 
         self.plan = plan
@@ -45,6 +50,9 @@ class ManualRoutePlanner:
         self._vehicle = vehicle
         self._world = self._vehicle.get_world()
         self._map = self._world.get_map()
+
+        self._start_waypoint_index = self._checkpoint_waypoint_index
+        self.lap_count = 0
 
     def run_step(self):
         global _waypoint_routes, _transformed_waypoint_routes
@@ -67,14 +75,21 @@ class ManualRoutePlanner:
             if dot > 0.0:
                 # if passed, go to next waypoint
                 waypoint_index += 1
+                continue
+
+            # distance must be greater than min distance
+            if distance_vehicle(wp, current_transform) < self._min_distance:
+                waypoint_index += 1
             else:
                 break
 
         self._current_waypoint_index = waypoint_index
 
         # update checkpoint
-        self.checkpoint_waypoint_index = (self._current_waypoint_index // self._checkpoint_frequency) * self._checkpoint_frequency
-        self.spawn_transform = _waypoint_routes[self.checkpoint_waypoint_index].transform
+        self._checkpoint_waypoint_index = (self._current_waypoint_index // self._checkpoint_frequency) * self._checkpoint_frequency
+        self.spawn_transform = _waypoint_routes[self._checkpoint_waypoint_index][0].transform
+
+        self.lap_count = (self._current_waypoint_index - self._start_waypoint_index) / len(_waypoint_routes)
 
         return _transformed_waypoint_routes[self._current_waypoint_index:]
 
@@ -194,4 +209,7 @@ class ManualRoutePlanner:
 
     def _transform_waypoints(self, waypoints):
         ''' Transform a waypoint into list of x, y and yaw '''
-        return list(map(lambda wp: [wp.transform.location.x, wp.transform.location.y, wp.transform.rotation.yaw], waypoints))
+        return list(map(lambda wp: [wp[0].transform.location.x, wp[0].transform.location.y, wp[0].transform.rotation.yaw], waypoints))
+
+
+TOWN4_PLAN = [RoadOption.STRAIGHT] + [RoadOption.RIGHT] * 2 + [RoadOption.STRAIGHT] * 5

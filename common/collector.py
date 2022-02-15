@@ -59,7 +59,14 @@ class Sampler(mp.Process):
             self.n_episodes = n_episodes // n_samplers
             if rank < n_episodes % n_samplers:
                 self.n_episodes += 1
-        self.max_episode_steps = max_episode_steps
+
+        # TODO: delete this condition if I don't use lap env
+        if random_sample:
+            # fix random sample to 1000 steps
+            self.max_episode_steps = 1000
+        else:
+            self.max_episode_steps = max_episode_steps
+
         self.deterministic = deterministic
         self.random_sample = random_sample
         self.render_env = (render and rank == 0)
@@ -133,8 +140,15 @@ class Sampler(mp.Process):
 
                 episode_reward += reward
                 episode_steps += 1
-                self.render()
-                self.save_frame(step=episode_steps, reward=reward, episode_reward=episode_reward)
+                # self.render()
+                # self.save_frame(step=episode_steps, reward=reward, episode_reward=episode_reward)
+                # if more than 50% of capacity, add transactions to replay buffer and clear
+                # before saving current trajectory
+                if len(self.trajectory) / self.replay_buffer.capacity > 0.5:
+                    with self.lock:
+                        self.save_trajectory()
+                        self.trajectory.clear()
+
                 self.add_transaction(observation, action, reward, next_observation, done, info)
 
                 observation = next_observation

@@ -14,12 +14,18 @@ from agents.navigation.behavior_agent import BehaviorAgent
 from collections import deque
 from gym import spaces
 from PIL import Image
+from enum import Enum, auto
 
 from .misc import set_carla_transform, get_pos, get_lane_dis
 from .route_planner import RoutePlanner
+from .manual_route_planner import ManualRoutePlanner, TOWN4_PLAN
 
 from agents.navigation.behavior_agent import BehaviorAgent
 
+
+class RouteMode(Enum):
+    BASIC_RANDOM = auto()
+    MANUAL_LAP = auto()
 
 _walker_spawn_points_cache = []
 _load_world = False
@@ -108,6 +114,12 @@ class CarlaEnv(gym.Env):
                     # save to cache
                     _walker_spawn_points_cache.append((loc.x, loc.y, loc.z))
 
+        # route planner mode
+        self.route_mode = RouteMode.MANUAL_LAP
+
+        if self.route_mode == RouteMode.MANUAL_LAP:
+            self.routeplanner = ManualRoutePlanner(self.lap_spwan_point_wp, self.lap_spwan_point_wp, resolution=5, plan=TOWN4_PLAN)
+
         # ego vehicle bp
         self.ego_bp = self._create_vehicle_bluepprint('vehicle.nissan.micra', color='49,8,8')
 
@@ -141,7 +153,7 @@ class CarlaEnv(gym.Env):
         self.img_buff = deque(maxlen=self.n_images)
 
         # action buffer
-        self.num_past_actions = 8
+        self.num_past_actions = 10
         self.actions_queue = deque(maxlen=self.num_past_actions)
 
         # control history
@@ -227,12 +239,16 @@ class CarlaEnv(gym.Env):
             if ego_spawn_times > self.max_ego_spawn_times:
                 self.reset()
 
-            if self.task_mode == 'random':
-                transform = random.choice(self.vehicle_spawn_points)
-            if self.task_mode == 'roundabout':
-                self.start = [52.1 + np.random.uniform(-5,5), -4.2, 178.66] # random
-                # self.start=[52.1,-4.2, 178.66] # static
-                transform = set_carla_transform(self.start)
+            if self.route_mode == RouteMode.BASIC_RANDOM:
+                if self.task_mode == 'random':
+                    transform = random.choice(self.vehicle_spawn_points)
+                if self.task_mode == 'roundabout':
+                    self.start = [52.1 + np.random.uniform(-5,5), -4.2, 178.66] # random
+                    # self.start=[52.1,-4.2, 178.66] # static
+                    transform = set_carla_transform(self.start)
+            elif self.route_mode == RouteMode.MANUAL_LAP:
+                transform = self.routeplanner.spawn_transform
+
             if self._try_spawn_ego_vehicle_at(transform):
                 break
             else:
@@ -277,8 +293,12 @@ class CarlaEnv(gym.Env):
         self.settings.synchronous_mode = True
         self.world.apply_settings(self.settings)
 
-        self.routeplanner = RoutePlanner(self.ego, self.max_waypt)
-        self.waypoints = self.routeplanner.run_step()
+        if self.route_mode == RouteMode.BASIC_RANDOM:
+            self.routeplanner = RoutePlanner(self.ego, self.max_waypt)
+            self.waypoints = self.routeplanner.run_step()
+        elif self.route_mode == RouteMode.MANUAL_LAP:
+            self.routeplanner.set_vehicle(self.ego)
+            self.waypoints = self.routeplanner.run_step()
 
         for _ in range(self.num_past_actions):
             self.actions_queue.append(np.array([0, 0]))
@@ -387,6 +407,11 @@ class CarlaEnv(gym.Env):
         # If reach maximum timestep
         if self.time_step > self.max_time_episode:
             return True
+
+        # if complete a number of laps
+        if self.route_mode == RouteMode.MANUAL_LAP:
+            if self.routeplanner.lap_count >= 2:
+                return True
 
         # If at destination
         if self.dests is not None: # If at destination

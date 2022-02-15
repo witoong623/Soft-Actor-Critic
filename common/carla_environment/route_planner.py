@@ -133,7 +133,7 @@ class RoutePlanner():
                     waypoint, vehicle_transform) < self._min_distance:
                 max_index = i
         # max_index will be set to index of waypoint that distance is less than threshold
-        # since waypoint puffer contains waypoints with distance from vehicle in ascending order
+        # since waypoint buffer contains waypoints with distance from vehicle in ascending order
         # pop left will remove those waypoints that distance is less than threshold
         if max_index >= 0:
             for i in range(max_index - 1):
