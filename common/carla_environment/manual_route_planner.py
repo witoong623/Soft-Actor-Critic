@@ -8,7 +8,7 @@ from agents.tools.misc import vector
 from .misc import distance_vehicle
 
 # cache waypoint for entire lifecycle of application
-_waypoint_routes = None
+_route_waypoints = None
 _transformed_waypoint_routes = None
 
 
@@ -24,14 +24,12 @@ def carla_to_vector(obj):
 
 class ManualRoutePlanner:
     def __init__(self, start_waypoint, end_waypoint, resolution=2.0, plan=None):
-        assert resolution >= 2
-
         self._vehicle = None
         self._world = None
         self._map = None
 
         self._sampling_radius = resolution
-        self._min_distance = self._sampling_radius - 1
+        self._min_distance = self._sampling_radius - 1 if self._sampling_radius > 1 else 1
 
         self.start_waypoint = start_waypoint
         self.end_waypoint = end_waypoint
@@ -55,19 +53,19 @@ class ManualRoutePlanner:
         self.lap_count = 0
 
     def run_step(self):
-        global _waypoint_routes, _transformed_waypoint_routes
+        global _route_waypoints, _transformed_waypoint_routes
 
-        if _waypoint_routes is None:
-            _waypoint_routes = self._compute_route_waypoints()
-            _transformed_waypoint_routes = self._transform_waypoints(_waypoint_routes)
+        if _route_waypoints is None:
+            _route_waypoints = self._compute_route_waypoints()
+            _transformed_waypoint_routes = self._transform_waypoints(_route_waypoints)
 
-        waypoint_routes_len = len(_waypoint_routes)
+        waypoint_routes_len = len(_route_waypoints)
         current_transform = self._vehicle.get_transform()
         waypoint_index = self._current_waypoint_index
         for _ in range(waypoint_routes_len):
             # check if we passed next waypoint along the route
             next_waypoint_index = waypoint_index + 1
-            wp, _ = _waypoint_routes[next_waypoint_index % waypoint_routes_len]
+            wp, _ = _route_waypoints[next_waypoint_index % waypoint_routes_len]
             dot = np.dot(carla_to_vector(wp.transform.get_forward_vector())[:2],
                          carla_to_vector(current_transform.location - wp.transform.location)[:2])
 
@@ -87,11 +85,20 @@ class ManualRoutePlanner:
 
         # update checkpoint
         self._checkpoint_waypoint_index = (self._current_waypoint_index // self._checkpoint_frequency) * self._checkpoint_frequency
-        self.spawn_transform = _waypoint_routes[self._checkpoint_waypoint_index][0].transform
+        self.spawn_transform = _route_waypoints[self._checkpoint_waypoint_index][0].transform
 
-        self.lap_count = (self._current_waypoint_index - self._start_waypoint_index) / len(_waypoint_routes)
+        self.lap_count = (self._current_waypoint_index - self._start_waypoint_index) / len(_route_waypoints)
 
         return _transformed_waypoint_routes[self._current_waypoint_index:]
+
+    def get_route_waypoints(self):
+        ''' Calculate and get waypoints along the route and return list of [waypoint, RoadOption] '''
+        global _route_waypoints
+
+        if _route_waypoints is None:
+            _route_waypoints = self._compute_route_waypoints()
+
+        return _route_waypoints
 
     def _compute_route_waypoints(self):
         """
@@ -213,3 +220,4 @@ class ManualRoutePlanner:
 
 
 TOWN4_PLAN = [RoadOption.STRAIGHT] + [RoadOption.RIGHT] * 2 + [RoadOption.STRAIGHT] * 5
+TOWN4_REVERSE_PLAN = [RoadOption.STRAIGHT] * 4 + [RoadOption.LEFT] * 2 + [RoadOption.STRAIGHT]

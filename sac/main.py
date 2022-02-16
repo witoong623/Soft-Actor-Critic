@@ -161,7 +161,7 @@ def test(model, config):
 def save_image(image, num):
     ''' image is RGB numpy array'''
     img = Image.fromarray(image)
-    img.save(f'/root/thesis/thesis-code/Soft-Actor-Critic/town7_eval_images/eval_image_{num}.jpeg')
+    img.save(f'/root/thesis/thesis-code/Soft-Actor-Critic/town7_eval_images/eval_image_{num:02d}.jpeg')
 
 
 def test_render(model, config):

@@ -2,12 +2,12 @@ python main.py \
 	--mode test_render \
 	--env Carla-v0 \
 	--gpu 1 \
-	--n-past-actions 8 \
+	--n-past-actions 10 \
 	--hidden-dims 256 128 \
 	--activation LeakyReLU \
 	--encoder-arch VAE \
-	--state-dim 1024 \
-	--max-episode-steps 999 \
+	--state-dim 512 \
+	--max-episode-steps 5000 \
 	--random-seed 49 \
 	--record-video \
 	--load-checkpoint \

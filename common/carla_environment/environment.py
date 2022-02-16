@@ -9,16 +9,17 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
+from agents.navigation.behavior_agent import BehaviorAgent, BasicAgent
 from carla import ColorConverter as cc
-from agents.navigation.behavior_agent import BehaviorAgent
 from collections import deque
+from enum import Enum, auto
 from gym import spaces
 from PIL import Image
-from enum import Enum, auto
+from tqdm import trange
 
 from .misc import set_carla_transform, get_pos, get_lane_dis
 from .route_planner import RoutePlanner
-from .manual_route_planner import ManualRoutePlanner, TOWN4_PLAN
+from .manual_route_planner import ManualRoutePlanner, TOWN4_PLAN, TOWN4_REVERSE_PLAN
 
 from agents.navigation.behavior_agent import BehaviorAgent
 
@@ -92,6 +93,8 @@ class CarlaEnv(gym.Env):
         self.vehicle_spawn_points = list(self.world.get_map().get_spawn_points())
         # top left spawn point of town4
         self.lap_spwan_point_wp = self.world.get_map().get_waypoint(self.vehicle_spawn_points[1].location)
+        # for collect images
+        # self.lap_opposite_spwan_point_wp = self.lap_spwan_point_wp.get_left_lane()
 
         self.walker_spawn_points = []
         # if we can cache more than 70% of spawn points then use cache
@@ -119,6 +122,8 @@ class CarlaEnv(gym.Env):
 
         if self.route_mode == RouteMode.MANUAL_LAP:
             self.routeplanner = ManualRoutePlanner(self.lap_spwan_point_wp, self.lap_spwan_point_wp, resolution=5, plan=TOWN4_PLAN)
+            # for collect images
+            # self.routeplanner = ManualRoutePlanner(self.lap_opposite_spwan_point_wp, self.lap_opposite_spwan_point_wp, resolution=1, plan=TOWN4_REVERSE_PLAN)
 
         # ego vehicle bp
         self.ego_bp = self._create_vehicle_bluepprint('vehicle.nissan.micra', color='49,8,8')
@@ -749,31 +754,28 @@ class CarlaEnv(gym.Env):
             if observation_callback is not None:
                 observation_callback(self._get_image())
 
+    def test_carla_agent(self, num_steps, recorder):
 
-if __name__ == '__main__':
-    # env = gym.make('carla-v0')
-    env = CarlaEnv(dry_run=True)
-    # print('action_space', env.action_space)
-    # print('action_space.shape', env.action_space.shape)
-    sample_action = env.action_space.sample()
-    print(type(sample_action))
-    print(sample_action)
-    print(sample_action.dtype)
-    print(sample_action.shape)
+        agent = BasicAgent(self.ego)
 
-    # obs = env.reset()
+        route_waypoints = self.routeplanner.get_route_waypoints()
+        agent.set_global_plan(route_waypoints)
+        agent.ignore_traffic_lights(active=True)
+        agent.ignore_stop_signs(active=True)
 
-    # excep_count = 1
-    # for i in range(50):
-    #     new_obs, reward, done, info = env.step([0.5, 0])
-    #     img = Image.fromarray(env.camera_img)
-    #     img.save(f'carla_images/step_{i+1}.jpeg')
-    #     # env.render()
-    #     obs = new_obs
+        start = 0
+        for step in trange(start, num_steps + start):
+            self.ego.apply_control(agent.run_step())
 
-    #     if done:
-    #         print('done')
-    #         break
+            self.world.tick()
 
-    # key = input('pass anykey to exit')
-    # env.close()
+            recorder.capture_frame()
+
+            # img_np = self._get_image()
+            # img = Image.fromarray(img_np)
+            # img.save(f'carla_town7_images/outskirts/town7_outskirts_{step:04d}.jpeg')
+            # img.close()
+
+            if agent.done():
+                print('agent is done')
+                break

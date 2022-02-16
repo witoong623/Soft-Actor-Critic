@@ -238,9 +238,9 @@ tags
 *.bat
 videos/
 vae_weights/
-carla_images/
 carla_test_images/
 vae_comparisions/
 carla_videos/
 command_graphs/
 town7_eval_images/
+carla_town7_images/

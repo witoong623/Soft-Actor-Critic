@@ -631,7 +631,7 @@ CNN = ConvolutionalNeuralNetwork
 
 if __name__ == '__main__':
     image_size = (270, 480)
-    model = CarlaCNN(image_size, 6, [32, 64, 128])
+    model = CarlaCNN(image_size, 6, [32, 64, 128], 512)
     dummy = torch.zeros((1, 6, *image_size))
     output = model(dummy)
 
