@@ -22,7 +22,7 @@ CHECKPOINT_FORMAT = partial(CHECKPOINT_FORMAT.format, prefix='', suffix='')
 # parameters
 BATCH_SIZE = 256
 TEST_BATCH_SIZE = 10
-EPOCHS = 51
+EPOCHS = 100
 
 LATENT_SIZE = 512
 LEARNING_RATE = 1e-4
@@ -44,13 +44,13 @@ if __name__ == "__main__":
     # test_loader = torch.utils.data.DataLoader(data_test, batch_size=TEST_BATCH_SIZE, shuffle=True, **kwargs)
 
     print('latent size:', LATENT_SIZE)
-    model = ConvVAE((270, 480), latent_size=LATENT_SIZE).to(device)
+    model = ConvVAE((270, 480), latent_size=LATENT_SIZE, beta=4).to(device)
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
-    # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, verbose=True)
+    scheduler = lr_scheduler.StepLR(optimizer=optimizer, step_size=50, gamma=0.5)
 
     for epoch in range(0, EPOCHS + 1):
         train_loss = train(model, device, train_loader, optimizer, epoch, PRINT_INTERVAL)
-        # scheduler.step(train_loss)
+        scheduler.step()
 
         # test_loss, original_images, rect_images = test(model, device, test_loader, return_images=5)
 

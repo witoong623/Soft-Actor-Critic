@@ -12,6 +12,6 @@ python main.py \
 	--record-video \
 	--load-checkpoint \
 	--dry-run-init-env \
-	--weight-path "/root/thesis/thesis-code/Soft-Actor-Critic/vae_weights/Carla-v0/epoch(10)-loss(+2.431E+05).pkl" \
+	--weight-path "/root/thesis/thesis-code/Soft-Actor-Critic/vae_weights/Carla-v0_town7_outskirts_b3/bvae_town7_epoch(100)-loss(+2.453E+05).pkl" \
 	--log-dir "logs/Carla-v0_town7_test_render/VAE" \
 	--checkpoint-dir "savedcheckpoints/Carla-v0/VAE"

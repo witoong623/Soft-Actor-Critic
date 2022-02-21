@@ -123,7 +123,7 @@ class CarlaEnv(gym.Env):
         if self.route_mode == RouteMode.MANUAL_LAP:
             self.routeplanner = ManualRoutePlanner(self.lap_spwan_point_wp, self.lap_spwan_point_wp, resolution=5, plan=TOWN4_PLAN)
             # for collect images
-            # self.routeplanner = ManualRoutePlanner(self.lap_opposite_spwan_point_wp, self.lap_opposite_spwan_point_wp, resolution=1, plan=TOWN4_REVERSE_PLAN)
+            # self.routeplanner = ManualRoutePlanner(self.lap_opposite_spwan_point_wp, self.lap_opposite_spwan_point_wp, resolution=5, plan=TOWN4_REVERSE_PLAN)
 
         # ego vehicle bp
         self.ego_bp = self._create_vehicle_bluepprint('vehicle.nissan.micra', color='49,8,8')
@@ -304,6 +304,13 @@ class CarlaEnv(gym.Env):
         elif self.route_mode == RouteMode.MANUAL_LAP:
             self.routeplanner.set_vehicle(self.ego)
             self.waypoints = self.routeplanner.run_step()
+
+            # TODO: delete this after record vae training images end
+            # self.route_waypoints = self.routeplanner.get_route_waypoints().copy()
+            # start_idx = random.randrange(len(self.route_waypoints))
+            # # start route at the new location
+            # self.route_waypoints = self.route_waypoints[start_idx:] + self.route_waypoints[:start_idx]
+            # self.ego.set_transform(self.route_waypoints[0][0].transform)
 
         for _ in range(self.num_past_actions):
             self.actions_queue.append(np.array([0, 0]))
@@ -758,23 +765,23 @@ class CarlaEnv(gym.Env):
 
         agent = BasicAgent(self.ego)
 
-        route_waypoints = self.routeplanner.get_route_waypoints()
-        agent.set_global_plan(route_waypoints)
+        agent.set_global_plan(self.route_waypoints)
         agent.ignore_traffic_lights(active=True)
         agent.ignore_stop_signs(active=True)
+        agent.set_target_speed(40)
 
-        start = 0
+        start = 24376
         for step in trange(start, num_steps + start):
             self.ego.apply_control(agent.run_step())
 
             self.world.tick()
 
-            recorder.capture_frame()
+            # recorder.capture_frame()
 
-            # img_np = self._get_image()
-            # img = Image.fromarray(img_np)
-            # img.save(f'carla_town7_images/outskirts/town7_outskirts_{step:04d}.jpeg')
-            # img.close()
+            img_np = self._get_image()
+            img = Image.fromarray(img_np)
+            img.save(f'carla_town7_images/outskirts/town7_outskirts_{step:05d}.jpeg')
+            img.close()
 
             if agent.done():
                 print('agent is done')
