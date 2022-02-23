@@ -6,16 +6,21 @@ from gym.wrappers import RecordVideo
 from gym.wrappers.monitoring.video_recorder import VideoRecorder
 
 
-num_steps = 10000
+num_steps = 200
 
 
 if __name__ == '__main__':
-    env = CarlaEnv()
+    # env = CarlaEnv()
+    env = CarlaEnv(run_backward=True)
     # recorder = VideoRecorder(env, base_path='carla_agent_videos')
-    recorder = None
+    start_step = 35380
 
-    env.reset()
-    env.test_carla_agent(num_steps, recorder)
+    completed_lap = False
+    while not completed_lap:
+        env.reset()
+        completed_lap = env.test_carla_agent(num_steps, start_step=start_step)
+
+        start_step = start_step + num_steps + 1
 
     # recorder.close()
     env.close()

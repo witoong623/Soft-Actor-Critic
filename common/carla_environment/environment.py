@@ -12,6 +12,7 @@ import seaborn as sns
 from agents.navigation.behavior_agent import BehaviorAgent, BasicAgent
 from carla import ColorConverter as cc
 from collections import deque
+from copy import deepcopy
 from enum import Enum, auto
 from gym import spaces
 from PIL import Image
@@ -20,6 +21,7 @@ from tqdm import trange
 from .misc import set_carla_transform, get_pos, get_lane_dis
 from .route_planner import RoutePlanner
 from .manual_route_planner import ManualRoutePlanner, TOWN4_PLAN, TOWN4_REVERSE_PLAN
+from ..utils import center_crop
 
 from agents.navigation.behavior_agent import BehaviorAgent
 
@@ -33,6 +35,8 @@ _load_world = False
 
 
 class CarlaEnv(gym.Env):
+    start_wp_idx = 0
+
     def __init__(self, **kwargs):
         global _load_world
         self.host = 'witoon-carla'
@@ -94,7 +98,7 @@ class CarlaEnv(gym.Env):
         # top left spawn point of town4
         self.lap_spwan_point_wp = self.world.get_map().get_waypoint(self.vehicle_spawn_points[1].location)
         # for collect images
-        # self.lap_opposite_spwan_point_wp = self.lap_spwan_point_wp.get_left_lane()
+        self.lap_opposite_spwan_point_wp = self.lap_spwan_point_wp.get_left_lane()
 
         self.walker_spawn_points = []
         # if we can cache more than 70% of spawn points then use cache
@@ -119,11 +123,13 @@ class CarlaEnv(gym.Env):
 
         # route planner mode
         self.route_mode = RouteMode.MANUAL_LAP
+        self.run_backward = kwargs.get('run_backward', False)
 
         if self.route_mode == RouteMode.MANUAL_LAP:
-            self.routeplanner = ManualRoutePlanner(self.lap_spwan_point_wp, self.lap_spwan_point_wp, resolution=5, plan=TOWN4_PLAN)
-            # for collect images
-            # self.routeplanner = ManualRoutePlanner(self.lap_opposite_spwan_point_wp, self.lap_opposite_spwan_point_wp, resolution=5, plan=TOWN4_REVERSE_PLAN)
+            if self.run_backward:
+                self.routeplanner = ManualRoutePlanner(self.lap_opposite_spwan_point_wp, self.lap_opposite_spwan_point_wp, resolution=5, plan=TOWN4_REVERSE_PLAN)
+            else:
+                self.routeplanner = ManualRoutePlanner(self.lap_spwan_point_wp, self.lap_spwan_point_wp, resolution=5, plan=TOWN4_PLAN)
 
         # ego vehicle bp
         self.ego_bp = self._create_vehicle_bluepprint('vehicle.nissan.micra', color='49,8,8')
@@ -298,6 +304,7 @@ class CarlaEnv(gym.Env):
         self.settings.synchronous_mode = True
         self.world.apply_settings(self.settings)
 
+        # get route plan
         if self.route_mode == RouteMode.BASIC_RANDOM:
             self.routeplanner = RoutePlanner(self.ego, self.max_waypt)
             self.waypoints = self.routeplanner.run_step()
@@ -307,7 +314,8 @@ class CarlaEnv(gym.Env):
 
             # TODO: delete this after record vae training images end
             # self.route_waypoints = self.routeplanner.get_route_waypoints().copy()
-            # start_idx = random.randrange(len(self.route_waypoints))
+            # # start_idx = random.randrange(len(self.route_waypoints))
+            # start_idx = CarlaEnv.start_wp_idx
             # # start route at the new location
             # self.route_waypoints = self.route_waypoints[start_idx:] + self.route_waypoints[:start_idx]
             # self.ego.set_transform(self.route_waypoints[0][0].transform)
@@ -360,6 +368,8 @@ class CarlaEnv(gym.Env):
             cv2.waitKey(1)
         elif mode == 'rgb_array':
             return self.camera_img
+        elif mode == 'observation':
+            return self._transform_observation(self.camera_img)
 
     def _get_reward(self):
         """ Calculate the step reward. """
@@ -701,14 +711,20 @@ class CarlaEnv(gym.Env):
 
     def _transform_observation(self, obs):
         ''' Transform image observation to specified observation size and normalize it '''
-        obs = cv2.resize(obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
+        cropped_size = (384, 768)
+        cropped_obs = center_crop(obs, cropped_size, shift_H=1.25)
+
+        resized_obs = cv2.resize(cropped_obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
         # TODO: for CNN encoder, make it to C x H x W
-        obs = obs.transpose((2, 0, 1))
-        return obs / 255.
+        # resized_obs = resized_obs.transpose((2, 0, 1))
+        return resized_obs / 255.
 
     def _get_image(self):
         ''' Return RGB image in `H` x `W` x `C` format, its size match observation size. '''
-        return cv2.resize(self.camera_img, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
+        cropped_size = (384, 768)
+        cropped_obs = center_crop(self.camera_img, cropped_size, shift_H=1.25)
+
+        return cv2.resize(cropped_obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
 
     def close(self):
         try:
@@ -750,10 +766,10 @@ class CarlaEnv(gym.Env):
     def metadata(self):
         return {"render.modes": ["human", "rgb_array"], "video.frames_per_second": self.frame_per_second}
 
-    def collect_env_images(self, num_steps, observation_callback=None):
-        agent = BehaviorAgent(self.ego)
+    def collect_env_images(self, num_steps, start_step=0, agent_class=BehaviorAgent, observation_callback=None):
+        agent = agent_class(self.ego)
 
-        for _ in range(num_steps):
+        for _ in range(start_step, start_step + num_steps):
             self.ego.apply_control(agent.run_step())
 
             self.world.tick()
@@ -761,22 +777,22 @@ class CarlaEnv(gym.Env):
             if observation_callback is not None:
                 observation_callback(self._get_image())
 
-    def test_carla_agent(self, num_steps, recorder):
+    def test_carla_agent(self, num_steps, start_step=0, recorder=None):
+        # agent = BasicAgent(self.ego)
+        agent = ManualAgent(self.ego)
 
-        agent = BasicAgent(self.ego)
+        # agent.set_global_plan(self.route_waypoints)
+        # agent.ignore_traffic_lights(active=True)
+        # agent.ignore_stop_signs(active=True)
+        # agent.set_target_speed(40)
 
-        agent.set_global_plan(self.route_waypoints)
-        agent.ignore_traffic_lights(active=True)
-        agent.ignore_stop_signs(active=True)
-        agent.set_target_speed(40)
-
-        start = 24376
-        for step in trange(start, num_steps + start):
+        for step in trange(start_step, start_step + num_steps):
             self.ego.apply_control(agent.run_step())
 
             self.world.tick()
 
-            # recorder.capture_frame()
+            if recorder is not None:
+                recorder.capture_frame()
 
             img_np = self._get_image()
             img = Image.fromarray(img_np)
@@ -786,3 +802,41 @@ class CarlaEnv(gym.Env):
             if agent.done():
                 print('agent is done')
                 break
+
+        CarlaEnv.start_wp_idx += 5
+        completed_lap = CarlaEnv.start_wp_idx > len(self.route_waypoints)
+
+        return completed_lap
+
+
+class SteerDirection(Enum):
+    RIGHT = auto()
+    LEFT = auto()
+
+
+class ManualAgent:
+    steer_right_cmds = [0.0] * 30 + [0.2] * 10 + [-0.1] * 15
+    steer_left_cmds = [0.0] * 30 + [-0.05] * 5 + [-0.1] * 5
+
+    def __init__(self, vehicle):
+        steer_direction = SteerDirection.LEFT
+
+        if steer_direction == SteerDirection.RIGHT:
+            self.steer_cmds = deepcopy(ManualAgent.steer_right_cmds)
+        elif steer_direction == SteerDirection.LEFT:
+            self.steer_cmds = deepcopy(ManualAgent.steer_left_cmds)
+        else:
+            raise TypeError('unknown steer_direction type')
+
+    def run_step(self):
+        throttle = max(0.4, random.random())
+
+        steer = 0
+        if len(self.steer_cmds) > 0:
+            steer = self.steer_cmds[0]
+            self.steer_cmds.pop(0)
+
+        return carla.VehicleControl(throttle=float(throttle), steer=float(steer), brake=0.0)
+
+    def done(self):
+        return False

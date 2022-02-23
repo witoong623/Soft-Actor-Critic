@@ -21,7 +21,7 @@ python main.py \
 	--hidden-dims 256 128 \
 	--activation LeakyReLU \
 	--encoder-arch VAE \
-	--weight-path "/root/thesis/thesis-code/Soft-Actor-Critic/vae_weights/Carla-v0_town7_outskirts_b3/bvae_town7_epoch(100)-loss(+2.453E+05).pkl" \
+	--weight-path "/root/thesis/thesis-code/Soft-Actor-Critic/vae_weights/Carla-v0/bvae_town7_epoch(50)-loss(+2.492E+05).pkl" \
 	--state-dim 512 \
 	--max-episode-steps 5000 \
 	--n-epochs 1000 --n-updates 256 --batch-size 16 \

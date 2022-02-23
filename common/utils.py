@@ -127,6 +127,26 @@ def check_logging(config):
     config.initial_epoch = initial_epoch
 
 
+def center_crop(img, desired_size, shift_H=1, shift_W=1):
+    ''' Crop to get a new image with desired size.
+
+
+        `img` is numpy array image in `H x W x C` format.
+        `desired_size` is a tuple in format `(H, W)`.
+        `shift_H` and `shift_W` shift center of image before center crop by specified factor.
+    '''
+    H, W = img.shape[:2]
+    desired_H, desired_W = desired_size
+
+    H_cen = int(H // 2 * shift_H)
+    W_cen = int(W // 2 * shift_W)
+
+    y = H_cen - desired_H // 2
+    x = W_cen - desired_W // 2
+
+    return np.ascontiguousarray(img[y:y+desired_H, x:x+desired_W])
+
+
 def sample_carracing_bias_action(prev_action):
     ''' Sample bias action for CarRacing-v0 '''
     if np.random.randint(3) % 3:

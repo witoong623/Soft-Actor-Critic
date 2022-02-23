@@ -44,7 +44,7 @@ if __name__ == "__main__":
     # test_loader = torch.utils.data.DataLoader(data_test, batch_size=TEST_BATCH_SIZE, shuffle=True, **kwargs)
 
     print('latent size:', LATENT_SIZE)
-    model = ConvVAE((270, 480), latent_size=LATENT_SIZE, beta=4).to(device)
+    model = ConvVAE((256, 512), latent_size=LATENT_SIZE, beta=3).to(device)
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
     scheduler = lr_scheduler.StepLR(optimizer=optimizer, step_size=50, gamma=0.5)
 

@@ -75,7 +75,7 @@ def build_encoder(config):
                                                                              'batch_normalization']))
 
     elif config.VAE_encoder:
-        state_encoder = ConvVAE((270, 480), latent_size=512, beta=3)
+        state_encoder = ConvVAE((256, 512), latent_size=512, beta=3)
         if not config.weight_path:
             raise ValueError('--weight-path must be provided if encoder is VAE.')
         state_encoder.load_model(config.weight_path)

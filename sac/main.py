@@ -161,7 +161,12 @@ def test(model, config):
 def save_image(image, num):
     ''' image is RGB numpy array'''
     img = Image.fromarray(image)
-    img.save(f'/root/thesis/thesis-code/Soft-Actor-Critic/town7_eval_images/eval_image_{num:02d}.jpeg')
+    img.save(f'/root/thesis/thesis-code/Soft-Actor-Critic/carla_town7_images/episode_observation/observation_image_{num:04d}.jpeg')
+
+
+def to_image(tensor):
+    img_np = tensor[0].squeeze(dim=0).detach().cpu().numpy()
+    return (img_np.transpose(1, 2, 0) * 255).astype('uint8')
 
 
 def test_render(model, config):
@@ -174,7 +179,14 @@ def test_render(model, config):
     rewards = 0
 
     # get the first image
-    # rgb_array = model.env.render(mode='rgb_array')
+    rgb_array = model.env.render(mode='rgb_array')
+    save_image(rgb_array, num=0)
+
+    # render_obs = model.env.render(mode='observation')
+    # render_obs = render_obs.transpose((2, 0, 1))
+    # obs_tensor = torch.tensor(render_obs, dtype=torch.float32, device=model.model_device).unsqueeze(dim=0)
+    # out_tensor = model.state_encoder(obs_tensor)
+    # rgb_array = to_image(out_tensor)
     # save_image(rgb_array, num=0)
 
     for step in trange(1, config.max_episode_steps + 1):
@@ -189,8 +201,15 @@ def test_render(model, config):
 
         next_observation, reward, done, info = model.env.step(action)
 
-        # rgb_array = model.env.render(mode='rgb_array')
-        # save_image(rgb_array, step)
+        rgb_array = model.env.render(mode='rgb_array')
+        save_image(rgb_array, step)
+
+        # render_obs = model.env.render(mode='observation')
+        # render_obs = render_obs.transpose((2, 0, 1))
+        # obs_tensor = torch.tensor(render_obs, dtype=torch.float32, device=model.model_device).unsqueeze(dim=0)
+        # out_tensor = model.state_encoder(obs_tensor)
+        # rgb_array = to_image(out_tensor)
+        # save_image(rgb_array, num=step)
 
         if 'past_actions' in info:
             prev_actions = info['past_actions']
