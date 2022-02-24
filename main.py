@@ -144,6 +144,8 @@ def get_config():
                              help='initial value of temperature parameter (default: 1.0)')
     alpha_group.add_argument('--adaptive-entropy', action='store_true',
                              help='auto update temperature parameter while training')
+    alpha_group.add_argument('--target-entropy', type=float, default=None,
+                             help='target entropy to adapt to (default: -dim(action))')
     parser.add_argument('--weight-decay', type=float, default=0.0,
                         help='weight decay (default: 0.0)')
     parser.add_argument('--clip-gradient', action='store_true',

@@ -31,6 +31,7 @@ python main.py \
 	--update-sample-ratio 5.0 \
 	--critic-lr 1E-4 --actor-lr 1E-4 \
 	--alpha-lr 1E-4 --initial-alpha 1.0 --adaptive-entropy \
+	--normalize-rewards --reward-scale 1.0 \
 	--gamma 0.99 --soft-tau 0.005 --random-seed 69 \
 	--log-dir "$LOG_DIR" \
 	--checkpoint-dir "$CHECKPOINT_DIR" \

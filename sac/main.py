@@ -92,7 +92,12 @@ def train(model, config):
                                             'soft_tau'])
     if config.RNN_encoder:
         update_kwargs.update(step_size=config.step_size)
-    update_kwargs.update(target_entropy=-1.0 * config.action_dim)
+
+    if config.target_entropy is None:
+        update_kwargs.update(target_entropy=-1.0 * config.action_dim)
+    else:
+        assert isinstance(config.target_entropy, float)
+        update_kwargs.update(config.target_entropy)
 
     print(f'Start parallel sampling using {config.n_samplers} samplers '
           f'at {tuple(map(str, model.collector.devices))}.')
