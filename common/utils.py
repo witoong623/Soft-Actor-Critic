@@ -263,7 +263,7 @@ def encode_vae_observation(observation, encoder, normalize=True, device='cpu', o
         for observation_tensor in observation_tensors:
             # print('observation_tensor type', type(observation_tensor))
             # print('observation_tensor size', observation_tensor.size())
-            observation_state_batch = encoder(observation_tensor, encode=True)
+            observation_state_batch = encoder(observation_tensor, encode=True, mean=True)
             # print('observation_state_batch size', observation_state_batch.size())
             observation_state = observation_state_batch.flatten()
             # print('observation_state size', observation_state.size())
