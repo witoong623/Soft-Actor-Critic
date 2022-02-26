@@ -97,7 +97,7 @@ def train(model, config):
         update_kwargs.update(target_entropy=-1.0 * config.action_dim)
     else:
         assert isinstance(config.target_entropy, float)
-        update_kwargs.update(config.target_entropy)
+        update_kwargs.update(target_entropy=config.target_entropy)
 
     print(f'Start parallel sampling using {config.n_samplers} samplers '
           f'at {tuple(map(str, model.collector.devices))}.')
@@ -166,7 +166,7 @@ def test(model, config):
 def save_image(image, num):
     ''' image is RGB numpy array'''
     img = Image.fromarray(image)
-    img.save(f'/root/thesis/thesis-code/Soft-Actor-Critic/carla_town7_images/episode_observation/observation_image_{num:04d}.jpeg')
+    img.save(f'/root/thesis/thesis-code/Soft-Actor-Critic/carla_town7_images/observation_reconstruction/reconstructed_image_{num:04d}.jpeg')
 
 
 def to_image(tensor):
@@ -184,8 +184,8 @@ def test_render(model, config):
     rewards = 0
 
     # get the first image
-    rgb_array = model.env.render(mode='rgb_array')
-    save_image(rgb_array, num=0)
+    # rgb_array = model.env.render(mode='rgb_array')
+    # save_image(rgb_array, num=0)
 
     # render_obs = model.env.render(mode='observation')
     # render_obs = render_obs.transpose((2, 0, 1))
@@ -206,8 +206,8 @@ def test_render(model, config):
 
         next_observation, reward, done, info = model.env.step(action)
 
-        rgb_array = model.env.render(mode='rgb_array')
-        save_image(rgb_array, step)
+        # rgb_array = model.env.render(mode='rgb_array')
+        # save_image(rgb_array, step)
 
         # render_obs = model.env.render(mode='observation')
         # render_obs = render_obs.transpose((2, 0, 1))
@@ -231,6 +231,6 @@ def test_render(model, config):
     bkk_tz = pytz.timezone('Asia/Bangkok')
     now = datetime.now(bkk_tz)
     now_str = now.strftime('%Y-%m-%dT%H-%M-%S')
-    model.env.plot_control_graph(f'command_epoch_{config.initial_epoch}_{now_str}.jpeg')
+    model.env.plot_control_graph(f'command_graphs/vae_town7/commands/command_epoch_{config.initial_epoch}_{now_str}.jpeg')
     plt.clf()
-    model.env.plot_speed_graph(f'speed_epoch_{config.initial_epoch}_{now_str}.jpeg')
+    model.env.plot_speed_graph(f'command_graphs/vae_town7/speeds/speed_epoch_{config.initial_epoch}_{now_str}.jpeg')

@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from dataloader import get_dataloader
 from main_function import train
-from common.network import ConvVAE
+from common.network import ConvBetaVAE
 
 
 CHECKPOINT_FORMAT = '{prefix}epoch({epoch})-loss({loss:+.3E}){suffix}.pkl'
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     # test_loader = torch.utils.data.DataLoader(data_test, batch_size=TEST_BATCH_SIZE, shuffle=True, **kwargs)
 
     print('latent size:', LATENT_SIZE)
-    model = ConvVAE((256, 512), latent_size=LATENT_SIZE, beta=3).to(device)
+    model = ConvBetaVAE((256, 512), latent_size=LATENT_SIZE, beta=3).to(device)
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
     scheduler = lr_scheduler.StepLR(optimizer=optimizer, step_size=50, gamma=0.5)
 

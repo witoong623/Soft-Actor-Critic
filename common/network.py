@@ -19,7 +19,8 @@ __all__ = [
     'MultilayerPerceptron', 'MLP',
     'GRUHidden', 'cat_hidden',
     'RecurrentNeuralNetwork', 'RNN',
-    'ConvolutionalNeuralNetwork', 'CNN'
+    'ConvolutionalNeuralNetwork', 'CNN',
+    'ConvBetaVAE', 'BETAVAE'
 ]
 
 
@@ -74,10 +75,10 @@ def build_encoder(config):
                                                                              'poolings',
                                                                              'batch_normalization']))
 
-    elif config.VAE_encoder:
-        state_encoder = ConvVAE((256, 512), latent_size=512, beta=3)
+    elif config.BETAVAE_encoder:
+        state_encoder = ConvBetaVAE((256, 512), latent_size=512, beta=3)
         if not config.weight_path:
-            raise ValueError('--weight-path must be provided if encoder is VAE.')
+            raise ValueError('--weight-path must be provided if encoder is beta-VAE.')
         state_encoder.load_model(config.weight_path)
         state_encoder.eval()
     elif config.EFFICIENTNET_encoder:
@@ -494,9 +495,16 @@ class CarlaCNN(NetworkBase):
         return x
 
 
-class ConvVAE(NetworkBase):
+class ConvBetaVAE(NetworkBase):
+    ''' Beta VAE inspired by
+        https://github.com/matthew-liu/beta-vae/blob/master/models.py
+
+        https://github.com/dylandjian/retro-contest-sonic/blob/master/models/vae.py
+
+        This class is not general purpose VAE because it needs pretrained weight specifically for an environment.
+    '''
     def __init__(self, image_size,  input_channel=3, latent_size=64, beta=3):
-        super(ConvVAE, self).__init__()
+        super(ConvBetaVAE, self).__init__()
 
         self.beta = beta
 
@@ -627,6 +635,7 @@ class ConvVAE(NetworkBase):
 MLP = MultilayerPerceptron = VanillaNN = VanillaNeuralNetwork
 RNN = RecurrentNeuralNetwork
 CNN = ConvolutionalNeuralNetwork
+BETAVAE = ConvBetaVAE
 
 
 if __name__ == '__main__':

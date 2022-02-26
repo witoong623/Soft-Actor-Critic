@@ -2,8 +2,8 @@
 
 ENV="Carla-v0"
 DATETIME="$(date +"%Y-%m-%d-%T")"
-LOG_DIR="logs/$ENV/VAE/$DATETIME"
-CHECKPOINT_DIR="savedcheckpoints/$ENV/VAE"
+LOG_DIR="logs/$ENV/BETAVAE/$DATETIME"
+CHECKPOINT_DIR="savedcheckpoints/$ENV/BETAVAE"
 
 ROOT_DIR="$(
 	cd "$(dirname "$(dirname "$0")")"
@@ -20,7 +20,7 @@ python main.py \
     --n-past-actions 10 \
 	--hidden-dims 256 128 \
 	--activation LeakyReLU \
-	--encoder-arch VAE \
+	--encoder-arch BETAVAE \
 	--weight-path "/root/thesis/thesis-code/Soft-Actor-Critic/vae_weights/Carla-v0/bvae_town7_epoch(50)-loss(+2.492E+05).pkl" \
 	--state-dim 512 \
 	--max-episode-steps 5000 \

@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from dataloader import get_dataloader
 from main import test
-from common.network import ConvVAE
+from common.network import ConvBetaVAE
 
 
 CHECKPOINT_FORMAT = '{prefix}epoch({epoch})-loss({loss:+.3E}){suffix}.pkl'
@@ -44,7 +44,8 @@ if __name__ == "__main__":
     test_loader = get_dataloader('/root/thesis/thesis-code/Soft-Actor-Critic/carla_test_images', BATCH_SIZE, 3)
 
     print('latent size:', LATENT_SIZE)
-    model = ConvVAE((270, 480), latent_size=LATENT_SIZE)
+    # TODO: update size of image
+    model = ConvBetaVAE((270, 480), latent_size=LATENT_SIZE)
     model.load_model('vae_weights/Carla-v0/epoch(10)-loss(+2.294E+05).pkl')
     model = model.to(device)
 

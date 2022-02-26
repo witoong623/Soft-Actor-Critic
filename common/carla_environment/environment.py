@@ -42,11 +42,11 @@ class CarlaEnv(gym.Env):
         self.host = 'witoon-carla'
         self.port = 2000
 
-        self.n_images = 2
-        self.obs_width = 480
-        self.obs_height = 270
+        self.n_images = 1
+        self.obs_width = 512
+        self.obs_height = 256
 
-        self.map = 'Town02'
+        self.map = 'Town07'
         self.dt = 0.1
         self.frame_per_second = round(1 / self.dt)
         self.reload_world = True
@@ -55,12 +55,12 @@ class CarlaEnv(gym.Env):
         self.camera_width = 800
         self.camera_height = 600
         self.camera_fov = 110
-        
-        self.number_of_walkers = 50
-        self.number_of_vehicles = 20
+
+        self.number_of_walkers = 0
+        self.number_of_vehicles = 0
         self.number_of_wheels = [4]
         self.max_ego_spawn_times = 200
-        self.max_time_episode = 1000
+        self.max_time_episode = 5000
         self.max_waypt = 12
         # in m/s. 5.5 is 20KMH
         self.desired_speed = 5.5
@@ -168,7 +168,7 @@ class CarlaEnv(gym.Env):
         self.actions_queue = deque(maxlen=self.num_past_actions)
 
         # control history
-        self.store_history = False
+        self.store_history = True
         if self.store_history:
             self.throttle_hist = []
             self.brakes_hist = []
@@ -409,7 +409,7 @@ class CarlaEnv(gym.Env):
         # cost for lateral acceleration
         r_lat = - abs(self.ego.get_control().steer) * lspeed_lon**2
 
-        r = 200 * r_collision + 1 * lspeed_lon + r_fast + 1 * r_out + r_steer * 5 + 0.2 * r_lat - 0.1
+        r = 200 * r_collision + 1 * lspeed_lon + r_fast + 1 * r_out + r_steer * 5 + 0.2 * r_lat - 0.5
 
         if self.store_history:
             self.speed_hist.append(speed)
@@ -450,16 +450,19 @@ class CarlaEnv(gym.Env):
 
     def _get_obs(self):
         if self.n_images == 1:
-            return self._transform_observation(self.camera_img)
+            # return self._transform_observation(self.camera_img)
+            # TODO: this is for VAE
+            return np.array([self._transform_observation(self.camera_img)], dtype=np.float32)
 
         self.img_buff.append(self.camera_img)
         while len(self.img_buff) < self.n_images:
             self.img_buff.append(self.camera_img)
 
+        # for VAE, stack it in the new axis
         img_array = [self._transform_observation(img) for img in self.img_buff]
-        # return np.array(img_array, dtype=np.float32)
-        # TODO: for CNN, concatenate it
-        return np.concatenate(img_array, axis=0)
+        return np.array(img_array, dtype=np.float32)
+        # # TODO: for CNN, concatenate it
+        # return np.concatenate(img_array, axis=0)
 
     def _create_vehicle_bluepprint(self, actor_filter, color=None, number_of_wheels=[4]):
         """Create the blueprint for a specific actor type.

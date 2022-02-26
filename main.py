@@ -63,7 +63,7 @@ def get_config():
     parser.add_argument('--dry-run-init-env', action='store_true', default=False,
                         help='dry run when initialize environment for the first time only')
     encoder_group = parser.add_argument_group('state encoder')
-    encoder_group.add_argument('--encoder-arch', type=str, choices=['FC', 'RNN', 'CNN', 'VAE', 'EFFICIENTNET'], default='FC',
+    encoder_group.add_argument('--encoder-arch', type=str, choices=['FC', 'RNN', 'CNN', 'VAE', 'BETAVAE', 'EFFICIENTNET'], default='FC',
                                help='architecture of state encoder network (default: FC)')
     encoder_group.add_argument('--state-dim', type=int, default=None, metavar='DIM',
                                help='target state dimension of encoded state '
@@ -200,6 +200,7 @@ def initialize_hyperparameters(config):
     config.RNN_encoder = (config.encoder_arch == 'RNN')
     config.CNN_encoder = (config.encoder_arch == 'CNN')
     config.VAE_encoder = (config.encoder_arch == 'VAE')
+    config.BETAVAE_encoder = (config.encoder_arch == 'BETAVAE')
     config.EFFICIENTNET_encoder = (config.encoder_arch == 'EFFICIENTNET')
 
     if config.CNN_encoder:

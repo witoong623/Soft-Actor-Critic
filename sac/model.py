@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 from common.collector import Collector
-from common.network import Container, ConvVAE
+from common.network import Container, ConvBetaVAE
 from common.utils import clone_network, sync_params, init_optimizer, clip_grad_norm, encode_vae_observation
 from .network import StateEncoderWrapper, Actor, Critic
 
@@ -165,7 +165,7 @@ class Trainer(ModelBase):
 
         self.global_step = 0
 
-        if isinstance(self.state_encoder.encoder, ConvVAE):
+        if isinstance(self.state_encoder.encoder, ConvBetaVAE):
             self.optimizer = optim.Adam(itertools.chain(self.critic.parameters(),
                                                         self.actor.parameters()),
                                         lr=critic_lr, weight_decay=weight_decay)
@@ -263,7 +263,7 @@ class Trainer(ModelBase):
                 = tuple(map(lambda tensor: torch.FloatTensor(tensor).to(self.model_device),
                             self.replay_buffer.sample(batch_size)))
 
-        if isinstance(self.state_encoder.encoder, ConvVAE):
+        if isinstance(self.state_encoder.encoder, ConvBetaVAE):
             with torch.no_grad():
                 self.state_encoder.eval()
                 state = encode_vae_observation(observation,

@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from torch.distributions import Normal
 
-from common.network import Container, MultilayerPerceptron, ConvVAE
+from common.network import Container, MultilayerPerceptron, ConvBetaVAE
 from common.utils import encode_vae_observation
 
 
@@ -34,7 +34,7 @@ class StateEncoderWrapper(Container):
 
     @torch.no_grad()
     def encode(self, observation):
-        if isinstance(self.encoder, ConvVAE):
+        if isinstance(self.encoder, ConvBetaVAE):
             encoded = encode_vae_observation(observation, self.encoder, device=self.device, normalize=False)
         elif isinstance(observation, np.ndarray):
             observation = torch.FloatTensor(observation).unsqueeze(dim=0).to(self.device)
