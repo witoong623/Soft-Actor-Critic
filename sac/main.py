@@ -81,6 +81,10 @@ def train_loop(model, config, update_kwargs):
                 checkpoint_name = CHECKPOINT_FORMAT(epoch=epoch, reward=mean_episode_reward)
                 model.save_model(path=os.path.join(config.checkpoint_dir, checkpoint_name))
 
+            if not model.collector.is_samplers_running:
+                print('all samplers stopped, terminate training process')
+                break
+
 
 def train(model, config):
     update_kwargs = config.build_from_keys(['batch_size',

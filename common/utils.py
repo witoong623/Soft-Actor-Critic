@@ -171,12 +171,11 @@ def sample_carla_bias_action():
     ''' Sample bias action for Carla-v0 '''
     longitudinal = random.random()
     if longitudinal > 0.4:
-        # 60% chance of accelerating at least 5%
-        acc = min(5, random.random())
+        # 60% chance of accelerating at least 10%
+        acc = max(10, random.random())
     else:
         # 40% chance of brake between 5% and 70%
-        acc = -random.random()
-        acc = max(-0.05, min(acc, -0.7))
+        acc = -max(0.05, min(random.random(), 0.7))
 
     lateral = random.random()
     if lateral > 0.5:
