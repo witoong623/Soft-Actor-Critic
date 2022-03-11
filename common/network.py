@@ -648,8 +648,8 @@ class ConvBetaVAE(NetworkBase, VAEBase):
 
 class ConvVAE(NetworkBase, VAEBase):
     ''' VAE from https://github.com/bitsauce/Carla-ppo/blob/master/vae/models.py '''
-    def __init__(self):
-        super().__init__(image_size,  input_channel=3, latent_size=64, beta=3)
+    def __init__(self, image_size, input_channel=3, latent_size=64, beta=3):
+        super().__init__()
 
         settings = [
             # out channel, k, s, p

@@ -366,7 +366,7 @@ class Collector(object):
         return self.train(mode=False)
 
     @property
-    def is_samplers_running(self):
+    def are_samplers_running(self):
         ''' return True if at least one sampler running, otherwise False '''
         return any([sampler.is_alive() for sampler in self.samplers])
 

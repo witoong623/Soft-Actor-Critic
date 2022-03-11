@@ -39,7 +39,7 @@ class ManualRoutePlanner:
         self._current_waypoint_index = 0
         self._checkpoint_waypoint_index = 0
         self._start_waypoint_index = 0
-        self._checkpoint_frequency = 50
+        self._checkpoint_frequency = 25
 
         self.plan = plan
 

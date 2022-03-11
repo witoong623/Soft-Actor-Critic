@@ -127,9 +127,9 @@ class CarlaEnv(gym.Env):
 
         if self.route_mode == RouteMode.MANUAL_LAP:
             if self.run_backward:
-                self.routeplanner = ManualRoutePlanner(self.lap_opposite_spwan_point_wp, self.lap_opposite_spwan_point_wp, resolution=5, plan=TOWN4_REVERSE_PLAN)
+                self.routeplanner = ManualRoutePlanner(self.lap_opposite_spwan_point_wp, self.lap_opposite_spwan_point_wp, resolution=2, plan=TOWN4_REVERSE_PLAN)
             else:
-                self.routeplanner = ManualRoutePlanner(self.lap_spwan_point_wp, self.lap_spwan_point_wp, resolution=5, plan=TOWN4_PLAN)
+                self.routeplanner = ManualRoutePlanner(self.lap_spwan_point_wp, self.lap_spwan_point_wp, resolution=2, plan=TOWN4_PLAN)
 
         # ego vehicle bp
         self.ego_bp = self._create_vehicle_bluepprint('vehicle.nissan.micra', color='49,8,8')
@@ -192,6 +192,9 @@ class CarlaEnv(gym.Env):
             self.throttle_hist.clear()
             self.brakes_hist.clear()
             self.steers_hist.clear()
+
+        # clear previous action
+        self.current_action = None
 
         # Clear sensor objects
         self.camera_sensor = None
@@ -286,7 +289,6 @@ class CarlaEnv(gym.Env):
             array = np.frombuffer(data.raw_data, dtype=np.uint8)
             array = np.reshape(array, (data.height, data.width, 4))
             array = array[:, :, :3]
-            # array = cv2.resize(array, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
 
             # BGR(OpenCV) > RGB
             array = np.ascontiguousarray(array[:, :, ::-1])
@@ -342,6 +344,8 @@ class CarlaEnv(gym.Env):
             self.throttle_hist.append(float(throttle))
             self.brakes_hist.append(float(brake))
             self.steers_hist.append(float(steer))
+
+        self.current_action = (throttle, steer, brake)
 
         self.world.tick()
 
@@ -404,12 +408,15 @@ class CarlaEnv(gym.Env):
 
         # if it is faster than desired speed, minus the excess speed
         # and don't give reward from speed
-        r_fast *= lspeed_lon
+        # r_fast *= lspeed_lon
 
         # cost for lateral acceleration
         r_lat = - abs(self.ego.get_control().steer) * lspeed_lon**2
 
-        r = 200 * r_collision + 1 * lspeed_lon + r_fast + 1 * r_out + r_steer * 5 + 0.2 * r_lat - 0.5
+        # cost for braking
+        brake_cost = self.current_action[2] 
+
+        r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + r_steer*5 + 0.2*r_lat - 1 - brake_cost*2
 
         if self.store_history:
             self.speed_hist.append(speed)
@@ -444,6 +451,8 @@ class CarlaEnv(gym.Env):
         # If out of lane
         dis, _ = get_lane_dis(self.waypoints, ego_x, ego_y)
         if abs(dis) > self.out_lane_thres and self.terminate_on_out_of_lane:
+            if self.time_step <= 10:
+                print(f'out of lane after {self.time_step} steps')
             return True
 
         return False
@@ -722,12 +731,26 @@ class CarlaEnv(gym.Env):
         # resized_obs = resized_obs.transpose((2, 0, 1))
         return resized_obs / 255.
 
-    def _get_image(self):
-        ''' Return RGB image in `H` x `W` x `C` format, its size match observation size. '''
+    def _get_observation_image(self):
+        ''' Return RGB image in `H` x `W` x `C` format, its size match observation size.
+        
+            The difference between this method and `_transform_observation` is that `_transform_observation`
+            will normalize an image but this method keeps the image format except spatial size.
+        '''
         cropped_size = (384, 768)
         cropped_obs = center_crop(self.camera_img, cropped_size, shift_H=1.25)
 
         return cv2.resize(cropped_obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
+
+    def _draw_debug_waypoints(self, number_of_waypoint=10, size=1):
+        ''' Draw debug point on self.waypoints return from route planner's `run_step` '''
+        if number_of_waypoint < 1:
+            raise ValueError(f'number_of_waypoint must be greater than or equal to 1, current value is {number_of_waypoint}')
+
+        debug = self.world.debug
+        for wp in self.waypoints[:number_of_waypoint]:
+            location = carla.Location(x=wp[0], y=wp[1], z=1.0)
+            debug.draw_point(location, size=size)
 
     def close(self):
         try:
@@ -778,15 +801,15 @@ class CarlaEnv(gym.Env):
             self.world.tick()
 
             if observation_callback is not None:
-                observation_callback(self._get_image())
+                observation_callback(self._get_observation_image())
 
     def test_carla_agent(self, num_steps, start_step=0, recorder=None):
-        # agent = BasicAgent(self.ego)
-        agent = ManualAgent(self.ego)
+        agent = BasicAgent(self.ego)
+        # agent = ManualAgent(self.ego)
 
-        # agent.set_global_plan(self.route_waypoints)
-        # agent.ignore_traffic_lights(active=True)
-        # agent.ignore_stop_signs(active=True)
+        agent.set_global_plan(self.route_waypoints)
+        agent.ignore_traffic_lights(active=True)
+        agent.ignore_stop_signs(active=True)
         # agent.set_target_speed(40)
 
         for step in trange(start_step, start_step + num_steps):
@@ -797,10 +820,10 @@ class CarlaEnv(gym.Env):
             if recorder is not None:
                 recorder.capture_frame()
 
-            img_np = self._get_image()
-            img = Image.fromarray(img_np)
-            img.save(f'carla_town7_images/outskirts/town7_outskirts_{step:05d}.jpeg')
-            img.close()
+            # img_np = self._get_observation_image()
+            # img = Image.fromarray(img_np)
+            # img.save(f'carla_town7_images/outskirts/town7_outskirts_{step:05d}.jpeg')
+            # img.close()
 
             if agent.done():
                 print('agent is done')
