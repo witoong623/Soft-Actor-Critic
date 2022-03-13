@@ -45,7 +45,7 @@ def build_encoder(config):
                                                activation=config.encoder_activation,
                                                output_activation=None)
     elif config.CNN_encoder and config.env == 'CarRacing-v0':
-        state_encoder = CarRacingCNN(image_size=(config.image_size, config.image_size),
+        state_encoder = CarRacingCNN(image_size=config.image_size,
                                      input_channels=config.observation_dim,
                                      output_dim=state_dim,
                                      headless=True,
@@ -58,12 +58,12 @@ def build_encoder(config):
                                                                'poolings',
                                                                'batch_normalization']))
     elif config.CNN_encoder and config.env == 'Carla-v0':
-        state_encoder = CarlaCNN(image_size=(270, 480),
+        state_encoder = CarlaCNN(image_size=config.image_size,
                                  input_channels=config.n_frames * 3,
                                  n_hidden_channels=config.encoder_hidden_channels,
                                  output_dim=state_dim)
     elif config.CNN_encoder:
-        state_encoder = ConvolutionalNeuralNetwork(image_size=(config.image_size, config.image_size),
+        state_encoder = ConvolutionalNeuralNetwork(image_size=config.image_size,
                                                    input_channels=config.observation_dim,
                                                    output_dim=state_dim,
                                                    n_hidden_channels=config.encoder_hidden_channels,

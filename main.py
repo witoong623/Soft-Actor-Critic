@@ -54,7 +54,7 @@ def get_config():
                         help='render the environment')
     parser.add_argument('--vision-observation', action='store_true',
                         help='use rendered images as observation')
-    parser.add_argument('--image-size', type=int, default=96, metavar='SIZE',
+    parser.add_argument('--image-size', type=int, default=[96], metavar='SIZE', nargs='*',
                         help='image size of vision observation (default: 96)')
     parser.add_argument('--hidden-dims', type=int, default=[], nargs='+', metavar='DIM',
                         help='hidden dimensions of FC controller')
@@ -178,6 +178,7 @@ def initialize(config):
     torch.manual_seed(config.random_seed)
 
     initialize_hyperparameters(config)
+    exit(1)
     initialize_environment(config)
     build_encoder(config)
     check_devices(config)
@@ -202,6 +203,11 @@ def initialize_hyperparameters(config):
     config.VAE_encoder = (config.encoder_arch == 'VAE')
     config.BETAVAE_encoder = (config.encoder_arch == 'BETAVAE')
     config.EFFICIENTNET_encoder = (config.encoder_arch == 'EFFICIENTNET')
+
+    if len(config.image_size) == 1:
+        config.image_size = (config.image_size, config.image_size)
+
+    print('image size is ', config.image_size)
 
     if config.CNN_encoder:
         kernel_sizes = config.kernel_sizes

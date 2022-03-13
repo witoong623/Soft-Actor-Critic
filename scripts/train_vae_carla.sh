@@ -2,8 +2,8 @@
 
 ENV="Carla-v0"
 DATETIME="$(date +"%Y-%m-%d-%T")"
-LOG_DIR="logs/$ENV/VAE/$DATETIME"
-CHECKPOINT_DIR="savedcheckpoints/$ENV/VAE"
+LOG_DIR="logs/$ENV/BETAVAE/$DATETIME"
+CHECKPOINT_DIR="savedcheckpoints/$ENV/BETAVAE"
 
 ROOT_DIR="$(
 	cd "$(dirname "$(dirname "$0")")"
@@ -18,11 +18,12 @@ python main.py \
 	--mode train --gpu 1 \
 	--env "$ENV" \
     --n-past-actions 10 \
+	--image-size 256 512 \
 	--hidden-dims 256 128 \
 	--activation LeakyReLU \
-	--encoder-arch VAE \
-	--weight-path "vae_weights/carla-ppo/carla-ppo-seg-vae.pkl" \
-	--state-dim 64 \
+	--encoder-arch BETAVAE \
+	--weight-path "vae_weights/Carla-v0_town7/bvae_town7_epoch(50)-loss(+2.492E+05).pkl" \
+	--state-dim 512 \
 	--max-episode-steps 5000 \
 	--n-epochs 1000 --n-updates 256 --batch-size 32 \
 	--n-samplers 1 \
