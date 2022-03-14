@@ -5,6 +5,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.cuda.amp as amp
 
 from common.collector import Collector
 from common.network import Container, VAEBase
@@ -178,6 +179,8 @@ class Trainer(ModelBase):
         self.actor_loss_weight = actor_lr / critic_lr
         self.alpha_optimizer = optim.Adam([self.log_alpha], lr=alpha_lr)
 
+        self.loss_scaler = amp.GradScaler()
+
         self.train(mode=True)
 
     def update_sac(self, state, action, reward, next_state, done,
@@ -190,43 +193,50 @@ class Trainer(ModelBase):
                 reward = reward_scale * (reward - reward.mean()) / (reward.std() + epsilon)
 
         # Update temperature parameter
-        new_action, log_prob, _ = self.actor.evaluate(state)
-        if adaptive_entropy:
-            # equation 18
-            alpha_loss = -(self.log_alpha * (log_prob + target_entropy).detach()).mean()
-            self.alpha_optimizer.zero_grad()
-            alpha_loss.backward()
-            self.alpha_optimizer.step()
+        with amp.autocast(dtype=torch.bfloat16):
+            new_action, log_prob, _ = self.actor.evaluate(state)
+            if adaptive_entropy:
+                # equation 18
+                alpha_loss = -(self.log_alpha * (log_prob + target_entropy).detach()).mean()
+
+        self.alpha_optimizer.zero_grad()
+        self.loss_scaler.scale(alpha_loss).backward()
+        self.loss_scaler.step(self.alpha_optimizer)
+
         with torch.no_grad():
             alpha = self.log_alpha.exp()
 
-        # Train Q function
-        predicted_q_value_1, predicted_q_value_2 = self.critic(state, action)
-        with torch.no_grad():
-            new_next_action, next_log_prob, _ = self.actor.evaluate(next_state)
+        with amp.autocast(dtype=torch.bfloat16):
+            # Train Q function
+            predicted_q_value_1, predicted_q_value_2 = self.critic(state, action)
+            with torch.no_grad():
+                new_next_action, next_log_prob, _ = self.actor.evaluate(next_state)
 
-            # use min to mitigate bias
-            target_q_min = torch.min(*self.target_critic(next_state, new_next_action))
-            # target_q_min is V(s_t+1) through equation 3
-            target_q_min -= alpha * next_log_prob
-            # equation 5
-            target_q_value = reward + (1 - done) * gamma * target_q_min
-        critic_loss_1 = self.critic_criterion(predicted_q_value_1, target_q_value)
-        critic_loss_2 = self.critic_criterion(predicted_q_value_2, target_q_value)
-        critic_loss = (critic_loss_1 + critic_loss_2) / 2.0
+                # use min to mitigate bias
+                target_q_min = torch.min(*self.target_critic(next_state, new_next_action))
+                # target_q_min is V(s_t+1) through equation 3
+                target_q_min -= alpha * next_log_prob
+                # equation 5
+                target_q_value = reward + (1 - done) * gamma * target_q_min
+            critic_loss_1 = self.critic_criterion(predicted_q_value_1, target_q_value)
+            critic_loss_2 = self.critic_criterion(predicted_q_value_2, target_q_value)
+            critic_loss = (critic_loss_1 + critic_loss_2) / 2.0
 
-        # Train policy function
-        predicted_new_q_value = torch.min(*self.critic(state, new_action))
-        predicted_new_q_value_critic_grad_only = torch.min(*self.critic(state, new_action.detach()))
-        actor_loss = (alpha * log_prob - predicted_new_q_value).mean()
-        actor_loss_unbiased = actor_loss + predicted_new_q_value_critic_grad_only.mean()
+            # Train policy function
+            predicted_new_q_value = torch.min(*self.critic(state, new_action))
+            predicted_new_q_value_critic_grad_only = torch.min(*self.critic(state, new_action.detach()))
+            actor_loss = (alpha * log_prob - predicted_new_q_value).mean()
+            actor_loss_unbiased = actor_loss + predicted_new_q_value_critic_grad_only.mean()
 
-        loss = critic_loss + self.actor_loss_weight * actor_loss_unbiased
+            loss = critic_loss + self.actor_loss_weight * actor_loss_unbiased
+
         self.optimizer.zero_grad()
-        loss.backward()
+        self.loss_scaler.scale(loss).backward()
         if clip_gradient:
             clip_grad_norm(self.optimizer)
-        self.optimizer.step()
+        self.loss_scaler.step(self.optimizer)
+
+        self.loss_scaler.update()
 
         # Soft update the target value net
         sync_params(src_net=self.critic, dst_net=self.target_critic, soft_tau=soft_tau)
@@ -263,23 +273,24 @@ class Trainer(ModelBase):
                 = tuple(map(lambda tensor: torch.FloatTensor(tensor).to(self.model_device),
                             self.replay_buffer.sample(batch_size)))
 
-        if isinstance(self.state_encoder.encoder, VAEBase):
-            with torch.no_grad():
-                self.state_encoder.eval()
-                state = encode_vae_observation(observation,
-                                               self.state_encoder,
-                                               device=self.model_device,
-                                               output_device=self.model_device,
-                                               normalize=False)
-                next_state = encode_vae_observation(next_observation,
-                                                    self.state_encoder,
-                                                    device=self.model_device,
-                                                    output_device=self.model_device,
-                                                    normalize=False)
-        else:
-            state = self.state_encoder(observation)
-            with torch.no_grad():
-                next_state = self.state_encoder(next_observation)
+        with amp.autocast(dtype=torch.bfloat16):
+            if isinstance(self.state_encoder.encoder, VAEBase):
+                with torch.no_grad():
+                    self.state_encoder.eval()
+                    state = encode_vae_observation(observation,
+                                                self.state_encoder,
+                                                device=self.model_device,
+                                                output_device=self.model_device,
+                                                normalize=False)
+                    next_state = encode_vae_observation(next_observation,
+                                                        self.state_encoder,
+                                                        device=self.model_device,
+                                                        output_device=self.model_device,
+                                                        normalize=False)
+            else:
+                state = self.state_encoder(observation)
+                with torch.no_grad():
+                    next_state = self.state_encoder(next_observation)
 
         if self.n_past_actions > 1:
             state = torch.cat((state, past_actions.view(batch_size, -1)), dim=1)

@@ -178,7 +178,6 @@ def initialize(config):
     torch.manual_seed(config.random_seed)
 
     initialize_hyperparameters(config)
-    exit(1)
     initialize_environment(config)
     build_encoder(config)
     check_devices(config)

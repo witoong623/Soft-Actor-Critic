@@ -9,3 +9,9 @@ pybullet
 pillow
 moviepy
 setproctitle
+carla
+pytz
+opencv-python==4.5.5.64
+pandas==1.4.1
+seaborn
+Shapely

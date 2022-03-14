@@ -40,7 +40,10 @@ class StateEncoderWrapper(Container):
             observation = torch.FloatTensor(observation).unsqueeze(dim=0).to(self.device)
             encoded = self(observation)
 
-        encoded = encoded.cpu().numpy()[0]
+        encoded = encoded.cpu()
+        if encoded.dtype is not torch.float16:
+            encoded = encoded.half()
+        encoded = encoded.numpy()[0]
         return encoded
 
     def reset(self):
@@ -78,8 +81,16 @@ class DimensionScaler(Container):
         input_dim = self.input_dim
         output_dim = self.output_dim
 
-        weight = self.scaler.weight.detach().cpu().numpy()
-        bias = self.scaler.bias.detach().cpu().numpy()
+        weight = self.scaler.weight.detach().cpu()
+        if weight.dtype is not torch.float16:
+            weight = weight.half()
+        weight = weight.numpy()
+
+        bias = self.scaler.bias.detach().cpu()
+        if bias.dtype is not torch.float16:
+            bias = bias.half()
+        bias = bias.numpy()
+        
         bias = np.expand_dims(bias, axis=1)
 
         weight = np.concatenate([weight, np.zeros_like(bias), bias], axis=1)
@@ -222,7 +233,11 @@ class PolicyNetwork(MultilayerPerceptron):
             distribution = Normal(mean, std)
             u = distribution.rsample()
             action = torch.tanh(u)
-        action = action.cpu().numpy()[0]
+
+        action = action.cpu()
+        if action.dtype is not torch.float16:
+            action = action.half()
+        action = action.numpy()[0]
         return action
 
 

@@ -188,8 +188,6 @@ def sample_carla_bias_action():
 
 def _transform_np_image_to_tensor(imgs, normalize=True):
     tensors = []
-    # print('imgs type', type(imgs))
-    # print('imgs shape', imgs.shape)
     for i in range(imgs.shape[0]):
         img = imgs[i]
         img = img.transpose(2, 0, 1)
@@ -197,16 +195,12 @@ def _transform_np_image_to_tensor(imgs, normalize=True):
             img = img / 255.
 
         img_tensor = torch.from_numpy(img)
-        # print('img_tensor', img_tensor.size())
-        # print('img_tensor type', img_tensor.dtype)
         tensors.append(img_tensor)
 
     return torch.stack(tensors, dim=0)
 
 def _transform_tensor(img_tensors, normalize=True):
     tensors = []
-    # print('img_tensors type', type(img_tensors))
-    # print('img_tensors size', img_tensors.size())
     for i in range(img_tensors.size(0)):
         img = img_tensors[i]
 
@@ -221,8 +215,6 @@ def _transform_tensor(img_tensors, normalize=True):
         if normalize:
             img = img / 255.
 
-        # print(img_tensor)
-        # print('img_tensor', img_tensor.size())
         tensors.append(img)
 
     return torch.stack(tensors, dim=0)
@@ -239,7 +231,6 @@ def encode_vae_observation(observation, encoder, normalize=True, device='cpu', o
     
     ``device`` is device that encoder will run on.'''
     if isinstance(observation, np.ndarray):
-        # print('raw observation', observation.shape)
         if len(observation.shape) == 4:
             observation = np.expand_dims(observation, axis=0)
         elif len(observation.shape) != 5:
@@ -247,8 +238,6 @@ def encode_vae_observation(observation, encoder, normalize=True, device='cpu', o
 
         assert observation.ndim == 5
         batch_size = observation.shape[0]
-        # print('observation.shape', observation.shape)
-        # observation = observation.squeeze()
         observation_tensors = [_transform_np_image_to_tensor(observation[i], normalize).to(device) for i in range(observation.shape[0])]
     elif isinstance(observation, torch.Tensor):
         assert len(observation.size()) == 5
@@ -256,20 +245,17 @@ def encode_vae_observation(observation, encoder, normalize=True, device='cpu', o
         batch_size = observation.shape[0]
 
         observation_tensors = [_transform_tensor(observation[i], normalize).to(device) for i in range(observation.size(0))]
+    else:
+        raise TypeError(f'Unsupported type {type(observation)}')
 
     batch_states = []
     with torch.no_grad():
         for observation_tensor in observation_tensors:
-            # print('observation_tensor type', type(observation_tensor))
-            # print('observation_tensor size', observation_tensor.size())
             observation_state_batch = encoder(observation_tensor, encode=True, mean=True)
-            # print('observation_state_batch size', observation_state_batch.size())
             observation_state = observation_state_batch.flatten()
-            # print('observation_state size', observation_state.size())
             batch_states.append(observation_state)
         
     new_state = torch.stack(batch_states, dim=0)
-    # print('new_state size', new_state.size())
     assert new_state.size(0) == batch_size
 
     return new_state.to(output_device)

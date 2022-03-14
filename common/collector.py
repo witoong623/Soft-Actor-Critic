@@ -6,6 +6,7 @@ from functools import lru_cache
 import numpy as np
 import torch
 import torch.multiprocessing as mp
+import torch.cuda.amp as amp
 import tqdm
 from PIL import Image, ImageDraw
 from setproctitle import setproctitle
@@ -117,22 +118,16 @@ class Sampler(mp.Process):
                 if self.random_sample:
                     action = sample_carla_bias_action()
                 else:
-                    # state = encode_vae_observation(observation, self.state_encoder, device=self.device)
-                    state = self.state_encoder.encode(observation)
+                    with amp.autocast(dtype=torch.bfloat16):
+                        state = self.state_encoder.encode(observation)
 
-                    # when state is np
                     if prev_actions is not None:
                         state_tensor = torch.FloatTensor(state)
                         actions_tensor = torch.FloatTensor(prev_actions.reshape(-1))
                         state = torch.cat((state_tensor, actions_tensor))
 
-                    # if prev_actions is not None:
-                    #     actions_tensor = torch.FloatTensor(prev_actions.reshape(-1))
-                    #     # print('actions_tensor size', actions_tensor.size())
-                    #     # print('state size', state.size())
-                    #     state = torch.cat((state.squeeze(), actions_tensor))
-
-                    action = self.actor.get_action(state, deterministic=self.deterministic)
+                    with amp.autocast(dtype=torch.bfloat16):
+                        action = self.actor.get_action(state, deterministic=self.deterministic)
 
                 next_observation, reward, done, info = self.env.step(action)
                 if 'past_actions' in info:
@@ -142,8 +137,9 @@ class Sampler(mp.Process):
                 episode_steps += 1
                 # self.render()
                 # self.save_frame(step=episode_steps, reward=reward, episode_reward=episode_reward)
+
                 # if more than 50% of capacity, add transactions to replay buffer and clear
-                # before saving current trajectory
+                # before saving current trajectory. prevent trajectory holding too much data.
                 if len(self.trajectory) / self.replay_buffer.capacity > 0.5:
                     with self.lock:
                         self.save_trajectory()
