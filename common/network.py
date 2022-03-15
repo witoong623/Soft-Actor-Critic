@@ -79,7 +79,7 @@ def build_encoder(config):
         state_encoder = ConvBetaVAE((256, 512), latent_size=512, beta=3)
         if not config.weight_path:
             raise ValueError('--weight-path must be provided if encoder is beta-VAE.')
-        state_encoder.load_model(config.weight_path)
+        state_encoder.load_model(config.weight_path, strict=False)
         state_encoder.eval()
     elif config.VAE_encoder:
         state_encoder = ConvVAE((80, 160), latent_size=64)
@@ -537,7 +537,7 @@ class ConvBetaVAE(NetworkBase, VAEBase):
         encoders = []
         for (out_channel, kernel, stride, padding) in self.settings:
             encoders.extend([
-                nn.Conv2d(next_block_input_channels, out_channels=out_channel, kernel_size=kernel, stride=stride, padding=padding),
+                nn.Conv2d(next_block_input_channels, out_channels=out_channel, kernel_size=kernel, stride=stride, padding=padding, bias=False),
                 nn.BatchNorm2d(out_channel),
                 nn.ReLU()
             ])

@@ -267,13 +267,27 @@ class Trainer(ModelBase):
 
     def prepare_batch(self, batch_size):
         if self.n_past_actions > 1:
-            observation, action, past_actions, next_past_actions, reward, next_observation, done \
-                = tuple(map(lambda tensor: torch.FloatTensor(tensor).to(self.model_device),
-                            self.replay_buffer.sample(batch_size)))
+            observation, action, past_actions, next_past_actions, reward, next_observation, done = self.replay_buffer.sample(batch_size)
+
+            observation = torch.tensor(observation, dtype=torch.float16, device=self.model_device)
+            next_observation = torch.tensor(next_observation, dtype=torch.float16, device=self.model_device)
+
+            action = torch.tensor(action, dtype=torch.float16, device=self.model_device)
+            past_actions = torch.tensor(past_actions, dtype=torch.float16, device=self.model_device)
+            next_past_actions = torch.tensor(next_past_actions, dtype=torch.float16, device=self.model_device)
+
+            reward = torch.tensor(reward, dtype=torch.float32, device=self.model_device)
+            done = torch.tensor(done, dtype=torch.float16, device=self.model_device)
         else:
-            observation, action, reward, next_observation, done \
-                = tuple(map(lambda tensor: torch.FloatTensor(tensor).to(self.model_device),
-                            self.replay_buffer.sample(batch_size)))
+            observation, action, past_actions, next_past_actions, reward, next_observation, done = self.replay_buffer.sample(batch_size)
+
+            observation = torch.tensor(observation, dtype=torch.float16, device=self.model_device)
+            next_observation = torch.tensor(next_observation, dtype=torch.float16, device=self.model_device)
+
+            action = torch.tensor(action, dtype=torch.float16, device=self.model_device)
+
+            reward = torch.tensor(reward, dtype=torch.float32, device=self.model_device)
+            done = torch.tensor(done, dtype=torch.float16, device=self.model_device)
 
         with amp.autocast(dtype=torch.bfloat16):
             if isinstance(self.state_encoder.encoder, VAEBase):
