@@ -78,7 +78,21 @@ def check_devices(config):
 
     config.devices = devices
 
-    return devices
+    if config.sampler_gpu is not None and torch.cuda.is_available():
+        if len(config.sampler_gpu) == 0:
+            config.sampler_gpu = [0]
+        sampler_devices = []
+        for device in config.sampler_gpu:
+            if isinstance(device, int):
+                sampler_devices.append(torch.device(f'cuda:{device}'))
+            elif device in ('c', 'cpu', 'C', 'CPU'):
+                sampler_devices.append(torch.device('cpu'))
+    else:
+        sampler_devices = devices
+
+    config.sampler_devices = sampler_devices
+
+    return devices, sampler_devices
 
 
 def get_checkpoint(checkpoint_dir, by='epoch', specified_epoch=None):

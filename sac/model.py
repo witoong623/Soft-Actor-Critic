@@ -29,6 +29,7 @@ def build_model(config):
                                            'n_samplers',
                                            'buffer_capacity',
                                            'devices',
+                                           'sampler_devices',
                                            'random_seed'])
     if config.mode == 'train':
         model_kwargs.update(config.build_from_keys(['critic_lr',
@@ -67,9 +68,10 @@ class ModelBase(object):
     def __init__(self, env_func, env_kwargs, state_encoder,
                  state_dim, action_dim, hidden_dims, activation, n_past_actions,
                  initial_alpha, n_samplers, buffer_capacity,
-                 devices, random_seed=0):
+                 devices, sampler_devices, random_seed=0):
         self.devices = itertools.cycle(devices)
         self.model_device = next(self.devices)
+        self.sampler_devices = sampler_devices
 
         self.n_past_actions = n_past_actions
         if n_past_actions > 1:
@@ -104,7 +106,7 @@ class ModelBase(object):
                                         actor=self.actor,
                                         n_samplers=n_samplers,
                                         buffer_capacity=buffer_capacity,
-                                        devices=self.devices,
+                                        devices=self.sampler_devices,
                                         random_seed=random_seed)
 
     def print_info(self, file=None):
@@ -153,11 +155,11 @@ class Trainer(ModelBase):
     def __init__(self, env_func, env_kwargs, state_encoder,
                  state_dim, action_dim, hidden_dims, activation, n_past_actions,
                  initial_alpha, critic_lr, actor_lr, alpha_lr, weight_decay,
-                 n_samplers, buffer_capacity, devices, random_seed=0):
+                 n_samplers, buffer_capacity, devices, sampler_devices, random_seed=0):
         super().__init__(env_func, env_kwargs, state_encoder,
                          state_dim, action_dim, hidden_dims, activation, n_past_actions,
                          initial_alpha, n_samplers, buffer_capacity,
-                         devices, random_seed)
+                         devices, sampler_devices, random_seed)
 
         self.target_critic = clone_network(src_net=self.critic, device=self.model_device)
         self.target_critic.eval().requires_grad_(False)
@@ -320,9 +322,10 @@ class RenderTester(object):
     def __init__(self, env_func, env_kwargs, state_encoder,
                  state_dim, action_dim, hidden_dims, activation, n_past_actions,
                  initial_alpha, n_samplers, buffer_capacity,
-                 devices, random_seed=0):
+                 devices, sampler_devices, random_seed=0):
         self.devices = itertools.cycle(devices)
         self.model_device = next(self.devices)
+        self.sampler_devices = sampler_devices
 
         self.n_past_actions = n_past_actions
         if n_past_actions > 1:

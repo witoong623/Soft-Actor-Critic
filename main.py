@@ -39,7 +39,11 @@ def get_config():
     parser.add_argument('--mode', type=str, choices=['train', 'test', 'test_render'], default='train',
                         help='mode (default: train)')
     parser.add_argument('--gpu', type=gpu_type, default=None, nargs='+', metavar='CUDA_DEVICE',
-                        help="GPU device indexes "
+                        help="GPU device indexes. if --sampler-gpu option is specified, gpu in this option is not used in sampler."
+                             "(int for CUDA device or 'c'/'cpu' for CPU) "
+                             "(use 'cuda:0' if no following arguments; use CPU if not present)")
+    parser.add_argument('--sampler-gpu', type=gpu_type, default=None, nargs='+', metavar='SAMPLER_CUDA_DEVICE',
+                        help="GPU device indexes to use for running sampler. if this option is not specified, use --gpu option"
                              "(int for CUDA device or 'c'/'cpu' for CPU) "
                              "(use 'cuda:0' if no following arguments; use CPU if not present)")
     parser.add_argument('--env', type=str, default='Pendulum-v1',
@@ -205,8 +209,6 @@ def initialize_hyperparameters(config):
 
     if len(config.image_size) == 1:
         config.image_size = (config.image_size, config.image_size)
-
-    print('image size is ', config.image_size)
 
     if config.CNN_encoder:
         kernel_sizes = config.kernel_sizes
