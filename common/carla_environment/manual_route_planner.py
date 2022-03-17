@@ -24,15 +24,19 @@ def carla_to_vector(obj):
 
 class ManualRoutePlanner:
     def __init__(self, start_waypoint, end_waypoint, resolution=2.0, plan=None):
+        global _route_waypoints, _transformed_waypoint_routes
+
         self._vehicle = None
         self._world = None
         self._map = None
+        self.plan = plan
 
         self._sampling_radius = resolution
         self._min_distance = self._sampling_radius - 1 if self._sampling_radius > 1 else 1
 
         self.start_waypoint = start_waypoint
         self.end_waypoint = end_waypoint
+
         self.spawn_transform = start_waypoint.transform
         self.lap_count = 0
 
@@ -41,7 +45,8 @@ class ManualRoutePlanner:
         self._start_waypoint_index = 0
         self._checkpoint_frequency = 25
 
-        self.plan = plan
+        _route_waypoints = self._compute_route_waypoints()
+        _transformed_waypoint_routes = self._transform_waypoints(_route_waypoints)
 
     def set_vehicle(self, vehicle):
         ''' Set internal state to current vehicle, must be called in `reset` '''
@@ -50,15 +55,10 @@ class ManualRoutePlanner:
         self._map = self._world.get_map()
 
         self._start_waypoint_index = self._checkpoint_waypoint_index
+        self._current_waypoint_index = self._checkpoint_waypoint_index
         self.lap_count = 0
 
     def run_step(self):
-        global _route_waypoints, _transformed_waypoint_routes
-
-        if _route_waypoints is None:
-            _route_waypoints = self._compute_route_waypoints()
-            _transformed_waypoint_routes = self._transform_waypoints(_route_waypoints)
-
         waypoint_routes_len = len(_route_waypoints)
         current_transform = self._vehicle.get_transform()
         waypoint_index = self._current_waypoint_index
@@ -73,11 +73,6 @@ class ManualRoutePlanner:
             if dot > 0.0:
                 # if passed, go to next waypoint
                 waypoint_index += 1
-                continue
-
-            # distance must be greater than min distance
-            if distance_vehicle(wp, current_transform) < self._min_distance:
-                waypoint_index += 1
             else:
                 break
 
@@ -85,6 +80,7 @@ class ManualRoutePlanner:
 
         # update checkpoint
         self._checkpoint_waypoint_index = (self._current_waypoint_index // self._checkpoint_frequency) * self._checkpoint_frequency
+        # update here because vehicle is spawn before set_vehicle call and spawning requires spawn point
         self.spawn_transform = _route_waypoints[self._checkpoint_waypoint_index][0].transform
 
         self.lap_count = (self._current_waypoint_index - self._start_waypoint_index) / len(_route_waypoints)
@@ -92,13 +88,12 @@ class ManualRoutePlanner:
         return _transformed_waypoint_routes[self._current_waypoint_index:]
 
     def get_route_waypoints(self):
-        ''' Calculate and get waypoints along the route and return list of [waypoint, RoadOption] '''
-        global _route_waypoints
-
-        if _route_waypoints is None:
-            _route_waypoints = self._compute_route_waypoints()
+        ''' Return list of [waypoint, RoadOption] '''
 
         return _route_waypoints
+
+    def get_transformed_route_waypoints(self):
+        return _transformed_waypoint_routes
 
     def _compute_route_waypoints(self):
         """

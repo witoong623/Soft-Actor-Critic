@@ -168,7 +168,7 @@ class CarlaEnv(gym.Env):
         self.actions_queue = deque(maxlen=self.num_past_actions)
 
         # control history
-        self.store_history = True
+        self.store_history = False
         if self.store_history:
             self.throttle_hist = []
             self.brakes_hist = []
@@ -196,12 +196,16 @@ class CarlaEnv(gym.Env):
         # clear previous action
         self.current_action = None
 
+        # delete sensor, vehicles and walkers
+        # self._clear_all_actors(['sensor.other.collision', self.camera_sensor_type, 'vehicle.*', 'controller.ai.walker', 'walker.*'])
+        self._clear_all_actors(['sensor.other.collision', self.camera_sensor_type, 'vehicle.*'])
+
         # Clear sensor objects
         self.camera_sensor = None
         self.collision_sensor = None
 
-        # delete sensor, vehicles and walkers
-        self._clear_all_actors(['sensor.other.collision', self.camera_sensor_type, 'vehicle.*', 'controller.ai.walker', 'walker.*'])
+        # clear image
+        self.camera_img = None
 
         # Disable sync mode
         self._set_synchronous_mode(False)
@@ -451,8 +455,6 @@ class CarlaEnv(gym.Env):
         # If out of lane
         dis, _ = get_lane_dis(self.waypoints, ego_x, ego_y)
         if abs(dis) > self.out_lane_thres and self.terminate_on_out_of_lane:
-            if self.time_step <= 10:
-                print(f'out of lane after {self.time_step} steps')
             return True
 
         return False
@@ -742,15 +744,16 @@ class CarlaEnv(gym.Env):
 
         return cv2.resize(cropped_obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
 
-    def _draw_debug_waypoints(self, number_of_waypoint=10, size=1):
-        ''' Draw debug point on self.waypoints return from route planner's `run_step` '''
-        if number_of_waypoint < 1:
-            raise ValueError(f'number_of_waypoint must be greater than or equal to 1, current value is {number_of_waypoint}')
+    def _draw_debug_waypoints(self, waypoints, size=1, color=(255,0,0)):
+        ''' Draw debug point on waypoints '''
+        if len(waypoints) < 1:
+            raise ValueError('number_of_waypoint must be greater than or equal to 1.')
 
         debug = self.world.debug
-        for wp in self.waypoints[:number_of_waypoint]:
+        color = carla.Color(r=color[0], g=color[1], b=color[2])
+        for wp in waypoints:
             location = carla.Location(x=wp[0], y=wp[1], z=1.0)
-            debug.draw_point(location, size=size)
+            debug.draw_point(location, size=size, color=color)
 
     def close(self):
         try:
