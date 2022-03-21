@@ -39,7 +39,7 @@ class CarlaEnv(gym.Env):
 
     def __init__(self, **kwargs):
         global _load_world
-        self.host = 'witoon-carla'
+        self.host = 'localhost'
         self.port = 2000
 
         self.n_images = 1
@@ -168,7 +168,7 @@ class CarlaEnv(gym.Env):
         self.actions_queue = deque(maxlen=self.num_past_actions)
 
         # control history
-        self.store_history = False
+        self.store_history = True
         if self.store_history:
             self.throttle_hist = []
             self.brakes_hist = []
@@ -731,7 +731,7 @@ class CarlaEnv(gym.Env):
         resized_obs = cv2.resize(cropped_obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
         # TODO: for CNN encoder, make it to C x H x W
         # resized_obs = resized_obs.transpose((2, 0, 1))
-        return resized_obs / 255.
+        return np.divide(resized_obs, 255., dtype=np.float16)
 
     def _get_observation_image(self):
         ''' Return RGB image in `H` x `W` x `C` format, its size match observation size.
@@ -762,6 +762,7 @@ class CarlaEnv(gym.Env):
             pass
 
         if not self.dry_run:
+            self._set_synchronous_mode(False)
             # delete all sensor for the next world
             self._clear_all_actors(['sensor.other.collision', self.camera_sensor_type, 'vehicle.*', 'controller.ai.walker', 'walker.*'])
 
@@ -769,7 +770,8 @@ class CarlaEnv(gym.Env):
 
     def plot_control_graph(self, name):
         if not self.store_history:
-            raise Exception('Cannot plot graph because environment does not store history')
+            print('Cannot plot graph because environment does not store history')
+            return
 
         data_np = np.array([self.throttle_hist, self.brakes_hist, self.steers_hist]).transpose()
         data = pd.DataFrame(data_np, columns=['throttle', 'brake', 'steer']).reset_index()
@@ -781,7 +783,8 @@ class CarlaEnv(gym.Env):
 
     def plot_speed_graph(self, name):
         if not self.store_history:
-            raise Exception('Cannot plot graph because environment does not store history')
+            print('Cannot plot graph because environment does not store history')
+            return
 
         data_np = np.array([self.speed_hist, self.lspeed_lon_hist]).transpose()
         data = pd.DataFrame(data_np, columns=['speed', 'speed_lon']).reset_index()
