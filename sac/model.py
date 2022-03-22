@@ -315,10 +315,23 @@ class Trainer(ModelBase):
         # size: (batch_size, item_size)
         return state, action, reward, next_state, done
 
+    def save_model(self, path):
+        self.modules.save_model(path, optimizer=self.optimizer, scaler=self.loss_scaler)
+
     def load_model(self, path, strict=True):
         super().load_model(path=path, strict=strict)
         self.target_critic.load_state_dict(self.critic.state_dict())
         self.target_critic.eval().requires_grad_(False)
+
+        state_dict = torch.load(path, map_location=self.model_device)
+        if 'optimizer' in state_dict:
+            self.optimizer.load_state_dict(state_dict['optimizer'])
+
+        if 'alpha_optimizer' in state_dict:
+            self.alpha_optimizer.load_state_dict(state_dict['alpha_optimizer'])
+
+        if 'scaler' in state_dict:
+            self.loss_scaler.load_state_dict(state_dict['scaler'])
 
 
 class Tester(ModelBase):
