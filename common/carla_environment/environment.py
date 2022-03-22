@@ -303,7 +303,7 @@ class CarlaEnv(gym.Env):
             time.sleep(1)
 
         # Update timesteps
-        self.time_step = 0
+        self.time_step = 1
         self.reset_step += 1
 
         # Enable sync mode
