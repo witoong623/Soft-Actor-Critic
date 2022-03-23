@@ -175,6 +175,7 @@ class CarlaEnv(gym.Env):
             self.steers_hist = []
             self.speed_hist = []
             self.lspeed_lon_hist = []
+            self.original_dis = []
 
         self.spawn_batch = True
         # cache vehicle blueprints
@@ -192,6 +193,9 @@ class CarlaEnv(gym.Env):
             self.throttle_hist.clear()
             self.brakes_hist.clear()
             self.steers_hist.clear()
+            self.speed_hist.clear()
+            self.lspeed_lon_hist.clear()
+            self.original_dis.clear()
 
         # clear previous action
         self.current_action = None
@@ -369,7 +373,6 @@ class CarlaEnv(gym.Env):
     def render(self, mode='human'):
         if mode == 'human':
             if self.camera_img is None:
-                print('self.camera_img is None')
                 raise Exception('self.camera_img is None')
 
             cv2.imshow('Carla environment', self.camera_img)
@@ -794,9 +797,22 @@ class CarlaEnv(gym.Env):
         plt.title('Speed and Longitudinal speed')
         plt.savefig(name)
 
+    def plot_distance_graph(self, name):
+        if not self.store_history:
+            print('Cannot plot graph because environment does not store history')
+            return
+
+        data_np = np.array([self.original_dis]).transpose()
+        data = pd.DataFrame(data_np, columns=['original distance']).reset_index()
+        data = pd.melt(data, id_vars='index', var_name='distance', value_name='value')
+
+        sns.lineplot(data=data, hue='distance', x='index', y='value')
+        plt.title('Distance from center of the lane')
+        plt.savefig(name)
+
     @property
     def metadata(self):
-        return {"render.modes": ["human", "rgb_array"], "video.frames_per_second": self.frame_per_second}
+        return {"render_modes": ["human", "rgb_array"], "render_fps": self.frame_per_second}
 
     def collect_env_images(self, num_steps, start_step=0, agent_class=BehaviorAgent, observation_callback=None):
         agent = agent_class(self.ego)

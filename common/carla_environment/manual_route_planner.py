@@ -1,4 +1,6 @@
 # copy from https://github.com/bitsauce/Carla-ppo/blob/master/CarlaEnv/planner.py
+import carla
+import unittest
 import numpy as np
 
 import carla
@@ -23,7 +25,7 @@ def carla_to_vector(obj):
 
 
 class ManualRoutePlanner:
-    def __init__(self, start_waypoint, end_waypoint, resolution=2.0, plan=None):
+    def __init__(self, start_waypoint, end_waypoint, resolution=2.0, plan=None, enable=True):
         global _route_waypoints, _transformed_waypoint_routes
 
         self._vehicle = None
@@ -42,9 +44,13 @@ class ManualRoutePlanner:
 
         self._current_waypoint_index = 0
         self._checkpoint_waypoint_index = 0
+        self._intermediate_checkpoint_waypoint_index = 0
+        self._repeat_count = 0
+        self._repeat_count_threshold = 10
         self._start_waypoint_index = 0
         self._checkpoint_frequency = 25
 
+        if enable:
         _route_waypoints = self._compute_route_waypoints()
         _transformed_waypoint_routes = self._transform_waypoints(_route_waypoints)
 
@@ -79,7 +85,7 @@ class ManualRoutePlanner:
         self._current_waypoint_index = waypoint_index
 
         # update checkpoint
-        self._checkpoint_waypoint_index = (self._current_waypoint_index // self._checkpoint_frequency) * self._checkpoint_frequency
+        self._update_checkpoint()
         # update here because vehicle is spawn before set_vehicle call and spawning requires spawn point
         self.spawn_transform = _route_waypoints[self._checkpoint_waypoint_index][0].transform
 
@@ -212,6 +218,42 @@ class ManualRoutePlanner:
     def _transform_waypoints(self, waypoints):
         ''' Transform a waypoint into list of x, y and yaw '''
         return list(map(lambda wp: [wp[0].transform.location.x, wp[0].transform.location.y, wp[0].transform.rotation.yaw], waypoints))
+
+    def _update_checkpoint(self):
+        ''' implement checkpoint logic that encourage the agent to remember more past road before trying next portion of the road '''
+        idx = (self._current_waypoint_index // self._checkpoint_frequency) * self._checkpoint_frequency
+
+        if idx > self._intermediate_checkpoint_waypoint_index:
+            # reach new milestone
+            self._intermediate_checkpoint_waypoint_index = idx
+
+            return
+
+        if idx == self._intermediate_checkpoint_waypoint_index:
+            # reach the same milestone
+            self._repeat_count += 1
+
+            # if it can reach this point more than threshold
+            # it can start new section or repeat from the beginning again
+            if self._repeat_count >= self._repeat_count_threshold:
+                if self._checkpoint_waypoint_index == 0:
+                    # already repeat whole route, can start new section
+                    self._checkpoint_waypoint_index = self._intermediate_checkpoint_waypoint_index
+                else:
+                    # repeat from the beginning again
+                    self._checkpoint_waypoint_index = 0
+
+                self._repeat_count = 0
+
+            return
+
+    @property
+    def current_waypoint(self):
+        return _route_waypoints[self._current_waypoint_index % len(_route_waypoints)][0]
+
+    @property
+    def next_waypoint(self):
+        return _route_waypoints[(self._current_waypoint_index + 1) % len(_route_waypoints)][0]
 
 
 TOWN4_PLAN = [RoadOption.STRAIGHT] + [RoadOption.RIGHT] * 2 + [RoadOption.STRAIGHT] * 5

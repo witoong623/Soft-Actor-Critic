@@ -15,7 +15,7 @@ mkdir -p "$LOG_DIR"
 cp "$0" "$LOG_DIR"
 
 python main.py \
-	--mode train --gpu 1 \
+	--mode train --gpu 0 --sampler-gpu 1 \
 	--env "$ENV" \
     --n-past-actions 10 \
 	--image-size 256 512 \

@@ -12,8 +12,8 @@ num_steps = 200
 if __name__ == '__main__':
     # env = CarlaEnv()
     env = CarlaEnv(run_backward=True)
-    # recorder = VideoRecorder(env, base_path='carla_agent_videos')
-    start_step = 35380
+    recorder = VideoRecorder(env, base_path='carla_agent_videos')
+    start_step = 0
 
     completed_lap = False
     while not completed_lap:
@@ -22,5 +22,5 @@ if __name__ == '__main__':
 
         start_step = start_step + num_steps + 1
 
-    # recorder.close()
+    recorder.close()
     env.close()

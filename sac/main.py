@@ -238,3 +238,5 @@ def test_render(model, config):
     model.env.plot_control_graph(f'command_graphs/vae_town7/commands/command_epoch_{config.initial_epoch}_{now_str}.jpeg')
     plt.clf()
     model.env.plot_speed_graph(f'command_graphs/vae_town7/speeds/speed_epoch_{config.initial_epoch}_{now_str}.jpeg')
+    plt.clf()
+    model.env.plot_distance_graph(f'command_graphs/vae_town7/distances/distance_epoch_{config.initial_epoch}_{now_str}.jpeg')
