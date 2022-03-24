@@ -3,6 +3,9 @@ import torchvision.transforms as T
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 
+# for town7 outskirt
+# mean [0.4640, 0.4763, 0.3560]
+# std [0.0941, 0.1722, 0.1883]
 
 class VAEImageFolder(Dataset):
     def __init__(self, root):
@@ -10,7 +13,10 @@ class VAEImageFolder(Dataset):
 
         self.root = root
         self.images_list = os.listdir(root)
-        self.transform = T.ToTensor()
+        self.transform = T.Compose([
+            T.ToTensor(),
+            T.Normalize(mean=[0.4640, 0.4763, 0.3560], std=[0.0941, 0.1722, 0.1883])
+        ])
 
     def __getitem__(self, index):
         img_path = os.path.join(self.root, self.images_list[index])

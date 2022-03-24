@@ -200,6 +200,15 @@ def sample_carla_bias_action():
     return np.array([acc, steer], dtype=np.float32)
 
 
+def normalize_image(image, mean, std):
+    ''' normalize image in numpy format by divide it by 255
+        and standardize it by mean and std.
+    '''
+    image = image / 255.
+
+    return (image - mean) / std
+
+
 def _transform_np_image_to_tensor(imgs, normalize=True):
     tensors = []
     for i in range(imgs.shape[0]):
