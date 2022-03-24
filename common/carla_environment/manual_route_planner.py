@@ -1,9 +1,7 @@
 # copy from https://github.com/bitsauce/Carla-ppo/blob/master/CarlaEnv/planner.py
 import carla
-import unittest
 import numpy as np
 
-import carla
 from agents.navigation.local_planner import RoadOption
 from agents.navigation.global_route_planner import GlobalRoutePlanner
 from agents.tools.misc import vector
@@ -51,8 +49,8 @@ class ManualRoutePlanner:
         self._checkpoint_frequency = 25
 
         if enable:
-        _route_waypoints = self._compute_route_waypoints()
-        _transformed_waypoint_routes = self._transform_waypoints(_route_waypoints)
+            _route_waypoints = self._compute_route_waypoints()
+            _transformed_waypoint_routes = self._transform_waypoints(_route_waypoints)
 
     def set_vehicle(self, vehicle):
         ''' Set internal state to current vehicle, must be called in `reset` '''
