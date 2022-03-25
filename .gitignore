@@ -244,3 +244,5 @@ carla_videos/
 command_graphs/
 town7_eval_images/
 carla_town7_images/
+vae/visualize observation reconstruction
+vae/visualize results
