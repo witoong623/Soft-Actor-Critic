@@ -466,7 +466,7 @@ class CarlaEnv(gym.Env):
         if self.n_images == 1:
             # return self._transform_observation(self.camera_img)
             # TODO: this is for VAE
-            return np.array([self._transform_observation(self.camera_img)], dtype=np.float32)
+            return np.array([self._transform_observation(self.camera_img)], dtype=np.float16)
 
         self.img_buff.append(self.camera_img)
         while len(self.img_buff) < self.n_images:
@@ -474,7 +474,7 @@ class CarlaEnv(gym.Env):
 
         # for VAE, stack it in the new axis
         img_array = [self._transform_observation(img) for img in self.img_buff]
-        return np.array(img_array, dtype=np.float32)
+        return np.array(img_array, dtype=np.float16)
         # # TODO: for CNN, concatenate it
         # return np.concatenate(img_array, axis=0)
 
