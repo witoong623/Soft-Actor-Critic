@@ -572,8 +572,11 @@ class ConvBetaVAE(NetworkBase, VAEBase):
 
         (self.encoded_h, self.encoded_w), size_hist = self._calculate_spatial_size(image_size, self.encoder)
 
-        self.mu = nn.Linear(self.last_encoder_output_channels * self.encoded_h * self.encoded_w, latent_size)
-        self.var = nn.Linear(self.last_encoder_output_channels * self.encoded_h * self.encoded_w, latent_size)
+        # self.mu = nn.Linear(self.last_encoder_output_channels * self.encoded_h * self.encoded_w, latent_size)
+        # self.var = nn.Linear(self.last_encoder_output_channels * self.encoded_h * self.encoded_w, latent_size)
+
+        self.mu_logvar = nn.Linear(self.last_encoder_output_channels * self.encoded_h * self.encoded_w, latent_size * 2)
+
         self.latent = nn.Linear(latent_size, self.last_encoder_output_channels * self.encoded_h * self.encoded_w)
 
         decoder_settings = self._generate_transposed_conv_settings(size_hist)
@@ -631,8 +634,8 @@ class ConvBetaVAE(NetworkBase, VAEBase):
     def encode(self, x):
         x = self.encoder(x)
         x = x.flatten(start_dim=1)
-        return self.mu(x), self.var(x)
-
+        mu_logvar = self.mu_logvar(x)
+        return mu_logvar.chunk(chunks=2, dim=-1)
 
     def reparameterize(self, mu, logvar):
         std = torch.exp(0.5 * logvar)
@@ -763,11 +766,11 @@ BETAVAE = ConvBetaVAE
 
 
 if __name__ == '__main__':
-    image_size = (270, 480)
-    model = CarlaCNN(image_size, 6, [32, 64, 128], 512)
-    dummy = torch.zeros((1, 6, *image_size))
+    image_size = (256, 512)
+    model = ConvBetaVAE(image_size, input_channel=3, latent_size=512, beta=3)
+    dummy = torch.zeros((1, 3, *image_size))
     output = model(dummy)
 
-    print(f'output size {output.size()}')
+    # print(f'output size {output.size()}')
 
-    summary(model, input_size=(1, 6, *image_size))
+    summary(model, input_size=(1, 3, *image_size))

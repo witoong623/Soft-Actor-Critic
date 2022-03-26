@@ -28,7 +28,7 @@ LATENT_SIZE = 512
 LEARNING_RATE = 1e-4
 
 USE_CUDA = True
-PRINT_INTERVAL = 200
+PRINT_INTERVAL = 5
 LOG_PATH = './logs/log.pkl'
 MODEL_PATH = './checkpoints/'
 COMPARE_PATH = './comparisons/'
@@ -40,7 +40,7 @@ if __name__ == "__main__":
     print('Using device', device)
     print('num cpus:', multiprocessing.cpu_count())
 
-    train_loader = get_dataloader('/home/witoon/thesis/datasets/outskirts', BATCH_SIZE, 4)
+    train_loader = get_dataloader('/home/witoon/thesis/datasets/carla-town7/outskirts_manual_collect_processed', BATCH_SIZE, 4)
     # test_loader = torch.utils.data.DataLoader(data_test, batch_size=TEST_BATCH_SIZE, shuffle=True, **kwargs)
 
     print('latent size:', LATENT_SIZE)

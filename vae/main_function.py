@@ -9,7 +9,7 @@ def train(model, device, train_loader, optimizer, epoch, log_interval):
 
     t = tqdm(train_loader)
 
-    for batch_idx, data in enumerate(t):
+    for batch_idx, data in enumerate(t, 1):
         data = data.to(device)
         optimizer.zero_grad()
         output, mu, logvar = model(data)
@@ -20,9 +20,9 @@ def train(model, device, train_loader, optimizer, epoch, log_interval):
         train_loss += loss.cpu().item()
 
         if batch_idx % log_interval == 0:
-            t.set_description('Train Epoch: {} [{}/{} ({:.0f}%)] Loss: {:.6f}'.format(
-                epoch, batch_idx * len(data),
-                len(train_loader.dataset), 100. * batch_idx / len(train_loader), loss.item()))
+            iter_loss = loss.cpu().item()
+            num_trained_images = batch_idx * len(data)
+            t.set_description(f'Train Epoch: {epoch} [{num_trained_images}/{len(train_loader.dataset)} ({100. * batch_idx / len(train_loader):.0f}%)] Loss: {iter_loss:.6f}')
 
     train_loss /= len(train_loader)
     print('Train set Average loss:', train_loss)

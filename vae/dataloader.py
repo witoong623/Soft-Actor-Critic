@@ -3,7 +3,7 @@ import torchvision.transforms as T
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 
-# for town7 outskirt
+# for town7 outskirt (contain images that don't face road)
 # mean [0.4640, 0.4763, 0.3560]
 # std [0.0941, 0.1722, 0.1883]
 
