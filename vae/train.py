@@ -1,5 +1,5 @@
 import sys
-sys.path.append('/root/thesis/thesis-code/Soft-Actor-Critic')
+sys.path.append('/home/witoon/thesis/code/Soft-Actor-Critic')
 
 import os
 import torch
@@ -40,7 +40,7 @@ if __name__ == "__main__":
     print('Using device', device)
     print('num cpus:', multiprocessing.cpu_count())
 
-    train_loader = get_dataloader('/root/thesis/thesis-code/Soft-Actor-Critic/carla_town7_images/outskirts', BATCH_SIZE, 3)
+    train_loader = get_dataloader('/home/witoon/thesis/datasets/outskirts', BATCH_SIZE, 4)
     # test_loader = torch.utils.data.DataLoader(data_test, batch_size=TEST_BATCH_SIZE, shuffle=True, **kwargs)
 
     print('latent size:', LATENT_SIZE)
@@ -60,8 +60,8 @@ if __name__ == "__main__":
         # test_losses.append((epoch, test_loss))
         # utils.write_log(LOG_PATH, (train_losses, test_losses))
 
-        model.save_model('/root/thesis/thesis-code/Soft-Actor-Critic/vae_weights/Carla-v0/latest.pkl')
+        model.save_model('/home/witoon/thesis/code/Soft-Actor-Critic/vae_weights/Carla-v0_town7_new/latest.pkl')
 
         if epoch % 10 == 0:
             print(f'save weight at epoch {epoch}')
-            model.save_model(os.path.join('/root/thesis/thesis-code/Soft-Actor-Critic/vae_weights/Carla-v0', CHECKPOINT_FORMAT(prefix='bvae_town7_', epoch=epoch, loss=train_loss)))
+            model.save_model(os.path.join('/home/witoon/thesis/code/Soft-Actor-Critic/vae_weights/Carla-v0_town7_new', CHECKPOINT_FORMAT(prefix='bvae_town7_', epoch=epoch, loss=train_loss)))

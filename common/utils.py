@@ -210,37 +210,26 @@ def normalize_image(image, mean, std):
 
 
 def _transform_np_image_to_tensor(imgs, normalize=True):
-    tensors = []
-    for i in range(imgs.shape[0]):
-        img = imgs[i]
-        img = img.transpose(2, 0, 1)
-        if normalize:
-            img = img / 255.
+    # input should be (number of image, H, W, C)
+    new_images = imgs.transpose(0, 3, 1, 2)
 
-        img_tensor = torch.from_numpy(img)
-        tensors.append(img_tensor)
+    if normalize:
+        new_images = new_images / 255.
 
-    return torch.stack(tensors, dim=0)
+    return torch.from_numpy(new_images)
+
 
 def _transform_tensor(img_tensors, normalize=True):
-    tensors = []
-    for i in range(img_tensors.size(0)):
-        img = img_tensors[i]
+    # input should be (number of image, H, W, C) or (number of image, C, H, W)
+    if img_tensors.size(1) == 3:
+        pass
+    elif img_tensors.size(-1) == 3:
+        new_img_tensors = img_tensors.permute((0, 3, 1, 2)).contiguous()
 
-        if img.size(0) == 3:
-            # correct form, do nothing
-            pass
-        elif img.size(-1) == 3:
-            img = img.permute((2, 0, 1)).contiguous()
+    if normalize:
+        new_img_tensors = new_img_tensors / 255.
 
-        assert img.size(0) == 3
-
-        if normalize:
-            img = img / 255.
-
-        tensors.append(img)
-
-    return torch.stack(tensors, dim=0)
+    return new_img_tensors
 
 
 def encode_vae_observation(observation, encoder, normalize=True, device='cpu', output_device='cpu'):

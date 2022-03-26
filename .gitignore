@@ -246,3 +246,5 @@ town7_eval_images/
 carla_town7_images/
 vae/visualize observation reconstruction
 vae/visualize results
+vae/eval-images
+vae/visualize-result
