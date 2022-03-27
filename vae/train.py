@@ -2,17 +2,18 @@ import sys
 sys.path.append('/home/witoon/thesis/code/Soft-Actor-Critic')
 
 import os
+import multiprocessing
 import torch
 import torch.optim as optim
+import torch.nn as nn
 import torch.optim.lr_scheduler as lr_scheduler
-import multiprocessing
-import time
+from datetime import datetime
 from functools import partial
 # from torchvision.utils import save_image
-from tqdm import tqdm
+from torch.utils.tensorboard import SummaryWriter
 
 from dataloader import get_dataloader
-from main_function import train
+from main_function import train, test
 from common.network import ConvBetaVAE
 
 
@@ -21,16 +22,15 @@ CHECKPOINT_FORMAT = partial(CHECKPOINT_FORMAT.format, prefix='', suffix='')
 
 # parameters
 BATCH_SIZE = 256
-TEST_BATCH_SIZE = 10
+TEST_BATCH_SIZE = 256
 EPOCHS = 100
 
 LATENT_SIZE = 512
-LEARNING_RATE = 1e-4
+LEARNING_RATE = 3e-4
 
 USE_CUDA = True
-PRINT_INTERVAL = 5
-LOG_PATH = './logs/log.pkl'
-MODEL_PATH = './checkpoints/'
+LOG_PATH = '/home/witoon/thesis/code/Soft-Actor-Critic/logs/vae-training'
+MODEL_PATH = '/home/witoon/thesis/code/Soft-Actor-Critic/vae_weights/Carla-v0_town7_b3_new_tanh_mse'
 COMPARE_PATH = './comparisons/'
 
 if __name__ == "__main__":
@@ -39,29 +39,32 @@ if __name__ == "__main__":
     device = torch.device("cuda:1" if use_cuda else "cpu")
     print('Using device', device)
     print('num cpus:', multiprocessing.cpu_count())
-
-    train_loader = get_dataloader('/home/witoon/thesis/datasets/carla-town7/outskirts_manual_collect_processed', BATCH_SIZE, 4)
-    # test_loader = torch.utils.data.DataLoader(data_test, batch_size=TEST_BATCH_SIZE, shuffle=True, **kwargs)
-
     print('latent size:', LATENT_SIZE)
+
+    train_loader = get_dataloader('/home/witoon/thesis/datasets/carla-town7/outskirts', BATCH_SIZE, 6)
+    test_loader = get_dataloader('/home/witoon/thesis/datasets/carla-town7/outskirts_manual_collect_eval_processed', BATCH_SIZE, 2, is_train=False)
+
     model = ConvBetaVAE((256, 512), latent_size=LATENT_SIZE, beta=3).to(device)
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
-    scheduler = lr_scheduler.StepLR(optimizer=optimizer, step_size=50, gamma=0.5)
+    # reduce only 1 time, set cooldown to epoch
+    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, cooldown=EPOCHS, threshold=1e-3, verbose=True)
 
-    for epoch in range(0, EPOCHS + 1):
-        train_loss = train(model, device, train_loader, optimizer, epoch, PRINT_INTERVAL)
-        scheduler.step()
+    log_writer = SummaryWriter(log_dir=os.path.join(LOG_PATH, 'BVAE-B3', datetime.now().strftime('%Y-%m-%d-%H:%M:%S')))
 
-        # test_loss, original_images, rect_images = test(model, device, test_loader, return_images=5)
+    for epoch in range(1, EPOCHS + 1):
+        train_loss = train(model, device, train_loader, optimizer, epoch, log_interval=5)
+        test_loss = test(model, device, test_loader, epoch, log_interval=1)
+        scheduler.step(test_loss)
+
+        log_writer.add_scalar('Loss/Train', train_loss, epoch)
+        log_writer.add_scalar('Loss/Test', test_loss, epoch)
+
+        print_loss = test_loss
 
         # save_image(original_images + rect_images, COMPARE_PATH + str(epoch) + '.png', padding=0, nrow=len(original_images))
 
-        # train_losses.append((epoch, train_loss))
-        # test_losses.append((epoch, test_loss))
-        # utils.write_log(LOG_PATH, (train_losses, test_losses))
+        # model.save_model('/home/witoon/thesis/code/Soft-Actor-Critic/vae_weights/Carla-v0_town7_b3_new_tanh_mse/latest.pkl')
+        model.save_model(os.path.join(MODEL_PATH, CHECKPOINT_FORMAT(prefix='bvae_town7_', epoch=epoch, loss=print_loss)))
 
-        model.save_model('/home/witoon/thesis/code/Soft-Actor-Critic/vae_weights/Carla-v0_town7_new/latest.pkl')
-
-        if epoch % 10 == 0:
-            print(f'save weight at epoch {epoch}')
-            model.save_model(os.path.join('/home/witoon/thesis/code/Soft-Actor-Critic/vae_weights/Carla-v0_town7_new', CHECKPOINT_FORMAT(prefix='bvae_town7_', epoch=epoch, loss=train_loss)))
+    log_writer.flush()
+    log_writer.close()

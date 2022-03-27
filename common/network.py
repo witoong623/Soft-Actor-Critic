@@ -572,10 +572,8 @@ class ConvBetaVAE(NetworkBase, VAEBase):
 
         (self.encoded_h, self.encoded_w), size_hist = self._calculate_spatial_size(image_size, self.encoder)
 
-        # self.mu = nn.Linear(self.last_encoder_output_channels * self.encoded_h * self.encoded_w, latent_size)
-        # self.var = nn.Linear(self.last_encoder_output_channels * self.encoded_h * self.encoded_w, latent_size)
-
-        self.mu_logvar = nn.Linear(self.last_encoder_output_channels * self.encoded_h * self.encoded_w, latent_size * 2)
+        self.mu = nn.Linear(self.last_encoder_output_channels * self.encoded_h * self.encoded_w, latent_size)
+        self.logvar = nn.Linear(self.last_encoder_output_channels * self.encoded_h * self.encoded_w, latent_size)
 
         self.latent = nn.Linear(latent_size, self.last_encoder_output_channels * self.encoded_h * self.encoded_w)
 
@@ -594,7 +592,8 @@ class ConvBetaVAE(NetworkBase, VAEBase):
 
             # activation of last (it's first in reverse order) layer must be sigmoid
             if i == 1:
-                decoders[0] = nn.Sigmoid()
+                # decoders[0] = nn.Sigmoid()
+                decoders[0] = nn.Tanh()
 
             next_block_output_channels = in_channel
 
@@ -634,21 +633,18 @@ class ConvBetaVAE(NetworkBase, VAEBase):
     def encode(self, x):
         x = self.encoder(x)
         x = x.flatten(start_dim=1)
-        mu_logvar = self.mu_logvar(x)
-        return mu_logvar.chunk(chunks=2, dim=-1)
+        return self.mu(x), self.logvar(x)
 
     def reparameterize(self, mu, logvar):
         std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
         return eps * std + mu
 
-
     def decode(self, z):
         z = self.latent(z)
         z = z.view(-1, self.last_encoder_output_channels, self.encoded_h, self.encoded_w)
         z = self.decoder(z)
         return z
-
 
     def forward(self, x, encode=False, mean=False):
         mu, logvar = self.encode(x)
@@ -661,7 +657,7 @@ class ConvBetaVAE(NetworkBase, VAEBase):
 
     def loss(self, recon_x, x, mu, logvar):
         # reconstruction losses are summed over all elements and batch
-        recon_loss = F.binary_cross_entropy(recon_x, x, reduction='sum')
+        recon_loss = F.mse_loss(recon_x, x, reduction='mean')
 
         # see Appendix B from VAE paper:
         # Kingma and Welling. Auto-Encoding Variational Bayes. ICLR, 2014
