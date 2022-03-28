@@ -592,7 +592,6 @@ class ConvBetaVAE(NetworkBase, VAEBase):
 
             # activation of last (it's first in reverse order) layer must be sigmoid
             if i == 1:
-                # decoders[0] = nn.Sigmoid()
                 decoders[0] = nn.Tanh()
 
             next_block_output_channels = in_channel
@@ -657,7 +656,7 @@ class ConvBetaVAE(NetworkBase, VAEBase):
 
     def loss(self, recon_x, x, mu, logvar):
         # reconstruction losses are summed over all elements and batch
-        recon_loss = F.mse_loss(recon_x, x, reduction='mean')
+        recon_loss = F.mse_loss(recon_x, x, reduction='sum')
 
         # see Appendix B from VAE paper:
         # Kingma and Welling. Auto-Encoding Variational Bayes. ICLR, 2014

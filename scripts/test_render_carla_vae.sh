@@ -1,7 +1,8 @@
 python main.py \
 	--mode test_render \
 	--env Carla-v0 \
-	--gpu 0 \
+	--image-size 256 512 \
+	--gpu 0 --sampler-gpu 1 \
 	--image-size 256 512 \
 	--n-past-actions 10 \
 	--hidden-dims 256 128 \
@@ -13,6 +14,6 @@ python main.py \
 	--record-video \
 	--load-checkpoint \
 	--dry-run-init-env \
-	--weight-path "vae_weights/Carla-v0_town7/bvae_town7_epoch(50)-loss(+2.492E+05).pkl" \
+	--weight-path "vae_weights/Carla-v0_town7/bvae_town7_epoch(100)-loss(+2.489E+05).pkl" \
 	--log-dir "logs/Carla-v0_town7_test_render/BETAVAE" \
 	--checkpoint-dir "savedcheckpoints/Carla-v0/BETAVAE"

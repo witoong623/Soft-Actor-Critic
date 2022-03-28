@@ -1,0 +1,8 @@
+Using tanh and mse
+- image kind of blurly regardless of the size of dataset. I used mse with reduction = "mean" though.
+- mse with reduction = "sum" give the best result of VAE so far
+
+Using sigmoid and binary cross entropy
+- I uses some flip augmentations, result is the worst I ever seen, I used reduction = "mean" though.
+- BCE with reduction = "sum" gave the same result as the model I used before.
+

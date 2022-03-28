@@ -3,9 +3,9 @@ import torchvision.transforms as T
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 
-# for town7 outskirt (contain images that don't face road)
-# mean [0.4640, 0.4763, 0.3560]
-# std [0.0941, 0.1722, 0.1883]
+# for town7 outskirt
+# mean [0.4652, 0.4417, 0.3799]
+# std [0.0946, 0.1767, 0.1865]
 
 class VAEImageFolder(Dataset):
     def __init__(self, root):
@@ -14,8 +14,10 @@ class VAEImageFolder(Dataset):
         self.root = root
         self.images_list = os.listdir(root)
         self.transform = T.Compose([
+            T.RandomHorizontalFlip(p=0.5),
             T.ToTensor(),
-            T.Normalize(mean=[0.4640, 0.4763, 0.3560], std=[0.0941, 0.1722, 0.1883])
+            T.Normalize(mean=[0.4652, 0.4417, 0.3799],
+                        std=[0.0946, 0.1767, 0.1865])
         ])
 
     def __getitem__(self, index):
@@ -28,9 +30,8 @@ class VAEImageFolder(Dataset):
         return len(self.images_list)
 
 
-def get_dataloader(root, batch_size, num_workers=0):
+def get_dataloader(root, batch_size, num_workers=0, is_train=True):
     dataset = VAEImageFolder(root)
-
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=is_train, num_workers=num_workers)
 
     return loader

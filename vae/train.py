@@ -30,7 +30,7 @@ LEARNING_RATE = 3e-4
 
 USE_CUDA = True
 LOG_PATH = '/home/witoon/thesis/code/Soft-Actor-Critic/logs/vae-training'
-MODEL_PATH = '/home/witoon/thesis/code/Soft-Actor-Critic/vae_weights/Carla-v0_town7_b3_new_tanh_mse'
+MODEL_PATH = '/home/witoon/thesis/code/Soft-Actor-Critic/vae_weights/Carla-v0_town7_b3_new_tanh_mse_flip'
 COMPARE_PATH = './comparisons/'
 
 if __name__ == "__main__":
@@ -41,13 +41,13 @@ if __name__ == "__main__":
     print('num cpus:', multiprocessing.cpu_count())
     print('latent size:', LATENT_SIZE)
 
-    train_loader = get_dataloader('/home/witoon/thesis/datasets/carla-town7/outskirts', BATCH_SIZE, 6)
+    train_loader = get_dataloader('/home/witoon/thesis/datasets/carla-town7/outskirts_manual_collect_processed', BATCH_SIZE, 4)
     test_loader = get_dataloader('/home/witoon/thesis/datasets/carla-town7/outskirts_manual_collect_eval_processed', BATCH_SIZE, 2, is_train=False)
 
     model = ConvBetaVAE((256, 512), latent_size=LATENT_SIZE, beta=3).to(device)
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
     # reduce only 1 time, set cooldown to epoch
-    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, cooldown=EPOCHS, threshold=1e-3, verbose=True)
+    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, cooldown=EPOCHS, threshold=5e-3, patience=10, verbose=True)
 
     log_writer = SummaryWriter(log_dir=os.path.join(LOG_PATH, 'BVAE-B3', datetime.now().strftime('%Y-%m-%d-%H:%M:%S')))
 
@@ -63,8 +63,9 @@ if __name__ == "__main__":
 
         # save_image(original_images + rect_images, COMPARE_PATH + str(epoch) + '.png', padding=0, nrow=len(original_images))
 
-        # model.save_model('/home/witoon/thesis/code/Soft-Actor-Critic/vae_weights/Carla-v0_town7_b3_new_tanh_mse/latest.pkl')
-        model.save_model(os.path.join(MODEL_PATH, CHECKPOINT_FORMAT(prefix='bvae_town7_', epoch=epoch, loss=print_loss)))
+        model.save_model(os.path.join(MODEL_PATH, 'latest.pkl'))
+        if epoch % 10 == 0:
+            model.save_model(os.path.join(MODEL_PATH, CHECKPOINT_FORMAT(prefix='bvae_town7_', epoch=epoch, loss=print_loss)))
 
     log_writer.flush()
     log_writer.close()
