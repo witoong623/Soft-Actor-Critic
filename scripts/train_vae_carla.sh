@@ -22,7 +22,7 @@ python main.py \
 	--hidden-dims 256 128 \
 	--activation LeakyReLU \
 	--encoder-arch BETAVAE \
-	--weight-path "vae_weights/Carla-v0_town7_b3_new_tanh_mse_flip/bvae_town7_epoch(100)-loss(+8.586E+04).pkl" \
+	--weight-path "vae_weights/Carla-v0_town7_b3_new_tanh_mse/bvae_town7_epoch(100)-loss(+8.729E+04).pkl" \
 	--state-dim 512 \
 	--max-episode-steps 5000 \
 	--n-epochs 1000 --n-updates 256 --batch-size 32 \

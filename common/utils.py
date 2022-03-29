@@ -243,31 +243,13 @@ def encode_vae_observation(observation, encoder, normalize=True, device='cpu', o
     
     ``device`` is device that encoder will run on.'''
     if isinstance(observation, np.ndarray):
-        if len(observation.shape) == 4:
-            observation = np.expand_dims(observation, axis=0)
-        elif len(observation.shape) != 5:
-            raise ValueError(f'observation must have 4 or 5 dimensions, current input shape is {observation.shape}')
-
-        assert observation.ndim == 5
-        batch_size = observation.shape[0]
-        observation_tensors = [_transform_np_image_to_tensor(observation[i], normalize).to(device) for i in range(observation.shape[0])]
+        observation_tensors = _transform_np_image_to_tensor(observation, normalize=normalize).to(device)
     elif isinstance(observation, torch.Tensor):
-        assert len(observation.size()) == 5
-
-        batch_size = observation.shape[0]
-
-        observation_tensors = [_transform_tensor(observation[i], normalize).to(device) for i in range(observation.size(0))]
+        observation_tensors = _transform_tensor(observation, normalize=normalize).to(device)
     else:
         raise TypeError(f'Unsupported type {type(observation)}')
 
-    batch_states = []
     with torch.no_grad():
-        for observation_tensor in observation_tensors:
-            observation_state_batch = encoder(observation_tensor, encode=True, mean=True)
-            observation_state = observation_state_batch.flatten()
-            batch_states.append(observation_state)
-        
-    new_state = torch.stack(batch_states, dim=0)
-    assert new_state.size(0) == batch_size
+        observation_state_batch = encoder(observation_tensors, encode=True, mean=True)
 
-    return new_state.to(output_device)
+    return observation_state_batch.to(output_device)

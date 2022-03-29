@@ -119,6 +119,7 @@ class Sampler(mp.Process):
                     action = sample_carla_bias_action()
                 else:
                     with amp.autocast(dtype=torch.bfloat16):
+                        # observation shape (256, 512, 3)
                         state = self.state_encoder.encode(observation)
 
                     if prev_actions is not None:
@@ -169,6 +170,7 @@ class Sampler(mp.Process):
                 self.writer.add_scalar(tag='sample/cumulative_reward', scalar_value=episode_reward, global_step=self.episode)
                 self.writer.add_scalar(tag='sample/average_reward', scalar_value=average_reward, global_step=self.episode)
                 self.writer.add_scalar(tag='sample/episode_steps', scalar_value=episode_steps, global_step=self.episode)
+                self.writer.add_scalar(tag='sample/milestone', scalar_value=self.env.get_latest_milestone(), global_step=self.episode)
                 self.log_video()
                 self.writer.flush()
 

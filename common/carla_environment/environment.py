@@ -21,7 +21,7 @@ from tqdm import trange
 from .misc import set_carla_transform, get_pos, get_lane_dis
 from .route_planner import RoutePlanner
 from .manual_route_planner import ManualRoutePlanner, TOWN4_PLAN, TOWN4_REVERSE_PLAN
-from ..utils import center_crop
+from ..utils import center_crop, normalize_image
 
 from agents.navigation.behavior_agent import BehaviorAgent
 
@@ -186,6 +186,9 @@ class CarlaEnv(gym.Env):
 
         # termination condition
         self.terminate_on_out_of_lane = True
+
+        self.mean = np.array([0.4652, 0.4417, 0.3799])
+        self.std = np.array([0.0946, 0.1767, 0.1865])
 
     def reset(self):
         # Clear history if exist
@@ -466,7 +469,9 @@ class CarlaEnv(gym.Env):
         if self.n_images == 1:
             # return self._transform_observation(self.camera_img)
             # TODO: this is for VAE
-            return np.array([self._transform_observation(self.camera_img)], dtype=np.float16)
+            # return np.array([self._transform_observation(self.camera_img)], dtype=np.float16)
+            # for optimize VAE
+            return self._transform_observation(self.camera_img)
 
         self.img_buff.append(self.camera_img)
         while len(self.img_buff) < self.n_images:
@@ -734,7 +739,7 @@ class CarlaEnv(gym.Env):
         resized_obs = cv2.resize(cropped_obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
         # TODO: for CNN encoder, make it to C x H x W
         # resized_obs = resized_obs.transpose((2, 0, 1))
-        return np.divide(resized_obs, 255., dtype=np.float16)
+        return normalize_image(resized_obs, self.mean, self.std).astype(np.float16)
 
     def _get_observation_image(self):
         ''' Return RGB image in `H` x `W` x `C` format, its size match observation size.
@@ -809,6 +814,10 @@ class CarlaEnv(gym.Env):
         sns.lineplot(data=data, hue='distance', x='index', y='value')
         plt.title('Distance from center of the lane')
         plt.savefig(name)
+
+    def get_latest_milestone(self):
+        ''' Return index of latest checkpoint waypoint that the agent can go '''
+        return self.routeplanner._intermediate_checkpoint_waypoint_index
 
     @property
     def metadata(self):
