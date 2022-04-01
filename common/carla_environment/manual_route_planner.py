@@ -2,6 +2,7 @@
 import carla
 import numpy as np
 
+from numba.typed import List
 from agents.navigation.local_planner import RoadOption
 from agents.navigation.global_route_planner import GlobalRoutePlanner
 from agents.tools.misc import vector
@@ -44,13 +45,13 @@ class ManualRoutePlanner:
         self._checkpoint_waypoint_index = 0
         self._intermediate_checkpoint_waypoint_index = 0
         self._repeat_count = 0
-        self._repeat_count_threshold = 10
+        self._repeat_count_threshold = 5
         self._start_waypoint_index = 0
         self._checkpoint_frequency = 25
 
         if enable:
             _route_waypoints = self._compute_route_waypoints()
-            _transformed_waypoint_routes = self._transform_waypoints(_route_waypoints)
+            _transformed_waypoint_routes = List(self._transform_waypoints(_route_waypoints))
 
     def set_vehicle(self, vehicle):
         ''' Set internal state to current vehicle, must be called in `reset` '''

@@ -256,12 +256,66 @@ class Critic(Container):
         self.soft_q_net_1 = SoftQNetwork(state_dim, action_dim, hidden_dims, activation=activation)
         self.soft_q_net_2 = SoftQNetwork(state_dim, action_dim, hidden_dims, activation=activation)
 
+        self.popart_layer1 = POPARTLayer(1, 1)
+        self.popart_layer2 = POPARTLayer(1, 1)
+
         self.to(device)
 
-    def forward(self, state, action):
+    def forward(self, state, action, normalize=False):
         q_value_1 = self.soft_q_net_1(state, action)
         q_value_2 = self.soft_q_net_2(state, action)
+
+        if normalize:
+            return self.popart_layer1(q_value_1), self.popart_layer2(q_value_2)
+
         return q_value_1, q_value_2
+
+    def get_normalized_targets(self, Y):
+        ''' Return normalized target for 2 critics using corresponding scale and shift '''
+        return self.popart_layer1.get_normalized_target(Y), self.popart_layer2.get_normalized_target(Y)
+
+    def update_popart_parameters(self, Y):
+        self.popart_layer1.update_parameters(Y)
+        self.popart_layer2.update_parameters(Y)
 
 
 Actor = PolicyNetwork
+
+
+class POPARTLayer(nn.Module):
+    def __init__(self, input_features, output_features) -> None:
+        super().__init__()
+        self.beta = 3e-4
+
+        self.input_features = input_features
+        self.output_features = output_features
+
+        self.weight = nn.Parameter(torch.Tensor(output_features, input_features))
+        self.bias = nn.Parameter(torch.Tensor(output_features))
+
+        self.register_buffer('mu', torch.zeros(output_features, requires_grad=False))
+        self.register_buffer('sigma', torch.ones(output_features, requires_grad=False))
+
+        nu = self.mu**2 + self.sigma**2
+        self.register_buffer('nu', nu.requires_grad_(False))
+
+    def forward(self, x: torch.Tensor):
+        normalized_x = x.mm(self.weight.t())
+        normalized_x += self.bias.unsqueeze(0).expand_as(normalized_x)
+
+        return normalized_x
+
+    def get_normalized_target(self, Y):
+        return (Y - self.mu) / self.sigma
+
+    def update_parameters(self, Y):
+        oldmu = self.mu
+        oldsigma = self.sigma
+
+        self.mu = (1 - self.beta) * oldmu + self.beta * Y.mean()
+        self.nu = (1 - self.beta) * self.nu + self.beta * (Y**2).mean()
+        self.nu = torch.clamp(self.nu, min=1e-4)
+        self.sigma = torch.sqrt(self.nu - self.mu**2)
+
+        self.weight.data = (self.weight.t() * oldsigma / self.sigma).t()
+        self.bias.data = (oldsigma * self.bias + oldmu - self.mu) / self.sigma

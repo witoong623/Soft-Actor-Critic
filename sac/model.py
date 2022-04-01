@@ -210,7 +210,6 @@ class Trainer(ModelBase):
 
         with amp.autocast(dtype=torch.bfloat16):
             # Train Q function
-            predicted_q_value_1, predicted_q_value_2 = self.critic(state, action)
             with torch.no_grad():
                 new_next_action, next_log_prob, _ = self.actor.evaluate(next_state)
 
@@ -220,8 +219,14 @@ class Trainer(ModelBase):
                 target_q_min -= alpha * next_log_prob
                 # equation 5
                 target_q_value = reward + (1 - done) * gamma * target_q_min
-            critic_loss_1 = self.critic_criterion(predicted_q_value_1, target_q_value)
-            critic_loss_2 = self.critic_criterion(predicted_q_value_2, target_q_value)
+
+            self.critic.update_popart_parameters(target_q_value)
+            predicted_q_value_1, predicted_q_value_2 = self.critic(state, action, normalize=True)
+
+            normalized_target_q_value1, normalized_target_q_value2 = self.critic.get_normalized_targets(target_q_value)
+
+            critic_loss_1 = self.critic_criterion(predicted_q_value_1, normalized_target_q_value1)
+            critic_loss_2 = self.critic_criterion(predicted_q_value_2, normalized_target_q_value2)
             critic_loss = (critic_loss_1 + critic_loss_2) / 2.0
 
             # Train policy function
@@ -382,6 +387,7 @@ class RenderTester(object):
 
         self.env = env_func(**env_kwargs)
         self.env.seed(random_seed)
+        self.eval()
 
     def print_info(self, file=None):
         print(f'state_dim = {self.state_dim}', file=file)

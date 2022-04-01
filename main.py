@@ -133,6 +133,10 @@ def get_config():
                         help='normalize rewards for training')
     parser.add_argument('--reward-scale', type=float, default=1.0, metavar='SCALE',
                         help='reward scale factor for normalized rewards (default: 1.0)')
+    parser.add_argument('--pop-art', action='store_true',
+                        help='normalize target using POP-ART')
+    parser.add_argument('--beta', type=float, default=1e-4, metavar='BETA',
+                        help='beta parameter of POP-ART (default: 1e-4)')
     parser.add_argument('--deterministic', action='store_true', help='deterministic in evaluation')
     lr_group = parser.add_argument_group('learning rate')
     lr_group.add_argument('--lr', type=float, default=1E-4,

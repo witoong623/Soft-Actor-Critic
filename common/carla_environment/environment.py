@@ -1,6 +1,7 @@
 import carla
 import cv2
 import gym
+import math
 import random
 import time
 
@@ -18,7 +19,7 @@ from gym import spaces
 from PIL import Image
 from tqdm import trange
 
-from .misc import set_carla_transform, get_pos, get_lane_dis
+from .misc import set_carla_transform, get_pos, get_lane_dis_numba
 from .route_planner import RoutePlanner
 from .manual_route_planner import ManualRoutePlanner, TOWN4_PLAN, TOWN4_REVERSE_PLAN
 from ..utils import center_crop, normalize_image
@@ -202,6 +203,8 @@ class CarlaEnv(gym.Env):
 
         # clear previous action
         self.current_action = None
+
+        self.current_lane_dis = 0
 
         # delete sensor, vehicles and walkers
         # self._clear_all_actors(['sensor.other.collision', self.camera_sensor_type, 'vehicle.*', 'controller.ai.walker', 'walker.*'])
@@ -402,10 +405,12 @@ class CarlaEnv(gym.Env):
 
         # reward for out of lane
         ego_x, ego_y = get_pos(self.ego)
-        dis, w = get_lane_dis(self.waypoints, ego_x, ego_y)
+        self.current_lane_dis, w = get_lane_dis_numba(self.waypoints, ego_x, ego_y)
         r_out = 0
-        if abs(dis) > self.out_lane_thres:
+        if abs(self.current_lane_dis) > self.out_lane_thres:
             r_out = -100
+        else:
+            r_out = -abs(np.nan_to_num(self.current_lane_dis, posinf=self.out_lane_thres + 1, neginf=-(self.out_lane_thres + 1)))
 
         # longitudinal speed
         lspeed = np.array([v.x, v.y])
@@ -424,7 +429,7 @@ class CarlaEnv(gym.Env):
         r_lat = - abs(self.ego.get_control().steer) * lspeed_lon**2
 
         # cost for braking
-        brake_cost = self.current_action[2] 
+        brake_cost = self.current_action[2]
 
         r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + r_steer*5 + 0.2*r_lat - 1 - brake_cost*2
 
@@ -459,8 +464,7 @@ class CarlaEnv(gym.Env):
                     return True
 
         # If out of lane
-        dis, _ = get_lane_dis(self.waypoints, ego_x, ego_y)
-        if abs(dis) > self.out_lane_thres and self.terminate_on_out_of_lane:
+        if abs(self.current_lane_dis) > self.out_lane_thres and self.terminate_on_out_of_lane:
             return True
 
         return False
