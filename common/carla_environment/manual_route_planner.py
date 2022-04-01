@@ -216,7 +216,7 @@ class ManualRoutePlanner:
 
     def _transform_waypoints(self, waypoints):
         ''' Transform a waypoint into list of x, y and yaw '''
-        return list(map(lambda wp: [wp[0].transform.location.x, wp[0].transform.location.y, wp[0].transform.rotation.yaw], waypoints))
+        return list(map(lambda wp: (wp[0].transform.location.x, wp[0].transform.location.y, wp[0].transform.rotation.yaw), waypoints))
 
     def _update_checkpoint(self):
         ''' implement checkpoint logic that encourage the agent to remember more past road before trying next portion of the road '''
