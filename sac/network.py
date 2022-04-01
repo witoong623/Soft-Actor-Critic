@@ -1,4 +1,5 @@
 import itertools
+import math
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -247,7 +248,8 @@ class PolicyNetwork(MultilayerPerceptron):
 
 
 class Critic(Container):
-    def __init__(self, state_dim, action_dim, hidden_dims, activation=nn.ReLU(inplace=True), device=None):
+    def __init__(self, state_dim, action_dim, hidden_dims, activation=nn.ReLU(inplace=True), device=None,
+                 use_popart=False, beta=1e-4):
         super().__init__()
 
         self.state_dim = state_dim
@@ -256,8 +258,13 @@ class Critic(Container):
         self.soft_q_net_1 = SoftQNetwork(state_dim, action_dim, hidden_dims, activation=activation)
         self.soft_q_net_2 = SoftQNetwork(state_dim, action_dim, hidden_dims, activation=activation)
 
-        self.popart_layer1 = POPARTLayer(1, 1)
-        self.popart_layer2 = POPARTLayer(1, 1)
+        if use_popart:
+            self.use_popart = use_popart
+            # add policy activation for non-linearity
+            self.policy_activation = activation
+
+            self.popart_layer1 = POPARTLayer(1, 1, beta)
+            self.popart_layer2 = POPARTLayer(1, 1, beta)
 
         self.to(device)
 
@@ -265,8 +272,8 @@ class Critic(Container):
         q_value_1 = self.soft_q_net_1(state, action)
         q_value_2 = self.soft_q_net_2(state, action)
 
-        if normalize:
-            return self.popart_layer1(q_value_1), self.popart_layer2(q_value_2)
+        if normalize and self.use_popart:
+            return self.popart_layer1(self.policy_activation(q_value_1)), self.popart_layer2(self.policy_activation(q_value_2))
 
         return q_value_1, q_value_2
 
@@ -283,9 +290,9 @@ Actor = PolicyNetwork
 
 
 class POPARTLayer(nn.Module):
-    def __init__(self, input_features, output_features) -> None:
+    def __init__(self, input_features, output_features, beta) -> None:
         super().__init__()
-        self.beta = 3e-4
+        self.beta = beta
 
         self.input_features = input_features
         self.output_features = output_features
@@ -298,6 +305,15 @@ class POPARTLayer(nn.Module):
 
         nu = self.mu**2 + self.sigma**2
         self.register_buffer('nu', nu.requires_grad_(False))
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        torch.nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        if self.bias is not None:
+            fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.weight)
+            bound = 1 / math.sqrt(fan_in)
+            torch.nn.init.uniform_(self.bias, -bound, bound)
 
     def forward(self, x: torch.Tensor):
         normalized_x = x.mm(self.weight.t())

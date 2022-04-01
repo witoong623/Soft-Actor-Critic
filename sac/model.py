@@ -35,7 +35,9 @@ def build_model(config):
         model_kwargs.update(config.build_from_keys(['critic_lr',
                                                     'actor_lr',
                                                     'alpha_lr',
-                                                    'weight_decay']))
+                                                    'weight_decay',
+                                                    'use_popart',
+                                                    'beta']))
 
         if not config.RNN_encoder:
             Model = Trainer
@@ -67,7 +69,7 @@ class ModelBase(object):
 
     def __init__(self, env_func, env_kwargs, state_encoder,
                  state_dim, action_dim, hidden_dims, activation, n_past_actions,
-                 initial_alpha, n_samplers, buffer_capacity,
+                 initial_alpha, use_popart, beta, n_samplers, buffer_capacity,
                  devices, sampler_devices, random_seed=0):
         self.devices = itertools.cycle(devices)
         self.model_device = next(self.devices)
@@ -85,7 +87,7 @@ class ModelBase(object):
 
         self.state_encoder = self.STATE_ENCODER_WRAPPER(state_encoder)
 
-        self.critic = Critic(self.state_dim, action_dim, hidden_dims, activation=activation)
+        self.critic = Critic(self.state_dim, action_dim, hidden_dims, activation=activation, use_popart=use_popart, beta=beta)
         self.actor = Actor(self.state_dim, action_dim, hidden_dims, activation=activation)
 
         self.log_alpha = nn.Parameter(torch.tensor(np.log(initial_alpha), dtype=torch.float32),
@@ -155,10 +157,11 @@ class Trainer(ModelBase):
     def __init__(self, env_func, env_kwargs, state_encoder,
                  state_dim, action_dim, hidden_dims, activation, n_past_actions,
                  initial_alpha, critic_lr, actor_lr, alpha_lr, weight_decay,
-                 n_samplers, buffer_capacity, devices, sampler_devices, random_seed=0):
+                 use_popart, beta, n_samplers, buffer_capacity, devices,
+                 sampler_devices, random_seed=0):
         super().__init__(env_func, env_kwargs, state_encoder,
                          state_dim, action_dim, hidden_dims, activation, n_past_actions,
-                         initial_alpha, n_samplers, buffer_capacity,
+                         initial_alpha, use_popart, beta, n_samplers, buffer_capacity,
                          devices, sampler_devices, random_seed)
 
         self.target_critic = clone_network(src_net=self.critic, device=self.model_device)

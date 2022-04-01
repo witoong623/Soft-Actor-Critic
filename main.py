@@ -133,7 +133,7 @@ def get_config():
                         help='normalize rewards for training')
     parser.add_argument('--reward-scale', type=float, default=1.0, metavar='SCALE',
                         help='reward scale factor for normalized rewards (default: 1.0)')
-    parser.add_argument('--pop-art', action='store_true',
+    parser.add_argument('--use-popart', default=False, action='store_true',
                         help='normalize target using POP-ART')
     parser.add_argument('--beta', type=float, default=1e-4, metavar='BETA',
                         help='beta parameter of POP-ART (default: 1e-4)')
