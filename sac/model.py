@@ -58,7 +58,9 @@ def build_model(config):
             model.print_info(file=file)
 
     if config.initial_checkpoint is not None:
-        model.load_model(path=config.initial_checkpoint)
+        load_ret = model.load_model(path=config.initial_checkpoint, strict=config.mode != 'test_render')
+        print(f'Missing keys: {load_ret.missing_keys}')
+        print(f'Unexpected keys: {load_ret.unexpected_keys}')
 
     return model
 
@@ -411,4 +413,4 @@ class RenderTester(object):
         self.modules.save_model(path)
 
     def load_model(self, path, strict=True):
-        self.modules.load_model(path, strict=strict)
+        return self.modules.load_model(path, strict=strict)

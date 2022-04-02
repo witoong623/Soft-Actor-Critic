@@ -169,7 +169,8 @@ def get_lane_dis_numba(waypoints, x, y):
 
     vec = np.array((x - waypt[0], y - waypt[1]), dtype=np.float32)
     lv = np.linalg.norm(vec)
-    w = np.array([np.cos(waypt[2]/180*np.pi), np.sin(waypt[2]/180*np.pi)])
+    # convert yaw degree to radians, use cos and sin to get rotation around Z axis
+    w = np.array([np.cos(waypt[2] * np.pi / 180), np.sin(waypt[2] * np.pi / 180)])
     cross = cross2d(w, vec/lv)
     dis = - lv * cross
     return dis, w

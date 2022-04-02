@@ -38,20 +38,21 @@ class ManualRoutePlanner:
         self.start_waypoint = start_waypoint
         self.end_waypoint = end_waypoint
 
-        self.spawn_transform = start_waypoint.transform
         self.lap_count = 0
-
-        self._current_waypoint_index = 0
-        self._checkpoint_waypoint_index = 0
-        self._intermediate_checkpoint_waypoint_index = 0
         self._repeat_count = 0
         self._repeat_count_threshold = 5
-        self._start_waypoint_index = 0
         self._checkpoint_frequency = 25
+
+        self._checkpoint_waypoint_index = 0
+        self._start_waypoint_index = self._checkpoint_waypoint_index
+        self._current_waypoint_index = self._checkpoint_waypoint_index
+        self._intermediate_checkpoint_waypoint_index = self._checkpoint_waypoint_index + self._checkpoint_frequency
 
         if enable:
             _route_waypoints = self._compute_route_waypoints()
             _transformed_waypoint_routes = List(self._transform_waypoints(_route_waypoints))
+
+        self.spawn_transform = _route_waypoints[self._checkpoint_waypoint_index][0].transform
 
     def set_vehicle(self, vehicle):
         ''' Set internal state to current vehicle, must be called in `reset` '''
@@ -223,28 +224,16 @@ class ManualRoutePlanner:
         idx = (self._current_waypoint_index // self._checkpoint_frequency) * self._checkpoint_frequency
 
         if idx > self._intermediate_checkpoint_waypoint_index:
-            # reach new milestone
-            self._intermediate_checkpoint_waypoint_index = idx
-
-            return
-
-        if idx == self._intermediate_checkpoint_waypoint_index:
-            # reach the same milestone
             self._repeat_count += 1
 
-            # if it can reach this point more than threshold
-            # it can start new section or repeat from the beginning again
             if self._repeat_count >= self._repeat_count_threshold:
                 if self._checkpoint_waypoint_index == 0:
-                    # already repeat whole route, can start new section
                     self._checkpoint_waypoint_index = self._intermediate_checkpoint_waypoint_index
+                    self._intermediate_checkpoint_waypoint_index += self._checkpoint_frequency
                 else:
-                    # repeat from the beginning again
                     self._checkpoint_waypoint_index = 0
 
                 self._repeat_count = 0
-
-            return
 
     @property
     def current_waypoint(self):
