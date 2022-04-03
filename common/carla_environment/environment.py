@@ -1,7 +1,6 @@
 import carla
 import cv2
 import gym
-import math
 import random
 import time
 
@@ -19,12 +18,13 @@ from gym import spaces
 from PIL import Image
 from tqdm import trange
 
-from .misc import set_carla_transform, get_pos, get_lane_dis_numba
+from .misc import set_carla_transform, get_pos, get_lane_dis_numba, is_the_same_direction, get_command
 from .route_planner import RoutePlanner
 from .manual_route_planner import ManualRoutePlanner, TOWN4_PLAN, TOWN4_REVERSE_PLAN
 from ..utils import center_crop, normalize_image
 
 from agents.navigation.behavior_agent import BehaviorAgent
+from agents.navigation.global_route_planner import RoadOption
 
 
 class RouteMode(Enum):
@@ -169,7 +169,7 @@ class CarlaEnv(gym.Env):
         self.actions_queue = deque(maxlen=self.num_past_actions)
 
         # control history
-        self.store_history = True
+        self.store_history = False
         if self.store_history:
             self.throttle_hist = []
             self.brakes_hist = []
@@ -203,6 +203,8 @@ class CarlaEnv(gym.Env):
 
         # clear previous action
         self.current_action = None
+        self.next_waypoint, self.next_command = None, None
+        self.prev_waypoint, self.prev_command = None, None
 
         self.current_lane_dis = 0
 
@@ -327,6 +329,7 @@ class CarlaEnv(gym.Env):
         elif self.route_mode == RouteMode.MANUAL_LAP:
             self.routeplanner.set_vehicle(self.ego)
             self.waypoints = self.routeplanner.run_step()
+            self.next_waypoint, self.next_command = self.routeplanner.get_next_route_waypoint()
 
             # TODO: delete this after record vae training images end
             # self.route_waypoints = self.routeplanner.get_route_waypoints().copy()
@@ -338,6 +341,8 @@ class CarlaEnv(gym.Env):
 
         for _ in range(self.num_past_actions):
             self.actions_queue.append(np.array([0, 0]))
+
+        self.first_additional_state = np.concatenate(list(self.actions_queue) + [np.array([get_command(self.next_command)])], dtype=np.float16)
 
         return self._get_obs()
 
@@ -360,19 +365,21 @@ class CarlaEnv(gym.Env):
             self.steers_hist.append(float(steer))
 
         self.current_action = (throttle, steer, brake)
+        self.actions_queue.append(action)
 
         self.world.tick()
 
         self.waypoints = self.routeplanner.run_step()
+        self.prev_command = self.next_command
+        self.prev_waypoint = self.next_waypoint
+        self.next_waypoint, self.next_command = self.routeplanner.get_next_route_waypoint()
 
         # Update timesteps
         self.time_step += 1
         self.total_step += 1
 
         info = {}
-        info['past_actions'] = np.array(self.actions_queue)
-        self.actions_queue.append(action)
-        info['next_past_actions'] = np.array(self.actions_queue)
+        info['additional_state'] = np.concatenate(list(self.actions_queue) + [np.array([get_command(self.next_command)])], dtype=np.float16)
 
         return self._get_obs(), self._get_reward(), self._get_terminal(), info
 
@@ -421,6 +428,18 @@ class CarlaEnv(gym.Env):
         if lspeed_lon > self.desired_speed:
             r_fast = -1
 
+        # direction in intersection
+        r_direction = 0
+        if self.prev_command == [RoadOption.RIGHT, RoadOption.LEFT, RoadOption.STRAIGHT]:
+            if is_the_same_direction(self.prev_command, self.ego.get_transform(), self.prev_waypoint.transform):
+                r_direction += 10
+
+            # will the agent oversteer?
+            if self.prev_command == RoadOption.RIGHT and self.current_action[1] > 0:
+                r_direction += 1
+            elif self.prev_command == RoadOption.LEFT and self.current_action[1] < 0:
+                r_direction += 1
+
         # if it is faster than desired speed, minus the excess speed
         # and don't give reward from speed
         # r_fast *= lspeed_lon
@@ -431,7 +450,7 @@ class CarlaEnv(gym.Env):
         # cost for braking
         brake_cost = self.current_action[2]
 
-        r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + r_steer*5 + 0.2*r_lat - 1 - brake_cost*2
+        r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + r_steer*5 + 0.2*r_lat - 1 - brake_cost*2 + r_direction
 
         if self.store_history:
             self.speed_hist.append(speed)

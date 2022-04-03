@@ -79,8 +79,8 @@ class ModelBase(object):
 
         self.n_past_actions = n_past_actions
         if n_past_actions > 1:
-            # add past actions to state dim
-            self.state_dim = state_dim + (action_dim * n_past_actions)
+            # add past actions to state dim + 1 for command
+            self.state_dim = state_dim + (action_dim * n_past_actions) + 1
         else:
             self.state_dim = state_dim
         self.action_dim = action_dim
@@ -277,19 +277,19 @@ class Trainer(ModelBase):
 
     def prepare_batch(self, batch_size):
         if self.n_past_actions > 1:
-            observation, action, past_actions, next_past_actions, reward, next_observation, done = self.replay_buffer.sample(batch_size)
+            observation, additional_state, action, reward, next_observation, next_additional_state, done = self.replay_buffer.sample(batch_size)
 
             observation = torch.tensor(observation, dtype=torch.float16, device=self.model_device)
+            additional_state = torch.tensor(additional_state, dtype=torch.float16, device=self.model_device)
             next_observation = torch.tensor(next_observation, dtype=torch.float16, device=self.model_device)
+            next_additional_state = torch.tensor(next_additional_state, dtype=torch.float16, device=self.model_device)
 
             action = torch.tensor(action, dtype=torch.float16, device=self.model_device)
-            past_actions = torch.tensor(past_actions, dtype=torch.float16, device=self.model_device)
-            next_past_actions = torch.tensor(next_past_actions, dtype=torch.float16, device=self.model_device)
 
             reward = torch.tensor(reward, dtype=torch.float32, device=self.model_device)
             done = torch.tensor(done, dtype=torch.float16, device=self.model_device)
         else:
-            observation, action, past_actions, next_past_actions, reward, next_observation, done = self.replay_buffer.sample(batch_size)
+            observation, action, reward, next_observation, done = self.replay_buffer.sample(batch_size)
 
             observation = torch.tensor(observation, dtype=torch.float16, device=self.model_device)
             next_observation = torch.tensor(next_observation, dtype=torch.float16, device=self.model_device)
@@ -320,8 +320,8 @@ class Trainer(ModelBase):
                     next_state = self.state_encoder(next_observation)
 
         if self.n_past_actions > 1:
-            state = torch.cat((state, past_actions.view(batch_size, -1)), dim=1)
-            next_state = torch.cat((next_state, next_past_actions.view(batch_size, -1)), dim=1)
+            state = torch.cat((state, additional_state.view(batch_size, -1)), dim=1)
+            next_state = torch.cat((next_state, next_additional_state.view(batch_size, -1)), dim=1)
 
         # size: (batch_size, item_size)
         return state, action, reward, next_state, done
@@ -368,7 +368,7 @@ class RenderTester(object):
         self.n_past_actions = n_past_actions
         if n_past_actions > 1:
             # add past actions to state dim
-            self.state_dim = state_dim + (action_dim * n_past_actions)
+            self.state_dim = state_dim + (action_dim * n_past_actions) + 1
         else:
             self.state_dim = state_dim
         self.action_dim = action_dim

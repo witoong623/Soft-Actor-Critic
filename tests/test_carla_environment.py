@@ -4,10 +4,14 @@ import random
 import numpy as np
 import numba
 import time
+import carla
 
 from numba.np.extensions import cross2d
 from numba.typed import List
 from common.carla_environment.misc import get_lane_dis
+from common.carla_environment.manual_route_planner import ManualRoutePlanner, TOWN4_PLAN
+from common.carla_environment.misc import is_the_same_direction
+
 
 class TestObservationTransform(unittest.TestCase):
     W = 512
@@ -102,4 +106,36 @@ class TestNumbaCalculation(unittest.TestCase):
         self.assertAlmostEqual(dis_numba, dis, places=6)
         np.testing.assert_array_equal(w_numba, w)
 
-    
+
+class TestDirectionCalculation(unittest.TestCase):
+    def setUp(self) -> None:
+        host = 'localhost'
+        port = 2000
+        map = 'Town07'
+
+        self.client = carla.Client(host, port)
+
+        self.world = self.client.load_world(map)
+
+        vehicle_spawn_points = list(self.world.get_map().get_spawn_points())
+        lap_spwan_point_wp = self.world.get_map().get_waypoint(vehicle_spawn_points[1].location)
+
+        self.routeplanner = ManualRoutePlanner(lap_spwan_point_wp, lap_spwan_point_wp, resolution=2, plan=TOWN4_PLAN)
+
+    def test_waypoint_direction_backward(self):
+        ''' If car ran passed `current waypoint`,
+            what projection from current location of car will look like? '''
+        waypoints = self.routeplanner.get_route_waypoints()
+
+        start = 130
+        end = 150
+        for i, wps in enumerate(waypoints[start:end], start):
+            wp, _ = wps
+
+            for j in range(start-1, start-5, -1):
+                # current_wp is used inplace of current car location
+                current_wp = wp
+                # next_wp is the waypoint that car suppose to move to but it already passed
+                next_wp, action = waypoints[j]
+                is_same_direction = is_the_same_direction(action, current_transform=current_wp.transform, waypoint_transform=next_wp.transform)
+                self.assertTrue(is_same_direction)

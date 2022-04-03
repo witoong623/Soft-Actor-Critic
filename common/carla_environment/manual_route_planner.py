@@ -82,21 +82,23 @@ class ManualRoutePlanner:
             else:
                 break
 
-        self._current_waypoint_index = waypoint_index
+        self._current_waypoint_index = waypoint_index % waypoint_routes_len
 
         # update checkpoint
         self._update_checkpoint()
         # update here because vehicle is spawn before set_vehicle call and spawning requires spawn point
         self.spawn_transform = _route_waypoints[self._checkpoint_waypoint_index][0].transform
 
-        self.lap_count = (self._current_waypoint_index - self._start_waypoint_index) / len(_route_waypoints)
+        self.lap_count = (waypoint_index - self._start_waypoint_index) / len(_route_waypoints)
 
         return _transformed_waypoint_routes[self._current_waypoint_index:]
 
     def get_route_waypoints(self):
-        ''' Return list of [waypoint, RoadOption] '''
-
+        ''' Return list of (waypoint, RoadOption) '''
         return _route_waypoints
+
+    def get_next_route_waypoint(self):
+        return _route_waypoints[self._current_waypoint_index]
 
     def get_transformed_route_waypoints(self):
         return _transformed_waypoint_routes

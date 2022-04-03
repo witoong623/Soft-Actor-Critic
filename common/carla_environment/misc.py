@@ -16,6 +16,8 @@ import carla
 # import pygame
 from matplotlib.path import Path
 from numba.np.extensions import cross2d
+from agents.navigation.global_route_planner import RoadOption
+from agents.tools.misc import vector
 # import skimage
 
 
@@ -258,6 +260,61 @@ def set_carla_transform(pose):
     transform.location.y = pose[1]
     transform.rotation.yaw = pose[2]
     return transform
+
+
+def get_command(action: RoadOption):
+    ''' Return model command (command the agent to do something) from `RoadOption` '''
+    command_action = 0.
+    if action == RoadOption.RIGHT:
+        command_action = 1.
+    elif action == RoadOption.LEFT:
+        command_action = -1.
+    
+    return command_action
+
+
+def _vector_locations(location_1, location_2):
+    """
+    Returns the unit vector from location_1 to location_2
+
+        :param location_1, location_2: carla.Location objects
+    """
+    x = location_2.x - location_1.x
+    y = location_2.y - location_1.y
+    z = location_2.z - location_1.z
+    norm = np.linalg.norm([x, y, z]) + np.finfo(float).eps
+
+    return [x / norm, y / norm, z / norm]
+
+
+def is_the_same_direction(action, current_transform, waypoint_transform):
+    waypoint_transform = waypoint_transform
+    current_location = current_transform.location
+    projected_location = current_location + \
+        carla.Location(
+            x=np.cos(np.radians(current_transform.rotation.yaw)),
+            y=np.sin(np.radians(current_transform.rotation.yaw)))
+    v_current = _vector_locations(current_location, projected_location)
+
+    direction = 0
+    if action == RoadOption.LEFT:
+        direction = 1
+    elif action == RoadOption.RIGHT:
+        direction = -1
+    elif action == RoadOption.STRAIGHT:
+        direction = 0
+    select_criteria = float("inf")
+
+    v_select = vector(
+        current_location, waypoint_transform.location)
+    cross = float("inf")
+    if direction == 0:
+        cross = abs(np.cross(v_current, v_select)[-1])
+    else:
+        cross = direction * np.cross(v_current, v_select)[-1]
+
+    return cross < select_criteria
+
 
 # def display_to_rgb(display, obs_size):
 #   """
