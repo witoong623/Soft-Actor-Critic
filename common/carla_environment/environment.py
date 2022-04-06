@@ -133,7 +133,7 @@ class CarlaEnv(gym.Env):
                 self.routeplanner = ManualRoutePlanner(self.lap_spwan_point_wp, self.lap_spwan_point_wp, resolution=2, plan=TOWN4_PLAN)
 
         # ego vehicle bp
-        self.ego_bp = self._create_vehicle_bluepprint('vehicle.nissan.micra', color='49,8,8')
+        self.ego_bp = self._create_vehicle_bluepprint('vehicle.mini.cooper_s_2021')
 
         # Collision sensor
         self.collision_hist = []
@@ -277,7 +277,7 @@ class CarlaEnv(gym.Env):
                     # self.start=[52.1,-4.2, 178.66] # static
                     transform = set_carla_transform(self.start)
             elif self.route_mode == RouteMode.MANUAL_LAP:
-                transform = self.routeplanner.spawn_transform
+                transform = self._make_safe_spawn_transform(self.routeplanner.spawn_transform)
 
             if self._try_spawn_ego_vehicle_at(transform):
                 break
@@ -430,15 +430,12 @@ class CarlaEnv(gym.Env):
 
         # direction in intersection
         r_direction = 0
-        if self.prev_command == [RoadOption.RIGHT, RoadOption.LEFT, RoadOption.STRAIGHT]:
-            if is_the_same_direction(self.prev_command, self.ego.get_transform(), self.prev_waypoint.transform):
-                r_direction += 10
-
+        if self.prev_command in [RoadOption.RIGHT, RoadOption.LEFT]:
             # will the agent oversteer?
             if self.prev_command == RoadOption.RIGHT and self.current_action[1] > 0:
-                r_direction += 1
+                r_direction += 5
             elif self.prev_command == RoadOption.LEFT and self.current_action[1] < 0:
-                r_direction += 1
+                r_direction += 5
 
         # if it is faster than desired speed, minus the excess speed
         # and don't give reward from speed
@@ -753,6 +750,17 @@ class CarlaEnv(gym.Env):
             return True
 
         return False
+
+    def _make_safe_spawn_transform(self, spawn_point_transform):
+        ''' Set Z axis to 0.39 if Z axis of transform equals to 0.00 to prevent collision when spawning '''
+        new_transform = spawn_point_transform
+        if spawn_point_transform.location.z == 0:
+            new_location = carla.Location(x=spawn_point_transform.location.x,
+                                          y=spawn_point_transform.location.y,
+                                          z=0.39)
+            new_transform = carla.Transform(location=new_location, rotation=spawn_point_transform.rotation)
+
+        return new_transform
 
     def _transform_observation(self, obs):
         ''' Transform image observation to specified observation size and normalize it '''

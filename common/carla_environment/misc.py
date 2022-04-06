@@ -17,7 +17,7 @@ import carla
 from matplotlib.path import Path
 from numba.np.extensions import cross2d
 from agents.navigation.global_route_planner import RoadOption
-from agents.tools.misc import vector
+# from agents.tools.misc import vector
 # import skimage
 
 
@@ -273,6 +273,18 @@ def get_command(action: RoadOption):
     return command_action
 
 
+def get_onehot_command(action: RoadOption):
+    ''' Return model command (command the agent to do something) from `RoadOption` '''
+    if action == RoadOption.RIGHT:
+        command_action = np.array([0, 0, 1], dtype=np.float16)
+    elif action == RoadOption.LEFT:
+        command_action = np.array([1, 0, 0], dtype=np.float16)
+    else:
+        command_action = np.array([0, 1, 0], dtype=np.float16)
+    
+    return command_action
+
+
 def _vector_locations(location_1, location_2):
     """
     Returns the unit vector from location_1 to location_2
@@ -288,6 +300,7 @@ def _vector_locations(location_1, location_2):
 
 
 def is_the_same_direction(action, current_transform, waypoint_transform):
+    ''' doesn't work '''
     waypoint_transform = waypoint_transform
     current_location = current_transform.location
     projected_location = current_location + \
@@ -305,7 +318,7 @@ def is_the_same_direction(action, current_transform, waypoint_transform):
         direction = 0
     select_criteria = float("inf")
 
-    v_select = vector(
+    v_select = _vector_locations(
         current_location, waypoint_transform.location)
     cross = float("inf")
     if direction == 0:

@@ -137,7 +137,7 @@ class Sampler(mp.Process):
                 episode_reward += reward
                 episode_steps += 1
                 # self.render()
-                # self.save_frame(step=episode_steps, reward=reward, episode_reward=episode_reward)
+                self.save_frame(step=episode_steps, reward=reward, episode_reward=episode_reward)
 
                 # if more than 50% of capacity, add transactions to replay buffer and clear
                 # before saving current trajectory. prevent trajectory holding too much data.
@@ -211,7 +211,7 @@ class Sampler(mp.Process):
                 pass
 
     def save_frame(self, step, reward, episode_reward):
-        if not self.random_sample and self.log_episode_video and self.episode % 100 == 0:
+        if not self.random_sample and self.log_episode_video and self.episode % 50 == 0:
             try:
                 img = self.env.render(mode='rgb_array')
             except Exception:
@@ -227,11 +227,11 @@ class Sampler(mp.Process):
                 self.frames.append(img)
 
     def log_video(self):
-        if self.writer is not None and self.log_episode_video and self.episode % 100 == 0:
+        if self.writer is not None and self.log_episode_video and self.episode % 50 == 0:
             try:
                 video = np.stack(self.frames).transpose((0, 3, 1, 2))
                 video = np.expand_dims(video, axis=0)
-                self.writer.add_video(tag='sample/episode', vid_tensor=video, global_step=self.episode, fps=120)
+                self.writer.add_video(tag='sample/episode', vid_tensor=video, global_step=self.episode, fps=10)
             except ValueError:
                 pass
 

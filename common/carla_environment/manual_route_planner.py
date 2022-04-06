@@ -6,7 +6,6 @@ from numba.typed import List
 from agents.navigation.local_planner import RoadOption
 from agents.navigation.global_route_planner import GlobalRoutePlanner
 from agents.tools.misc import vector
-from .misc import distance_vehicle
 
 # cache waypoint for entire lifecycle of application
 _route_waypoints = None
