@@ -93,87 +93,91 @@ class Sampler(mp.Process):
             self.actor.eval().requires_grad_(False)
 
         self.episode = 0
-        while self.episode < self.n_episodes:
-            self.episode += 1
+        try:
+            while self.episode < self.n_episodes:
+                self.episode += 1
 
-            if not (self.eval_only or self.random_sample):
-                sync_params(src_net=self.shared_state_encoder, dst_net=self.state_encoder)
-                sync_params(src_net=self.shared_actor, dst_net=self.actor)
+                if not (self.eval_only or self.random_sample):
+                    sync_params(src_net=self.shared_state_encoder, dst_net=self.state_encoder)
+                    sync_params(src_net=self.shared_actor, dst_net=self.actor)
 
-            episode_reward = 0
-            episode_steps = 0
-            self.trajectory.clear()
-            if self.state_encoder is not None:
-                self.state_encoder.reset()
-            observation = self.env.reset()
+                episode_reward = 0
+                episode_steps = 0
+                self.trajectory.clear()
+                if self.state_encoder is not None:
+                    self.state_encoder.reset()
+                observation = self.env.reset()
 
-            additional_state = None
-            if hasattr(self.env, 'first_additional_state'):
-                additional_state = self.env.first_additional_state
+                additional_state = None
+                if hasattr(self.env, 'first_additional_state'):
+                    additional_state = self.env.first_additional_state
 
-            self.render()
-            self.frames.clear()
-            self.save_frame(step=0, reward=np.nan, episode_reward=0.0)
-            for step in range(self.max_episode_steps):
-                if self.random_sample:
-                    action = sample_carla_bias_action()
-                else:
-                    with amp.autocast(dtype=torch.bfloat16):
-                        # observation shape (256, 512, 3)
-                        state = self.state_encoder.encode(observation)
+                self.render()
+                self.frames.clear()
+                self.save_frame(step=0, reward=np.nan, episode_reward=0.0)
+                for step in range(self.max_episode_steps):
+                    if self.random_sample:
+                        action = sample_carla_bias_action()
+                    else:
+                        with amp.autocast(dtype=torch.bfloat16):
+                            # observation shape (256, 512, 3)
+                            state = self.state_encoder.encode(observation)
 
-                    if additional_state is not None:
-                        state_tensor = torch.FloatTensor(state)
-                        additional_state_tensor = torch.FloatTensor(additional_state)
-                        state = torch.cat((state_tensor, additional_state_tensor))
+                        if additional_state is not None:
+                            state_tensor = torch.FloatTensor(state)
+                            additional_state_tensor = torch.FloatTensor(additional_state)
+                            state = torch.cat((state_tensor, additional_state_tensor))
 
-                    with amp.autocast(dtype=torch.bfloat16):
-                        action = self.actor.get_action(state, deterministic=self.deterministic)
+                        with amp.autocast(dtype=torch.bfloat16):
+                            action = self.actor.get_action(state, deterministic=self.deterministic)
 
-                next_observation, reward, done, info = self.env.step(action)
-                if 'additional_state' in info:
-                    next_additional_state = info['additional_state']
+                    next_observation, reward, done, info = self.env.step(action)
+                    if 'additional_state' in info:
+                        next_additional_state = info['additional_state']
 
-                episode_reward += reward
-                episode_steps += 1
-                # self.render()
-                self.save_frame(step=episode_steps, reward=reward, episode_reward=episode_reward)
+                    episode_reward += reward
+                    episode_steps += 1
+                    # self.render()
+                    self.save_frame(step=episode_steps, reward=reward, episode_reward=episode_reward)
 
-                # if more than 50% of capacity, add transactions to replay buffer and clear
-                # before saving current trajectory. prevent trajectory holding too much data.
-                if len(self.trajectory) / self.replay_buffer.capacity > 0.5:
-                    with self.lock:
-                        self.save_trajectory()
-                        self.trajectory.clear()
+                    # if more than 50% of capacity, add transactions to replay buffer and clear
+                    # before saving current trajectory. prevent trajectory holding too much data.
+                    if len(self.trajectory) / self.replay_buffer.capacity > 0.5:
+                        with self.lock:
+                            self.save_trajectory()
+                            self.trajectory.clear()
 
-                self.add_transaction(observation, action, reward, next_observation, done, additional_state, next_additional_state)
+                    self.add_transaction(observation, action, reward, next_observation, done, additional_state, next_additional_state)
 
-                observation = next_observation
-                additional_state = next_additional_state
+                    observation = next_observation
+                    additional_state = next_additional_state
 
-                if done:
-                    break
+                    if done:
+                        break
 
-            # wait for signal from Collector to stop or continue
-            self.running_event.wait()
-            # wait for previous Sampler to set
-            self.event.wait(timeout=self.timeout)
-            with self.lock:
-                self.save_trajectory()
-                self.n_total_steps.value += episode_steps
-                self.episode_steps.append(episode_steps)
-                self.episode_rewards.append(episode_reward)
-            self.event.clear()
-            # set next Sampler to continue save trajectory
-            self.next_sampler_event.set()
-            if self.writer is not None:
-                average_reward = episode_reward / episode_steps
-                self.writer.add_scalar(tag='sample/cumulative_reward', scalar_value=episode_reward, global_step=self.episode)
-                self.writer.add_scalar(tag='sample/average_reward', scalar_value=average_reward, global_step=self.episode)
-                self.writer.add_scalar(tag='sample/episode_steps', scalar_value=episode_steps, global_step=self.episode)
-                self.writer.add_scalar(tag='sample/milestone', scalar_value=self.env.get_latest_milestone(), global_step=self.episode)
-                self.log_video()
-                self.writer.flush()
+                # wait for signal from Collector to stop or continue
+                self.running_event.wait()
+                # wait for previous Sampler to set
+                self.event.wait(timeout=self.timeout)
+                with self.lock:
+                    self.save_trajectory()
+                    self.n_total_steps.value += episode_steps
+                    self.episode_steps.append(episode_steps)
+                    self.episode_rewards.append(episode_reward)
+                self.event.clear()
+                # set next Sampler to continue save trajectory
+                self.next_sampler_event.set()
+                if self.writer is not None:
+                    average_reward = episode_reward / episode_steps
+                    self.writer.add_scalar(tag='sample/cumulative_reward', scalar_value=episode_reward, global_step=self.episode)
+                    self.writer.add_scalar(tag='sample/average_reward', scalar_value=average_reward, global_step=self.episode)
+                    self.writer.add_scalar(tag='sample/episode_steps', scalar_value=episode_steps, global_step=self.episode)
+                    self.writer.add_scalar(tag='sample/milestone', scalar_value=self.env.get_latest_milestone(), global_step=self.episode)
+                    self.log_video()
+                    self.writer.flush()
+        except KeyboardInterrupt:
+            self.close()
+            return
 
         self.env.close()
 

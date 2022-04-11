@@ -126,7 +126,7 @@ def train(model, config):
     try:
         train_loop(model, config, update_kwargs)
     except KeyboardInterrupt:
-        pass
+        model.collector.terminate()
     except Exception:
         raise
 
