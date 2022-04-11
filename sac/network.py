@@ -321,6 +321,7 @@ class POPARTLayer(nn.Module):
 
         return normalized_x
 
+    @torch.no_grad()
     def get_normalized_target(self, Y):
         return (Y - self.mu) / self.sigma
 

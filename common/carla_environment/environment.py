@@ -781,7 +781,8 @@ class CarlaEnv(gym.Env):
         cropped_size = (384, 768)
         cropped_obs = center_crop(self.camera_img, cropped_size, shift_H=1.25)
 
-        return cv2.resize(cropped_obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
+    def _get_observation_image(self):
+        return self.camera_img
 
     def _draw_debug_waypoints(self, waypoints, size=1, color=(255,0,0)):
         ''' Draw debug point on waypoints '''
@@ -848,6 +849,9 @@ class CarlaEnv(gym.Env):
 
     def get_latest_milestone(self):
         ''' Return index of latest checkpoint waypoint that the agent can go '''
+        if self.routeplanner._intermediate_checkpoint_waypoint_index > self.routeplanner._checkpoint_waypoint_index:
+            return self.routeplanner._checkpoint_waypoint_index
+        else:
         return self.routeplanner._intermediate_checkpoint_waypoint_index
 
     @property

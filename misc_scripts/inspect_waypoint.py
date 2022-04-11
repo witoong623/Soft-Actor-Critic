@@ -36,31 +36,21 @@ ego_spwan_transform = routeplanner.spawn_transform
 ego_vehicle = world.try_spawn_actor(ego_bp, ego_spwan_transform)
 
 routeplanner.set_vehicle(ego_vehicle)
-print(f'current wp after set vehicle is {routeplanner._current_waypoint_index}')
 
 # waypoints = routeplanner.get_transformed_route_waypoints()
-waypoints = routeplanner.get_route_waypoints()
 # waypoints = routeplanner.run_step()
-# print(f'current wp after run step is {routeplanner._current_waypoint_index}')
-
-# print(f'waypoints len is {len(waypoints)}')
-
-start = 130
-end = 150
-for i, wps in enumerate(waypoints[start:end], start):
-    wp, action = wps
-    print(f'No. {i} - Action: {action}')
-
+waypoints = routeplanner.get_route_waypoints()
 
 debug = world.debug
 green = carla.Color(r=0, g=255, b=0)
 red = carla.Color(r=255, g=0, b=0)
-# for i, wp in enumerate(waypoints):
-#     used_color = green
-#     # if i == 125:
-#     #     used_color = red
-#     location = carla.Location(x=wp[0], y=wp[1], z=1.0)
-#     debug.draw_point(location, size=0.3, life_time=60, color=used_color)
+life_time = 120
+for i, (wp, action) in enumerate(waypoints):
+    location = wp.transform.location
+    location.z = 0.1
+    debug.draw_point(location, size=0.3, life_time=life_time, color=red)
+    location.y = location.y - 1
+    debug.draw_string(location, text=f'{i}', life_time=life_time, color=green)
 
 # for i, wp in enumerate(waypoints[125:150], 125):
 #     used_color = green

@@ -79,8 +79,8 @@ class ModelBase(object):
 
         self.n_past_actions = n_past_actions
         if n_past_actions > 1:
-            # add past actions to state dim + 1 for command
-            self.state_dim = state_dim + (action_dim * n_past_actions) + 1
+            # add past actions to state dim
+            self.state_dim = state_dim + (action_dim * n_past_actions)
         else:
             self.state_dim = state_dim
         self.action_dim = action_dim
@@ -172,6 +172,7 @@ class Trainer(ModelBase):
         self.critic_criterion = nn.MSELoss()
 
         self.global_step = 0
+        self.use_popart = use_popart
 
         if isinstance(self.state_encoder.encoder, VAEBase):
             self.optimizer = optim.Adam(itertools.chain(self.critic.parameters(),
@@ -225,13 +226,19 @@ class Trainer(ModelBase):
                 # equation 5
                 target_q_value = reward + (1 - done) * gamma * target_q_min
 
-            self.critic.update_popart_parameters(target_q_value)
-            predicted_q_value_1, predicted_q_value_2 = self.critic(state, action, normalize=True)
+            # variables for non-normalize reward and support pop art reward
+            normalized_target = False
+            target_q_value1 = target_q_value
+            target_q_value2 = target_q_value
+            if self.use_popart:
+                self.critic.update_popart_parameters(target_q_value)
+                normalized_target = True
+                target_q_value1, target_q_value2 = self.critic.get_normalized_targets(target_q_value)
 
-            normalized_target_q_value1, normalized_target_q_value2 = self.critic.get_normalized_targets(target_q_value)
+            predicted_q_value_1, predicted_q_value_2 = self.critic(state, action, normalize=normalized_target)
 
-            critic_loss_1 = self.critic_criterion(predicted_q_value_1, normalized_target_q_value1)
-            critic_loss_2 = self.critic_criterion(predicted_q_value_2, normalized_target_q_value2)
+            critic_loss_1 = self.critic_criterion(predicted_q_value_1, target_q_value1)
+            critic_loss_2 = self.critic_criterion(predicted_q_value_2, target_q_value2)
             critic_loss = (critic_loss_1 + critic_loss_2) / 2.0
 
             # Train policy function
@@ -368,7 +375,7 @@ class RenderTester(object):
         self.n_past_actions = n_past_actions
         if n_past_actions > 1:
             # add past actions to state dim
-            self.state_dim = state_dim + (action_dim * n_past_actions) + 1
+            self.state_dim = state_dim + (action_dim * n_past_actions)
         else:
             self.state_dim = state_dim
         self.action_dim = action_dim
