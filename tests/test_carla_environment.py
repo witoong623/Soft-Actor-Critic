@@ -9,7 +9,7 @@ import carla
 from numba.np.extensions import cross2d
 from numba.typed import List
 from common.carla_environment.misc import get_lane_dis
-from common.carla_environment.manual_route_planner import ManualRoutePlanner, TOWN4_PLAN
+from common.carla_environment.manual_route_planner import ManualRoutePlanner, TOWN7_PLAN
 from common.carla_environment.misc import is_the_same_direction
 
 
@@ -120,7 +120,7 @@ class TestDirectionCalculation(unittest.TestCase):
         vehicle_spawn_points = list(self.world.get_map().get_spawn_points())
         lap_spwan_point_wp = self.world.get_map().get_waypoint(vehicle_spawn_points[1].location)
 
-        self.routeplanner = ManualRoutePlanner(lap_spwan_point_wp, lap_spwan_point_wp, resolution=2, plan=TOWN4_PLAN)
+        self.routeplanner = ManualRoutePlanner(lap_spwan_point_wp, lap_spwan_point_wp, resolution=2, plan=TOWN7_PLAN)
 
     def test_waypoint_direction_backward(self):
         ''' If car ran passed `current waypoint`,

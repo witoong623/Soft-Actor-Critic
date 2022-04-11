@@ -23,7 +23,8 @@ def carla_to_vector(obj):
 
 
 class ManualRoutePlanner:
-    def __init__(self, start_waypoint, end_waypoint, resolution=2.0, plan=None, enable=True):
+    def __init__(self, start_waypoint, end_waypoint, resolution=2.0, plan=None, initial_checkpoint=0, use_section=False, enable=True, debug_route_waypoint_len=None):
+        ''' route_waypoint_len is purely for testing purpose '''
         global _route_waypoints, _transformed_waypoint_routes
 
         self._vehicle = None
@@ -42,7 +43,7 @@ class ManualRoutePlanner:
         self._repeat_count_threshold = 5
         self._checkpoint_frequency = 25
 
-        self._checkpoint_waypoint_index = 0
+        self._checkpoint_waypoint_index = initial_checkpoint
         self._start_waypoint_index = self._checkpoint_waypoint_index
         self._current_waypoint_index = self._checkpoint_waypoint_index
         self._intermediate_checkpoint_waypoint_index = self._checkpoint_waypoint_index + self._checkpoint_frequency
@@ -51,7 +52,27 @@ class ManualRoutePlanner:
             _route_waypoints = self._compute_route_waypoints()
             _transformed_waypoint_routes = List(self._transform_waypoints(_route_waypoints))
 
-        self.spawn_transform = _route_waypoints[self._checkpoint_waypoint_index][0].transform
+            self.spawn_transform = _route_waypoints[self._checkpoint_waypoint_index][0].transform
+
+        # for section checkpoint
+        if use_section:
+            route_waypoint_len = len(_route_waypoints) if debug_route_waypoint_len is None else debug_route_waypoint_len
+            # (start, end, checkpoint frequency)
+            self.sections_indexes = [(0, 140, 35), (143, 173, 30), (176, route_waypoint_len - 1, 35)]
+            self.sections_start = [s[0] for s in self.sections_indexes]
+            self.sections_end = [s[1] for s in self.sections_indexes]
+            self.sections_frequency = [s[2] for s in self.sections_indexes]
+
+            if initial_checkpoint < self.sections_end[0]:
+                frequency = self.sections_indexes[0][2]
+            elif initial_checkpoint < self.sections_end[1]:
+                frequency = self.sections_indexes[1][2]
+            elif initial_checkpoint < self.sections_end[2]:
+                frequency = self.sections_indexes[2][2]
+
+            self._intermediate_checkpoint_waypoint_index = self._checkpoint_waypoint_index + frequency
+            if self._intermediate_checkpoint_waypoint_index > route_waypoint_len - 1:
+                self._intermediate_checkpoint_waypoint_index = 0
 
     def set_vehicle(self, vehicle):
         ''' Set internal state to current vehicle, must be called in `reset` '''
@@ -84,7 +105,9 @@ class ManualRoutePlanner:
         self._current_waypoint_index = waypoint_index % waypoint_routes_len
 
         # update checkpoint
-        self._update_checkpoint()
+        # self._checkpoint_waypoint_index = (self._current_waypoint_index // self._checkpoint_frequency) * self._checkpoint_frequency
+        self._update_checkpoint_by_section()
+
         # update here because vehicle is spawn before set_vehicle call and spawning requires spawn point
         self.spawn_transform = _route_waypoints[self._checkpoint_waypoint_index][0].transform
 
@@ -236,6 +259,49 @@ class ManualRoutePlanner:
 
                 self._repeat_count = 0
 
+    def _update_checkpoint_by_section(self):
+        idx = self._current_waypoint_index
+        s1, s2, s3 = self.sections_indexes
+
+        if s1[0] <= idx <= s1[1]:
+            start = s1[0]
+            end = s1[1]
+            frequency = s1[2]
+        elif s2[0] <= idx <= s2[1]:
+            start = s2[0]
+            end = s2[1]
+            frequency = s2[2]
+        else:
+            # s3
+            start = s3[0]
+            end = s3[1]
+            frequency = s3[2]
+
+        idx = (((self._current_waypoint_index - start) // frequency) * frequency) + start
+
+        if idx >= self._intermediate_checkpoint_waypoint_index:
+            self._repeat_count += 1
+
+            if self._repeat_count >= self._repeat_count_threshold:
+                if self._checkpoint_waypoint_index == start:
+                    if self._intermediate_checkpoint_waypoint_index >= end:
+                        self._checkpoint_waypoint_index, frequency = self._get_next_section_start_and_frequency(end)
+                        self._intermediate_checkpoint_waypoint_index = self._checkpoint_waypoint_index + frequency
+                    else:
+                        self._checkpoint_waypoint_index = self._intermediate_checkpoint_waypoint_index
+                        self._intermediate_checkpoint_waypoint_index += frequency
+                else:
+                    self._checkpoint_waypoint_index = start
+
+                self._repeat_count = 0
+
+    def _get_next_section_start_and_frequency(self, end_of_section):
+        end_idx = self.sections_end.index(end_of_section)
+        next_start = self.sections_start[(end_idx + 1) % len(self.sections_start)]
+        next_frequency = self.sections_frequency[(end_idx + 1) % len(self.sections_frequency)]
+        return next_start, next_frequency
+
+
     @property
     def current_waypoint(self):
         return _route_waypoints[self._current_waypoint_index % len(_route_waypoints)][0]
@@ -245,5 +311,5 @@ class ManualRoutePlanner:
         return _route_waypoints[(self._current_waypoint_index + 1) % len(_route_waypoints)][0]
 
 
-TOWN4_PLAN = [RoadOption.STRAIGHT] + [RoadOption.RIGHT] * 2 + [RoadOption.STRAIGHT] * 5
-TOWN4_REVERSE_PLAN = [RoadOption.STRAIGHT] * 4 + [RoadOption.LEFT] * 2 + [RoadOption.STRAIGHT]
+TOWN7_PLAN = [RoadOption.STRAIGHT] + [RoadOption.RIGHT] * 2 + [RoadOption.STRAIGHT] * 5
+TOWN7_REVERSE_PLAN = [RoadOption.STRAIGHT] * 4 + [RoadOption.LEFT] * 2 + [RoadOption.STRAIGHT]

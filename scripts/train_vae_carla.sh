@@ -36,5 +36,6 @@ python main.py \
 	--gamma 0.99 --soft-tau 0.005 --random-seed 69 \
 	--log-dir "$LOG_DIR" \
 	--checkpoint-dir "$CHECKPOINT_DIR" \
+	--log-episode-video \
 	--dry-run-init-env \
 	"$@" # script arguments (can override args above)
