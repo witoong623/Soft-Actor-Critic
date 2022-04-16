@@ -60,7 +60,7 @@ class CarlaEnv(gym.Env):
         self.number_of_walkers = 0
         self.number_of_vehicles = 0
         self.number_of_wheels = [4]
-        self.max_ego_spawn_times = 200
+        self.max_ego_spawn_times = 100
         self.max_time_episode = 5000
         self.max_waypt = 12
         # in m/s. 5.5 is 20KMH
@@ -128,9 +128,9 @@ class CarlaEnv(gym.Env):
 
         if self.route_mode == RouteMode.MANUAL_LAP:
             if self.run_backward:
-                self.routeplanner = ManualRoutePlanner(self.lap_opposite_spwan_point_wp, self.lap_opposite_spwan_point_wp, resolution=2, plan=TOWN4_REVERSE_PLAN)
+                self.routeplanner = ManualRoutePlanner(self.lap_opposite_spwan_point_wp, self.lap_opposite_spwan_point_wp, resolution=2, plan=TOWN7_REVERSE_PLAN)
             else:
-                self.routeplanner = ManualRoutePlanner(self.lap_spwan_point_wp, self.lap_spwan_point_wp, resolution=2, plan=TOWN4_PLAN)
+                self.routeplanner = ManualRoutePlanner(self.lap_spwan_point_wp, self.lap_spwan_point_wp, resolution=2, plan=TOWN7_PLAN, use_section=True)
 
         # ego vehicle bp
         self.ego_bp = self._create_vehicle_bluepprint('vehicle.mini.cooper_s_2021')

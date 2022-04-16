@@ -117,14 +117,14 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
         self.assertEqual(route_planner._checkpoint_waypoint_index, 105)
         self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 140)
 
-        route_planner._current_waypoint_index = 140
+        route_planner._current_waypoint_index = 142
         route_planner._update_checkpoint_by_section()
         self.assertEqual(route_planner._checkpoint_waypoint_index, 105)
         self.assertEqual(route_planner._repeat_count, 1)
 
         # repeat same section 4 time to go 0 checkpoint
         for i in range(4):
-            route_planner._current_waypoint_index = 140
+            route_planner._current_waypoint_index = 140 + i
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 0)
@@ -132,7 +132,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
 
         # repeat 5 times to go to 140
         for i in range(5):
-            route_planner._current_waypoint_index = 140
+            route_planner._current_waypoint_index = 140 + i
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 143)
@@ -143,14 +143,14 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
         self.assertEqual(route_planner._checkpoint_waypoint_index, 143)
         self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 173)
 
-        route_planner._current_waypoint_index = 173
+        route_planner._current_waypoint_index = 174
         route_planner._update_checkpoint_by_section()
         self.assertEqual(route_planner._checkpoint_waypoint_index, 143)
         self.assertEqual(route_planner._repeat_count, 1)
 
         # repeat same section 4 time to go next section checkpoint
         for i in range(4):
-            route_planner._current_waypoint_index = 173
+            route_planner._current_waypoint_index = 173 + i
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 176)

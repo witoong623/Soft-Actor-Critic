@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .efficientnet import efficientnet_b0
+from .efficientnet import comma_efficientnet_b2
 
 
 try:
@@ -88,7 +88,7 @@ def build_encoder(config):
         state_encoder.load_model(config.weight_path)
         state_encoder.eval()
     elif config.EFFICIENTNET_encoder:
-        state_encoder = efficientnet_b0(pretrained=True, progress=True, use_modified_ver=True, input_channels=6)
+        state_encoder = comma_efficientnet_b2(input_channels=6)
 
     config.state_encoder = state_encoder
     config.state_dim = state_dim

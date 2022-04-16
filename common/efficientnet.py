@@ -147,6 +147,62 @@ class MBConv(nn.Module):
         return result
 
 
+class MinimalMBConv(nn.Module):
+    def __init__(
+        self,
+        cnf: MBConvConfig,
+    ) -> None:
+        super().__init__()
+
+        if not (1 <= cnf.stride <= 2):
+            raise ValueError("illegal stride value")
+
+        self.use_res_connect = cnf.stride == 1 and cnf.input_channels == cnf.out_channels
+
+        layers: List[nn.Module] = []
+        activation_layer = nn.SiLU
+
+        # expand
+        expanded_channels = cnf.adjust_channels(cnf.input_channels, cnf.expand_ratio)
+        if expanded_channels != cnf.input_channels:
+            layers.append(
+                ConvNormActivation(
+                    cnf.input_channels,
+                    expanded_channels,
+                    kernel_size=1,
+                    activation_layer=activation_layer,
+                )
+            )
+
+        # depthwise
+        layers.append(
+            ConvNormActivation(
+                expanded_channels,
+                expanded_channels,
+                kernel_size=cnf.kernel,
+                stride=cnf.stride,
+                groups=expanded_channels,
+                activation_layer=activation_layer,
+            )
+        )
+
+        # project
+        layers.append(
+            ConvNormActivation(
+                expanded_channels, cnf.out_channels, kernel_size=1, activation_layer=None
+            )
+        )
+
+        self.block = nn.Sequential(*layers)
+        self.out_channels = cnf.out_channels
+
+    def forward(self, input: Tensor) -> Tensor:
+        result = self.block(input)
+        if self.use_res_connect:
+            result += input
+        return result
+
+
 class EfficientNet(nn.Module):
     def __init__(
         self,
@@ -273,6 +329,112 @@ class EfficientNet(nn.Module):
         return self._forward_impl(x)
 
 
+class CommaEfficientNet(nn.Module):
+    def __init__(
+        self,
+        inverted_residual_setting: List[MBConvConfig],
+        device: Optional[Union[int, device]] = None,
+        **kwargs: Any,
+    ) -> None:
+        """
+        EfficientNet inspired by Comma.ai supercombo model
+        Args:
+            inverted_residual_setting (List[MBConvConfig]): Network structure
+            dropout (float): The droupout probability
+            stochastic_depth_prob (float): The stochastic depth probability
+            num_classes (int): Number of classes
+            block (Optional[Callable[..., nn.Module]]): Module specifying inverted residual building block for mobilenet
+            norm_layer (Optional[Callable[..., nn.Module]]): Module specifying the normalization layer to use
+        """
+        super().__init__()
+        # _log_api_usage_once(self)
+
+        if not inverted_residual_setting:
+            raise ValueError("The inverted_residual_setting should not be empty")
+        elif not (
+            isinstance(inverted_residual_setting, Sequence)
+            and all([isinstance(s, MBConvConfig) for s in inverted_residual_setting])
+        ):
+            raise TypeError("The inverted_residual_setting should be List[MBConvConfig]")
+
+        layers: List[nn.Module] = []
+
+        # building first layer
+        input_channels = kwargs.get('input_channels', 3)
+        firstconv_output_channels = inverted_residual_setting[0].input_channels
+        layers.append(
+            ConvNormActivation(
+                input_channels, firstconv_output_channels, kernel_size=3, stride=2, activation_layer=nn.SiLU
+            )
+        )
+
+        # building inverted residual blocks
+        for cnf in inverted_residual_setting:
+            stage: List[nn.Module] = []
+            for _ in range(cnf.num_layers):
+                # copy to avoid modifications. shallow copy is enough
+                block_cnf = copy.copy(cnf)
+
+                # overwrite info if not the first conv in the stage
+                if stage:
+                    block_cnf.input_channels = block_cnf.out_channels
+                    block_cnf.stride = 1
+
+                stage.append(MinimalMBConv(block_cnf))
+
+            layers.append(nn.Sequential(*stage))
+
+        # building last several layers
+        lastconv_input_channels = inverted_residual_setting[-1].out_channels
+        # deptwise 1x1
+        layers.append(
+            ConvNormActivation(
+                lastconv_input_channels,
+                lastconv_input_channels,
+                kernel_size=1,
+                groups=lastconv_input_channels,
+                activation_layer=nn.SiLU,
+            )
+        )
+
+        # project
+        lastconv_output_channels = 8
+        layers.append(
+            ConvNormActivation(
+                lastconv_input_channels,
+                lastconv_output_channels,
+                kernel_size=1,
+                activation_layer=nn.SiLU,
+            )
+        )
+
+        self.features = nn.Sequential(*layers)
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode="fan_out")
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.Linear):
+                init_range = 1.0 / math.sqrt(m.out_features)
+                nn.init.uniform_(m.weight, -init_range, init_range)
+                nn.init.zeros_(m.bias)
+
+        self.to(device)
+
+    def _forward_impl(self, x: Tensor) -> Tensor:
+        x = self.features(x)
+        x = torch.flatten(x, 1)
+
+        return x
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self._forward_impl(x)
+
+
 def _efficientnet(
     arch: str,
     width_mult: float,
@@ -314,6 +476,29 @@ def _efficientnet(
     return model
 
 
+def _comma_efficientnet(
+    arch: str,
+    width_mult: float,
+    depth_mult: float,
+    **kwargs: Any,
+) -> EfficientNet:
+    bneck_conf = partial(MBConvConfig, width_mult=width_mult, depth_mult=depth_mult)
+    inverted_residual_setting = [
+        # expand, kernel, stride, in chan, out chan, num layer
+        bneck_conf(1, 3, 1, 32, 16, 1),
+        bneck_conf(6, 3, 2, 16, 24, 2),
+        bneck_conf(6, 5, 2, 24, 40, 2),
+        bneck_conf(6, 3, 2, 40, 80, 3),
+        bneck_conf(6, 5, 1, 80, 112, 3),
+        bneck_conf(6, 5, 2, 112, 192, 4),
+        bneck_conf(6, 3, 1, 192, 320, 1),
+    ]
+
+    model = CommaEfficientNet(inverted_residual_setting, **kwargs)
+
+    return model
+
+
 def efficientnet_b0(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> EfficientNet:
     """
     Constructs a EfficientNet B0 architecture from
@@ -347,6 +532,17 @@ def efficientnet_b2(pretrained: bool = False, progress: bool = True, **kwargs: A
     return _efficientnet("efficientnet_b2", 1.1, 1.2, 0.3, pretrained, progress, **kwargs)
 
 
+def comma_efficientnet_b2(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> EfficientNet:
+    """
+    Constructs a EfficientNet B2 architecture from
+    `"EfficientNet: Rethinking Model Scaling for Convolutional Neural Networks" <https://arxiv.org/abs/1905.11946>`_.
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        progress (bool): If True, displays a progress bar of the download to stderr
+    """
+    return _comma_efficientnet("efficientnet_b2", 1.1, 1.2, **kwargs)
+
+
 def _make_divisible(v: float, divisor: int, min_value: Optional[int] = None) -> int:
     """
     This function is taken from the original tf repo.
@@ -365,7 +561,8 @@ def _make_divisible(v: float, divisor: int, min_value: Optional[int] = None) -> 
 
 if __name__ == '__main__':
     d = 'cuda:0'
-    model = efficientnet_b0(pretrained=True, progress=True, use_modified_ver=True, device=d, input_channels=6)
-    dummy = torch.randn((1, 6, 270, 480), device=d)
+    model = comma_efficientnet_b2(pretrained=False, device=d, input_channels=6)
+    dummy = torch.randn((1, 6, 256, 512), device=d)
+    print(model)
     out = model(dummy)
     print(out.size())
