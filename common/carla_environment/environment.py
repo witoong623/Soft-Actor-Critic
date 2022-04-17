@@ -20,7 +20,7 @@ from tqdm import trange
 
 from .misc import set_carla_transform, get_pos, get_lane_dis_numba, is_the_same_direction, get_command
 from .route_planner import RoutePlanner
-from .manual_route_planner import ManualRoutePlanner, TOWN4_PLAN, TOWN4_REVERSE_PLAN
+from .manual_route_planner import ManualRoutePlanner, TOWN7_PLAN, TOWN7_REVERSE_PLAN
 from ..utils import center_crop, normalize_image
 
 from agents.navigation.behavior_agent import BehaviorAgent
@@ -30,6 +30,12 @@ from agents.navigation.global_route_planner import RoadOption
 class RouteMode(Enum):
     BASIC_RANDOM = auto()
     MANUAL_LAP = auto()
+
+
+class EncoderMode(Enum):
+    CNN = auto()
+    VAE = auto()
+
 
 _walker_spawn_points_cache = []
 _load_world = False
@@ -185,8 +191,20 @@ class CarlaEnv(gym.Env):
             for nw in self.number_of_wheels:
                 self.vehicle_bp_caches[nw] = self._cache_vehicle_blueprints(number_of_wheels=nw)
 
-        # termination condition
-        self.terminate_on_out_of_lane = True
+        self.encoder_mode = EncoderMode.CNN
+        if self.encoder_mode == EncoderMode.CNN:
+            self._transform_observation = self._transform_CNN_observation
+            if self.n_images > 1:
+                self._combine_observations = lambda obs_array: np.concatenate(obs_array, axis=0, dtype=np.float16)
+            else:
+                self._combine_observations = lambda obs_array: obs_array
+        else:
+            # VAE case
+            self._transform_observation = self._transform_VAE_observation
+            if self.n_images > 1:
+                self._combine_observations = lambda obs_array: np.array(obs_array, dtype=np.float16)
+            else:
+                self._combine_observations = lambda obs_array: obs_array
 
         self.mean = np.array([0.4652, 0.4417, 0.3799])
         self.std = np.array([0.0946, 0.1767, 0.1865])
@@ -437,15 +455,6 @@ class CarlaEnv(gym.Env):
         if lspeed_lon > self.desired_speed:
             r_fast = -1
 
-        # direction in intersection
-        r_direction = 0
-        if self.prev_command in [RoadOption.RIGHT, RoadOption.LEFT]:
-            # will the agent oversteer?
-            if self.prev_command == RoadOption.RIGHT and self.current_action[1] > 0:
-                r_direction += 5
-            elif self.prev_command == RoadOption.LEFT and self.current_action[1] < 0:
-                r_direction += 5
-
         # if it is faster than desired speed, minus the excess speed
         # and don't give reward from speed
         # r_fast *= lspeed_lon
@@ -456,7 +465,7 @@ class CarlaEnv(gym.Env):
         # cost for braking
         brake_cost = self.current_action[2]
 
-        r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + r_steer*5 + 0.2*r_lat - 1 - brake_cost*2 + r_direction
+        r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + r_steer*5 + 0.2*r_lat - 1 - brake_cost*2
 
         if self.store_history:
             self.speed_hist.append(speed)
@@ -477,11 +486,6 @@ class CarlaEnv(gym.Env):
         if self.time_step > self.max_time_episode:
             return True
 
-        # if complete a number of laps
-        if self.route_mode == RouteMode.MANUAL_LAP:
-            if self.routeplanner.lap_count >= 2:
-                return True
-
         # If at destination
         if self.dests is not None: # If at destination
             for dest in self.dests:
@@ -489,28 +493,26 @@ class CarlaEnv(gym.Env):
                     return True
 
         # If out of lane
-        if abs(self.current_lane_dis) > self.out_lane_thres and self.terminate_on_out_of_lane:
+        if abs(self.current_lane_dis) > self.out_lane_thres:
+            return True
+
+        # end of section
+        if self.routeplanner.is_end_of_section:
             return True
 
         return False
 
     def _get_obs(self):
         if self.n_images == 1:
-            # return self._transform_observation(self.camera_img)
-            # TODO: this is for VAE
-            # return np.array([self._transform_observation(self.camera_img)], dtype=np.float16)
-            # for optimize VAE
-            return self._transform_observation(self.camera_img)
+            transformed_observation = self._transform_observation(self.camera_img)
+            return self._combine_observations(transformed_observation)
 
         self.img_buff.append(self.camera_img)
         while len(self.img_buff) < self.n_images:
             self.img_buff.append(self.camera_img)
 
-        # for VAE, stack it in the new axis
         img_array = [self._transform_observation(img) for img in self.img_buff]
-        return np.array(img_array, dtype=np.float16)
-        # # TODO: for CNN, concatenate it
-        # return np.concatenate(img_array, axis=0)
+        return self._combine_observations(img_array)
 
     def _create_vehicle_bluepprint(self, actor_filter, color=None, number_of_wheels=[4]):
         """Create the blueprint for a specific actor type.
@@ -760,26 +762,32 @@ class CarlaEnv(gym.Env):
 
         return False
 
-    def _make_safe_spawn_transform(self, spawn_point_transform):
+    def _make_safe_spawn_transform(self, spawn_point_transform, z_step):
         ''' Set Z axis to 0.39 if Z axis of transform equals to 0.00 to prevent collision when spawning '''
-        new_transform = spawn_point_transform
-        if spawn_point_transform.location.z == 0:
-            new_location = carla.Location(x=spawn_point_transform.location.x,
-                                          y=spawn_point_transform.location.y,
-                                          z=0.39)
-            new_transform = carla.Transform(location=new_location, rotation=spawn_point_transform.rotation)
+        old_z = spawn_point_transform.location.z
+        new_location = carla.Location(x=spawn_point_transform.location.x,
+                                        y=spawn_point_transform.location.y,
+                                        z=old_z + z_step)
+        new_transform = carla.Transform(location=new_location, rotation=spawn_point_transform.rotation)
 
         return new_transform
 
-    def _transform_observation(self, obs):
-        ''' Transform image observation to specified observation size and normalize it '''
-        cropped_size = (384, 768)
-        cropped_obs = center_crop(obs, cropped_size, shift_H=1.25)
-
+    def _transform_CNN_observation(self, obs):
+        cropped_obs = self._crop_image(obs)
         resized_obs = cv2.resize(cropped_obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
-        # TODO: for CNN encoder, make it to C x H x W
-        # resized_obs = resized_obs.transpose((2, 0, 1))
-        return normalize_image(resized_obs, self.mean, self.std).astype(np.float16)
+        normalized_obs = normalize_image(resized_obs, self.mean, self.std).astype(np.float16)
+
+        return normalized_obs.transpose((2, 0, 1))
+
+    def _transform_VAE_observation(self, obs):
+        cropped_obs = self._crop_image(obs)
+        resized_obs = cv2.resize(cropped_obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
+        normalized_obs = normalize_image(resized_obs, self.mean, self.std).astype(np.float16)
+
+        return normalized_obs
+
+    # def _transform_observation(self, obs):
+    #     return (obs / 255.0).astype(np.float16)
 
     def _get_observation_image(self):
         ''' Return RGB image in `H` x `W` x `C` format, its size match observation size.
@@ -787,11 +795,16 @@ class CarlaEnv(gym.Env):
             The difference between this method and `_transform_observation` is that `_transform_observation`
             will normalize an image but this method keeps the image format except spatial size.
         '''
-        cropped_size = (384, 768)
-        cropped_obs = center_crop(self.camera_img, cropped_size, shift_H=1.25)
+        cropped_img = self._crop_image(self.camera_img)
 
-    def _get_observation_image(self):
-        return self.camera_img
+        return cv2.resize(cropped_img, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
+
+    # def _get_observation_image(self):
+    #     return self.camera_img
+
+    def _crop_image(self, img):
+        cropped_size = (384, 768)
+        return center_crop(img, cropped_size, shift_H=1.25)
 
     def _draw_debug_waypoints(self, waypoints, size=1, color=(255,0,0)):
         ''' Draw debug point on waypoints '''
@@ -861,7 +874,7 @@ class CarlaEnv(gym.Env):
         if self.routeplanner._intermediate_checkpoint_waypoint_index > self.routeplanner._checkpoint_waypoint_index:
             return self.routeplanner._checkpoint_waypoint_index
         else:
-        return self.routeplanner._intermediate_checkpoint_waypoint_index
+            return self.routeplanner._intermediate_checkpoint_waypoint_index
 
     @property
     def metadata(self):
