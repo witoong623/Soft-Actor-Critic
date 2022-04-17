@@ -191,6 +191,8 @@ class CarlaEnv(gym.Env):
         self.mean = np.array([0.4652, 0.4417, 0.3799])
         self.std = np.array([0.0946, 0.1767, 0.1865])
 
+        self.z_steps = {}
+
     def reset(self):
         # Clear history if exist
         if self.store_history:
@@ -265,9 +267,14 @@ class CarlaEnv(gym.Env):
 
         # Spawn the ego vehicle
         ego_spawn_times = 0
+        checkpoint_idx = self.routeplanner._checkpoint_waypoint_index
+        if checkpoint_idx not in self.z_steps:
+            self.z_steps[checkpoint_idx] = 0.1
+        z_step = self.z_steps[checkpoint_idx]
+
         while True:
             if ego_spawn_times > self.max_ego_spawn_times:
-                self.reset()
+                raise Exception(f'cannot spawn at {transform}. waypoint index is {self.routeplanner._checkpoint_waypoint_index}')
 
             if self.route_mode == RouteMode.BASIC_RANDOM:
                 if self.task_mode == 'random':
@@ -277,12 +284,14 @@ class CarlaEnv(gym.Env):
                     # self.start=[52.1,-4.2, 178.66] # static
                     transform = set_carla_transform(self.start)
             elif self.route_mode == RouteMode.MANUAL_LAP:
-                transform = self._make_safe_spawn_transform(self.routeplanner.spawn_transform)
+                transform = self._make_safe_spawn_transform(self.routeplanner.spawn_transform, z_step)
 
             if self._try_spawn_ego_vehicle_at(transform):
                 break
             else:
                 ego_spawn_times += 1
+                z_step += 0.1
+                self.z_steps[checkpoint_idx] = z_step
                 time.sleep(0.1)
 
         # Add collision sensor
