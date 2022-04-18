@@ -18,7 +18,7 @@ from gym import spaces
 from PIL import Image
 from tqdm import trange
 
-from .misc import set_carla_transform, get_pos, get_lane_dis_numba, is_the_same_direction, get_command
+from .misc import set_carla_transform, get_pos, get_lane_dis_numba
 from .route_planner import RoutePlanner
 from .manual_route_planner import ManualRoutePlanner, TOWN7_PLAN, TOWN7_REVERSE_PLAN
 from ..utils import center_crop, normalize_image
@@ -149,7 +149,7 @@ class CarlaEnv(gym.Env):
 
         # camera
         self.camera_img = None
-        self.camera_trans = carla.Transform(carla.Location(x=0.8, z=1.7))
+        self.camera_trans = carla.Transform(carla.Location(x=1.18, z=1.7))
         self.camera_sensor_type = 'sensor.camera.rgb'
         if self.use_semantic_camera:
             self.camera_sensor_type = 'sensor.camera.semantic_segmentation'
@@ -191,7 +191,7 @@ class CarlaEnv(gym.Env):
             for nw in self.number_of_wheels:
                 self.vehicle_bp_caches[nw] = self._cache_vehicle_blueprints(number_of_wheels=nw)
 
-        self.encoder_mode = EncoderMode.CNN
+        self.encoder_mode = EncoderMode.VAE
         if self.encoder_mode == EncoderMode.CNN:
             self._transform_observation = self._transform_CNN_observation
             if self.n_images > 1:
@@ -223,8 +223,6 @@ class CarlaEnv(gym.Env):
 
         # clear previous action
         self.current_action = None
-        self.next_waypoint, self.next_command = None, None
-        self.prev_waypoint, self.prev_command = None, None
 
         self.current_lane_dis = 0
 
@@ -369,7 +367,7 @@ class CarlaEnv(gym.Env):
         for _ in range(self.num_past_actions):
             self.actions_queue.append(np.array([0, 0]))
 
-        self.first_additional_state = np.concatenate(list(self.actions_queue) + [np.array([get_command(self.next_command)])], dtype=np.float16)
+        self.first_additional_state = np.ravel(np.array(self.actions_queue, dtype=np.float16))
 
         return self._get_obs()
 
@@ -397,16 +395,13 @@ class CarlaEnv(gym.Env):
         self.world.tick()
 
         self.waypoints = self.routeplanner.run_step()
-        self.prev_command = self.next_command
-        self.prev_waypoint = self.next_waypoint
-        self.next_waypoint, self.next_command = self.routeplanner.get_next_route_waypoint()
 
         # Update timesteps
         self.time_step += 1
         self.total_step += 1
 
         info = {}
-        info['additional_state'] = np.concatenate(list(self.actions_queue) + [np.array([get_command(self.next_command)])], dtype=np.float16)
+        info['additional_state'] = np.ravel(np.array(self.actions_queue, dtype=np.float16))
 
         return self._get_obs(), self._get_reward(), self._get_terminal(), info
 
@@ -786,6 +781,12 @@ class CarlaEnv(gym.Env):
 
         return normalized_obs
 
+    def _transform_old_VAE_observation(self, obs):
+        ''' For old version that doesn't need normalization '''
+        resized_obs = cv2.resize(obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
+
+        return (resized_obs / 255.0).astype(np.float16)
+
     # def _transform_observation(self, obs):
     #     return (obs / 255.0).astype(np.float16)
 
@@ -804,7 +805,7 @@ class CarlaEnv(gym.Env):
 
     def _crop_image(self, img):
         cropped_size = (384, 768)
-        return center_crop(img, cropped_size, shift_H=1.25)
+        return center_crop(img, cropped_size, shift_H=1.2)
 
     def _draw_debug_waypoints(self, waypoints, size=1, color=(255,0,0)):
         ''' Draw debug point on waypoints '''

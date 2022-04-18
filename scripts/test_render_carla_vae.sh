@@ -5,15 +5,15 @@ python main.py \
 	--gpu 0 --sampler-gpu 1 \
 	--image-size 256 512 \
 	--n-past-actions 10 \
-	--hidden-dims 256 128 \
+	--hidden-dims 512 256 \
 	--activation LeakyReLU \
 	--encoder-arch BETAVAE \
 	--state-dim 512 \
 	--max-episode-steps 5000 \
-	--random-seed 49 \
+	--random-seed 69 \
 	--record-video \
 	--load-checkpoint \
 	--dry-run-init-env \
-	--weight-path "vae_weights/Carla-v0_town7/bvae_town7_epoch(100)-loss(+2.489E+05).pkl" \
+	--weight-path "vae_weights/Carla-v0_town7_b3_new_tanh_mse/bvae_town7_epoch(100)-loss(+8.729E+04).pkl" \
 	--log-dir "logs/Carla-v0_town7_test_render/BETAVAE" \
 	--checkpoint-dir "savedcheckpoints/Carla-v0/BETAVAE"

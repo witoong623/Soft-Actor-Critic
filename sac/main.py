@@ -7,13 +7,14 @@ from collections import OrderedDict
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
+import torch.cuda.amp as amp
 import tqdm
 from setproctitle import setproctitle
 from PIL import Image
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import trange
 
-from common.utils import CHECKPOINT_FORMAT
+from common.utils import CHECKPOINT_FORMAT, _transform_np_image_to_tensor
 
 
 def train_loop(model, config, update_kwargs):
@@ -181,9 +182,9 @@ def to_image(tensor):
 def test_render(model, config):
     model.state_encoder.reset()
     observation = model.env.reset()
-    prev_actions = None
-    if hasattr(model.env, 'actions_queue'):
-        prev_actions = np.array(model.env.actions_queue)
+    additional_state = None
+    if hasattr(model.env, 'first_additional_state'):
+        additional_state = model.env.first_additional_state
 
     rewards = 0
 
@@ -193,20 +194,23 @@ def test_render(model, config):
 
     # render_obs = model.env.render(mode='observation')
     # render_obs = render_obs.transpose((2, 0, 1))
-    # obs_tensor = torch.tensor(render_obs, dtype=torch.float32, device=model.model_device).unsqueeze(dim=0)
-    # out_tensor = model.state_encoder(obs_tensor)
+    # obs_tensor = torch.tensor(render_obs, dtype=torch.float16, device=model.model_device).unsqueeze(dim=0)
+    # with amp.autocast(dtype=torch.bfloat16):
+    #     out_tensor = model.state_encoder(obs_tensor)
     # rgb_array = to_image(out_tensor)
     # save_image(rgb_array, num=0)
 
     for step in trange(1, config.max_episode_steps + 1):
-        state = model.state_encoder.encode(observation)
+        with amp.autocast(dtype=torch.bfloat16):
+            state = model.state_encoder.encode(observation)
 
-        if prev_actions is not None:
+        if additional_state is not None:
             state_tensor = torch.FloatTensor(state)
-            actions_tensor = torch.FloatTensor(prev_actions.reshape(-1))
-            state = torch.cat((state_tensor, actions_tensor))
+            additional_state_tensor = torch.FloatTensor(additional_state)
+            state = torch.cat((state_tensor, additional_state_tensor))
 
-        action = model.actor.get_action(state, deterministic=True)
+        with amp.autocast(dtype=torch.bfloat16):
+            action = model.actor.get_action(state, deterministic=True)
 
         next_observation, reward, done, info = model.env.step(action)
 
@@ -220,11 +224,13 @@ def test_render(model, config):
         # rgb_array = to_image(out_tensor)
         # save_image(rgb_array, num=step)
 
-        if 'past_actions' in info:
-            prev_actions = info['past_actions']
+        if 'additional_state' in info:
+            next_additional_state = info['additional_state']
 
         rewards += reward
         observation = next_observation
+        additional_state = next_additional_state
+
 
         if done:
             break
