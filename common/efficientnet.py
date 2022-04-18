@@ -8,7 +8,9 @@ from torch import nn, Tensor, device
 
 from torch.hub import load_state_dict_from_url
 from torchvision.ops import StochasticDepth
+from torchinfo import summary
 from .ops import ConvNormActivation, SqueezeExcitation
+from .networkbase import NetworkBase
 # from ..utils import _log_api_usage_once
 # from ._utils import _make_divisible
 
@@ -329,7 +331,7 @@ class EfficientNet(nn.Module):
         return self._forward_impl(x)
 
 
-class CommaEfficientNet(nn.Module):
+class CommaEfficientNet(NetworkBase):
     def __init__(
         self,
         inverted_residual_setting: List[MBConvConfig],
@@ -562,7 +564,8 @@ def _make_divisible(v: float, divisor: int, min_value: Optional[int] = None) -> 
 if __name__ == '__main__':
     d = 'cuda:0'
     model = comma_efficientnet_b2(pretrained=False, device=d, input_channels=6)
-    dummy = torch.randn((1, 6, 256, 512), device=d)
+    dummy = torch.randn((1, 6, 128, 256), device=d)
     print(model)
     out = model(dummy)
-    print(out.size())
+    
+    summary(model, input_size=dummy.size())

@@ -8,7 +8,8 @@ import torch.optim as optim
 import torch.cuda.amp as amp
 
 from common.collector import Collector
-from common.network import Container, VAEBase
+from common.network import VAEBase
+from common.networkbase import Container
 from common.utils import clone_network, sync_params, init_optimizer, clip_grad_norm, encode_vae_observation
 from .network import StateEncoderWrapper, Actor, Critic
 
@@ -207,9 +208,10 @@ class Trainer(ModelBase):
                 # equation 18
                 alpha_loss = -(self.log_alpha * (log_prob + target_entropy).detach()).mean()
 
-        self.alpha_optimizer.zero_grad()
-        self.loss_scaler.scale(alpha_loss).backward()
-        self.loss_scaler.step(self.alpha_optimizer)
+        if adaptive_entropy:
+            self.alpha_optimizer.zero_grad()
+            self.loss_scaler.scale(alpha_loss).backward()
+            self.loss_scaler.step(self.alpha_optimizer)
 
         with torch.no_grad():
             alpha = self.log_alpha.exp()

@@ -418,7 +418,7 @@ class CarlaEnv(gym.Env):
             cv2.imshow('Carla environment', self.camera_img)
             cv2.waitKey(1)
         elif mode == 'rgb_array':
-            return self.camera_img
+            return self._get_observation_image()
         elif mode == 'observation':
             return self._transform_observation(self.camera_img)
 

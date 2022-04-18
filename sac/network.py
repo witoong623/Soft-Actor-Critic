@@ -7,7 +7,8 @@ import torch
 import torch.nn as nn
 from torch.distributions import Normal
 
-from common.network import Container, MultilayerPerceptron, VAEBase
+from common.network import MultilayerPerceptron, VAEBase
+from common.networkbase import Container
 from common.utils import encode_vae_observation
 
 
@@ -290,7 +291,7 @@ class Critic(Container):
 Actor = PolicyNetwork
 
 
-class POPARTLayer(nn.Module):
+class POPARTLayer(Container):
     def __init__(self, input_features, output_features, beta) -> None:
         super().__init__()
         self.beta = beta
