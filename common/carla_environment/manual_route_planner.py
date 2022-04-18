@@ -62,6 +62,7 @@ class ManualRoutePlanner:
             self.sections_start = [s[0] for s in self.sections_indexes]
             self.sections_end = [s[1] for s in self.sections_indexes]
             self.sections_frequency = [s[2] for s in self.sections_indexes]
+            self.sections_ends = [140, 141, 142, 173, 174, 175, 591]
 
             if initial_checkpoint < self.sections_end[0]:
                 frequency = self.sections_indexes[0][2]
@@ -260,14 +261,13 @@ class ManualRoutePlanner:
                 self._repeat_count = 0
 
     def _update_checkpoint_by_section(self):
-        idx = self._current_waypoint_index
         s1, s2, s3 = self.sections_indexes
 
-        if s1[0] <= idx <= s1[1]:
+        if s1[0] <= self._start_waypoint_index <= s1[1]:
             start = s1[0]
             end = s1[1]
             frequency = s1[2]
-        elif s2[0] <= idx <= s2[1]:
+        elif s2[0] <= self._start_waypoint_index <= s2[1]:
             start = s2[0]
             end = s2[1]
             frequency = s2[2]
@@ -309,6 +309,10 @@ class ManualRoutePlanner:
     @property
     def next_waypoint(self):
         return _route_waypoints[(self._current_waypoint_index + 1) % len(_route_waypoints)][0]
+
+    @property
+    def is_end_of_section(self):
+        return self._current_waypoint_index in self.sections_ends
 
 
 TOWN7_PLAN = [RoadOption.STRAIGHT] + [RoadOption.RIGHT] * 2 + [RoadOption.STRAIGHT] * 5
