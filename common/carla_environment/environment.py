@@ -49,7 +49,7 @@ class CarlaEnv(gym.Env):
         self.host = 'localhost'
         self.port = 2000
 
-        self.n_images = 1
+        self.n_images = 2
         self.obs_width = 512
         self.obs_height = 256
 
@@ -191,7 +191,7 @@ class CarlaEnv(gym.Env):
             for nw in self.number_of_wheels:
                 self.vehicle_bp_caches[nw] = self._cache_vehicle_blueprints(number_of_wheels=nw)
 
-        self.encoder_mode = EncoderMode.VAE
+        self.encoder_mode = EncoderMode.CNN
         if self.encoder_mode == EncoderMode.CNN:
             self._transform_observation = self._transform_CNN_observation
             if self.n_images > 1:
@@ -773,6 +773,13 @@ class CarlaEnv(gym.Env):
         normalized_obs = normalize_image(resized_obs, self.mean, self.std).astype(np.float16)
 
         return normalized_obs.transpose((2, 0, 1))
+
+    def _transform_CNN_grayscale_observation(self, obs):
+        cropped_obs = self._crop_image(obs)
+        resized_obs = cv2.resize(cropped_obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
+        gray_obs = (cv2.cvtColor(resized_obs, cv2.COLOR_RGB2GRAY) / 255.).astype(np.float16)
+
+        return gray_obs
 
     def _transform_VAE_observation(self, obs):
         cropped_obs = self._crop_image(obs)

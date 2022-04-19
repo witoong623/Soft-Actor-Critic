@@ -60,6 +60,8 @@ def get_config():
                         help='use rendered images as observation')
     parser.add_argument('--image-size', type=int, default=[96], metavar='SIZE', nargs='*',
                         help='image size of vision observation (default: 96)')
+    parser.add_argument('--grayscale', action='store_true',
+                        help='use grayscale image as an observation')
     parser.add_argument('--hidden-dims', type=int, default=[], nargs='+', metavar='DIM',
                         help='hidden dimensions of FC controller')
     parser.add_argument('--activation', type=str, choices=['ReLU', 'LeakyReLU', 'Tanh'], default='ReLU',

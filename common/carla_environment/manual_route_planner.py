@@ -263,6 +263,7 @@ class ManualRoutePlanner:
     def _update_checkpoint_by_section(self):
         s1, s2, s3 = self.sections_indexes
 
+        # s[0] is start and s[1] is end of section. s[2] is checkpoint frequency
         if s1[0] <= self._start_waypoint_index <= s1[1]:
             start = s1[0]
             end = s1[1]
@@ -300,7 +301,6 @@ class ManualRoutePlanner:
         next_start = self.sections_start[(end_idx + 1) % len(self.sections_start)]
         next_frequency = self.sections_frequency[(end_idx + 1) % len(self.sections_frequency)]
         return next_start, next_frequency
-
 
     @property
     def current_waypoint(self):
