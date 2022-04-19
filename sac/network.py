@@ -35,7 +35,7 @@ class StateEncoderWrapper(Container):
         return self.encoder(*input, **kwargs)
 
     @torch.no_grad()
-    def encode(self, observation):
+    def encode(self, observation, return_tensor=False):
         if isinstance(self.encoder, VAEBase):
             observation = np.expand_dims(observation, axis=0)
             encoded = encode_vae_observation(observation, self.encoder, device=self.device, normalize=False)
@@ -44,10 +44,14 @@ class StateEncoderWrapper(Container):
             observation = torch.tensor(observation, dtype=obs_dtype, device=self.device).unsqueeze(dim=0)
             encoded = self(observation)
 
-        encoded = encoded.cpu()
-        if encoded.dtype is not torch.float16:
-            encoded = encoded.half()
-        encoded = encoded.numpy()[0]
+        if return_tensor:
+            encoded = encoded.squeeze(dim=0)
+        else:
+            encoded = encoded.cpu()
+            if encoded.dtype is not torch.float16:
+                encoded = encoded.half()
+            encoded = encoded.numpy()[0]
+
         return encoded
 
     def reset(self):

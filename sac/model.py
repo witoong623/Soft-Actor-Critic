@@ -174,6 +174,7 @@ class Trainer(ModelBase):
 
         self.global_step = 0
         self.use_popart = use_popart
+        self.amp_dtype = torch.float16
 
         if isinstance(self.state_encoder.encoder, VAEBase):
             self.optimizer = optim.Adam(itertools.chain(self.critic.parameters(),
@@ -202,7 +203,7 @@ class Trainer(ModelBase):
                 reward = reward_scale * (reward - reward.mean()) / (reward.std() + epsilon)
 
         # Update temperature parameter
-        with amp.autocast(dtype=torch.bfloat16):
+        with amp.autocast(dtype=self.amp_dtype):
             new_action, log_prob, _ = self.actor.evaluate(state)
             if adaptive_entropy:
                 # equation 18
@@ -216,7 +217,7 @@ class Trainer(ModelBase):
         with torch.no_grad():
             alpha = self.log_alpha.exp()
 
-        with amp.autocast(dtype=torch.bfloat16):
+        with amp.autocast(dtype=self.amp_dtype):
             # Train Q function
             with torch.no_grad():
                 new_next_action, next_log_prob, _ = self.actor.evaluate(next_state)
@@ -308,7 +309,7 @@ class Trainer(ModelBase):
             reward = torch.tensor(reward, dtype=torch.float32, device=self.model_device)
             done = torch.tensor(done, dtype=torch.float16, device=self.model_device)
 
-        with amp.autocast(dtype=torch.bfloat16):
+        with amp.autocast(dtype=self.amp_dtype):
             if isinstance(self.state_encoder.encoder, VAEBase):
                 with torch.no_grad():
                     self.state_encoder.eval()
