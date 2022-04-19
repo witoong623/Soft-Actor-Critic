@@ -153,7 +153,7 @@ class ModelBase(object):
         self.modules.save_model(path)
 
     def load_model(self, path, strict=True):
-        self.modules.load_model(path, strict=strict)
+        return self.modules.load_model(path, strict=strict)
 
 
 class Trainer(ModelBase):
@@ -339,7 +339,7 @@ class Trainer(ModelBase):
         self.modules.save_model(path, optimizer=self.optimizer, scaler=self.loss_scaler)
 
     def load_model(self, path, strict=True):
-        super().load_model(path=path, strict=strict)
+        load_result = super().load_model(path=path, strict=strict)
         self.target_critic.load_state_dict(self.critic.state_dict())
         self.target_critic.eval().requires_grad_(False)
 
@@ -352,6 +352,8 @@ class Trainer(ModelBase):
 
         if 'scaler' in state_dict:
             self.loss_scaler.load_state_dict(state_dict['scaler'])
+
+        return load_result
 
 
 class Tester(ModelBase):

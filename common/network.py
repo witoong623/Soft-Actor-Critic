@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .efficientnet import comma_efficientnet_b2
+from .resnet import backbone_resnet18
 from .networkbase import NetworkBase
 
 
@@ -89,6 +90,8 @@ def build_encoder(config):
         state_encoder.eval()
     elif config.EFFICIENTNET_encoder:
         state_encoder = comma_efficientnet_b2(input_channels=6)
+    elif config.RESNET_encoder:
+        state_encoder = backbone_resnet18(input_channels=6)
 
     config.state_encoder = state_encoder
     config.state_dim = state_dim

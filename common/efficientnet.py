@@ -562,7 +562,7 @@ def _make_divisible(v: float, divisor: int, min_value: Optional[int] = None) -> 
 
 
 if __name__ == '__main__':
-    d = 'cuda:0'
+    d = 'cuda:1'
     model = comma_efficientnet_b2(pretrained=False, device=d, input_channels=6)
     dummy = torch.randn((1, 6, 128, 256), device=d)
     print(model)
