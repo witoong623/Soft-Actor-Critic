@@ -49,7 +49,7 @@ class BottleneckBlock(nn.Module):
 class BasicBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, in_channel, out_channel, stride=1):
+    def __init__(self, in_channel, out_channel, stride=1, activation=nn.ReLU()):
         super().__init__()
         
         self.diff_size = stride != 1 or in_channel != out_channel
@@ -65,11 +65,11 @@ class BasicBlock(nn.Module):
         self.conv = nn.Sequential(
             nn.Conv2d(in_channel, out_channel, kernel_size=3, stride=stride, padding=1, bias=False),
             nn.BatchNorm2d(out_channel),
-            nn.ReLU(),
+            activation,
             nn.Conv2d(out_channel, out_channel, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(out_channel),
         )
-        self.relu = nn.ReLU()
+        self.activation = activation
         
     def forward(self, X):
         # F(X)
@@ -79,7 +79,7 @@ class BasicBlock(nn.Module):
 
         # F + x
         y = out + X
-        return self.relu(y)
+        return self.activation(y)
 
 class ResNet(nn.Module):
     def __init__(self, block, block_num, n_classes=10):
@@ -133,7 +133,7 @@ class ResNet(nn.Module):
 
 
 class BackboneResNet(NetworkBase):
-    def __init__(self, input_channels, block, block_num):
+    def __init__(self, input_channels, block, block_num, activation=nn.ReLU()):
         super().__init__()
 
         self.layers = []
@@ -141,23 +141,23 @@ class BackboneResNet(NetworkBase):
         self.layers.append(nn.Sequential(
             nn.Conv2d(input_channels, self.input_channel, 7, stride=2, padding=3, bias=False),
             nn.BatchNorm2d(self.input_channel),
-            nn.ReLU(),
+            activation,
             nn.MaxPool2d(3, 2, padding=1)
         ))
-        self.layers.append(self._make_conv_layers(block, output_channel=64, time=block_num[0]))
-        self.layers.append(self._make_conv_layers(block, output_channel=128, time=block_num[1]))
-        self.layers.append(self._make_conv_layers(block, output_channel=256, time=block_num[2]))
-        self.layers.append(self._make_conv_layers(block, output_channel=512, time=block_num[3]))
+        self.layers.append(self._make_conv_layers(block, output_channel=64, time=block_num[0], activation=activation))
+        self.layers.append(self._make_conv_layers(block, output_channel=128, time=block_num[1], activation=activation))
+        self.layers.append(self._make_conv_layers(block, output_channel=256, time=block_num[2], activation=activation))
+        self.layers.append(self._make_conv_layers(block, output_channel=512, time=block_num[3], activation=activation))
         
         self.features = nn.Sequential(*self.layers)
 
         self.output_layer = nn.Sequential(
             nn.Conv2d(self.input_channel, 32, 1, stride=2),
             nn.BatchNorm2d(32),
-            nn.ReLU()
+            activation
         )
 
-    def _make_conv_layers(self, block, output_channel, time):
+    def _make_conv_layers(self, block, output_channel, time, activation):
         layers = []
         stride = 1
         
@@ -165,12 +165,12 @@ class BackboneResNet(NetworkBase):
         if self.input_channel != output_channel:
             stride = 2
 
-        layers.append(block(self.input_channel, output_channel, stride=stride))
+        layers.append(block(self.input_channel, output_channel, stride=stride, activation=activation))
 
         self.input_channel = output_channel * block.expansion
         for _ in range(1, time):
             # reminding layer, stride 1 because no downsample afterward
-            layers.append(block(self.input_channel, output_channel))
+            layers.append(block(self.input_channel, output_channel, activation=activation))
 
         return nn.Sequential(*layers)
 
@@ -202,6 +202,11 @@ def backbone_resnet18(input_channels):
 
 def backbone_resnet34():
     return BackboneResNet(BasicBlock, block_num=[3, 4, 6, 3])
+
+
+class Resnet18Backbone(BackboneResNet):
+    def __init__(self, input_channels, activation=nn.ReLU()):
+        super().__init__(input_channels, BasicBlock, block_num=[2, 2, 2, 2], activation=activation)
 
 
 if __name__ == '__main__':

@@ -64,7 +64,7 @@ def get_config():
                         help='use grayscale image as an observation')
     parser.add_argument('--hidden-dims', type=int, default=[], nargs='+', metavar='DIM',
                         help='hidden dimensions of FC controller')
-    parser.add_argument('--activation', type=str, choices=['ReLU', 'LeakyReLU', 'Tanh'], default='ReLU',
+    parser.add_argument('--activation', type=str, choices=['ReLU', 'LeakyReLU', 'Tanh', 'ELU'], default='ReLU',
                         help='activation function in controller networks (default: ReLU)')
     parser.add_argument('--dry-run-init-env', action='store_true', default=False,
                         help='dry run when initialize environment for the first time only')
@@ -198,11 +198,12 @@ def initialize_hyperparameters(config):
     config.activation = {
         'ReLU': nn.ReLU(inplace=True),
         'LeakyReLU': nn.LeakyReLU(negative_slope=0.3, inplace=True),
-        'Tanh': nn.Tanh()
+        'Tanh': nn.Tanh(),
+        'ELU': nn.ELU()
     }.get(config.activation)
     config.encoder_activation = {
         'ReLU': nn.ReLU(inplace=True),
-        'LeakyReLU': nn.LeakyReLU(negative_slope=0.01, inplace=True),
+        'LeakyReLU': nn.LeakyReLU(negative_slope=0.3, inplace=True),
         None: config.activation
     }.get(config.encoder_activation)
 
