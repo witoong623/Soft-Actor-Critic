@@ -148,14 +148,11 @@ class BackboneResNet(NetworkBase):
         self.layers.append(self._make_conv_layers(block, output_channel=128, time=block_num[1], activation=activation))
         self.layers.append(self._make_conv_layers(block, output_channel=256, time=block_num[2], activation=activation))
         self.layers.append(self._make_conv_layers(block, output_channel=512, time=block_num[3], activation=activation))
+
+        # projection
+        self.layers.append(self._make_conv_layers(block, output_channel=32, time=1, activation=activation))
         
         self.features = nn.Sequential(*self.layers)
-
-        self.output_layer = nn.Sequential(
-            nn.Conv2d(self.input_channel, 32, 1, stride=2),
-            nn.BatchNorm2d(32),
-            activation
-        )
 
     def _make_conv_layers(self, block, output_channel, time, activation):
         layers = []
@@ -176,7 +173,6 @@ class BackboneResNet(NetworkBase):
 
     def forward(self, X):
         x = self.features(X)
-        x = self.output_layer(x)
         x = torch.flatten(x, start_dim=1)
 
         return x
