@@ -201,19 +201,23 @@ def initialize_hyperparameters(config):
         'Tanh': nn.Tanh(),
         'ELU': nn.ELU()
     }.get(config.activation)
-    config.encoder_activation = {
-        'ReLU': nn.ReLU(inplace=True),
-        'LeakyReLU': nn.LeakyReLU(negative_slope=0.3, inplace=True),
-        None: config.activation
-    }.get(config.encoder_activation)
 
     config.FC_encoder = (config.encoder_arch == 'FC')
     config.RNN_encoder = (config.encoder_arch == 'RNN')
     config.CNN_encoder = (config.encoder_arch == 'CNN')
+
     config.VAE_encoder = (config.encoder_arch == 'VAE')
     config.RESNET_encoder = (config.encoder_arch == 'RESNET')
     config.BETAVAE_encoder = (config.encoder_arch == 'BETAVAE')
     config.EFFICIENTNET_encoder = (config.encoder_arch == 'EFFICIENTNET')
+
+    # need to be set explicitly
+    if config.RESNET_encoder:
+        config.encoder_activation = {
+            'ReLU': nn.ReLU(inplace=True),
+            'LeakyReLU': nn.LeakyReLU(negative_slope=0.3, inplace=True),
+            'ELU': nn.ELU(inplace=True)
+        }.get(config.encoder_activation)
 
     if len(config.image_size) == 1:
         config.image_size = (config.image_size, config.image_size)

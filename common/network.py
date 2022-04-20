@@ -91,7 +91,10 @@ def build_encoder(config):
     elif config.EFFICIENTNET_encoder:
         state_encoder = comma_efficientnet_b2(input_channels=6)
     elif config.RESNET_encoder:
-        state_encoder = Resnet18Backbone(input_channels=2)
+        if config.encoder_activation is not None:
+            state_encoder = Resnet18Backbone(input_channels=2, activation=config.encoder_activation)
+        else:
+            state_encoder = Resnet18Backbone(input_channels=2)
 
     config.state_encoder = state_encoder
     config.state_dim = state_dim
