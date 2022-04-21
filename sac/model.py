@@ -31,7 +31,17 @@ def build_model(config):
                                            'buffer_capacity',
                                            'devices',
                                            'sampler_devices',
+                                           'actor_critic_type',
                                            'random_seed'])
+
+    input_channels = None
+    if config.actor_critic_type == 'CNN':
+        if config.grayscale:
+            input_channels = config.n_frames * 1
+        else:
+            input_channels = config.n_frames * 3
+    model_kwargs['input_channels'] = input_channels
+
     if config.mode == 'train':
         model_kwargs.update(config.build_from_keys(['critic_lr',
                                                     'actor_lr',
@@ -73,7 +83,7 @@ class ModelBase(object):
     def __init__(self, env_func, env_kwargs, state_encoder,
                  state_dim, action_dim, hidden_dims, activation, n_past_actions,
                  initial_alpha, use_popart, beta, n_samplers, buffer_capacity,
-                 devices, sampler_devices, random_seed=0):
+                 devices, sampler_devices, actor_critic_type, input_channels=None, random_seed=0):
         self.devices = itertools.cycle(devices)
         self.model_device = next(self.devices)
         self.sampler_devices = sampler_devices
@@ -86,12 +96,17 @@ class ModelBase(object):
             self.state_dim = state_dim
         self.action_dim = action_dim
 
+        assert actor_critic_type in ['MLP', 'CNN']
+        self.actor_critic_type = actor_critic_type
+
         self.training = True
 
         self.state_encoder = self.STATE_ENCODER_WRAPPER(state_encoder)
 
-        self.critic = Critic(self.state_dim, action_dim, hidden_dims, activation=activation, use_popart=use_popart, beta=beta)
-        self.actor = Actor(self.state_dim, action_dim, hidden_dims, activation=activation)
+        self.critic = Critic(self.state_dim, action_dim, hidden_dims, activation=activation, use_popart=use_popart,
+                             beta=beta, network_type=actor_critic_type, input_channels=input_channels)
+        self.actor = Actor(self.state_dim, action_dim, hidden_dims, activation=activation,
+                           network_type=actor_critic_type, input_channels=input_channels)
 
         self.log_alpha = nn.Parameter(torch.tensor(np.log(initial_alpha), dtype=torch.float32),
                                       requires_grad=True)
@@ -109,6 +124,7 @@ class ModelBase(object):
                                         env_kwargs=env_kwargs,
                                         state_encoder=self.state_encoder,
                                         actor=self.actor,
+                                        actor_type=self.actor_critic_type,
                                         n_samplers=n_samplers,
                                         buffer_capacity=buffer_capacity,
                                         devices=self.sampler_devices,
@@ -161,11 +177,11 @@ class Trainer(ModelBase):
                  state_dim, action_dim, hidden_dims, activation, n_past_actions,
                  initial_alpha, critic_lr, actor_lr, alpha_lr, weight_decay,
                  use_popart, beta, n_samplers, buffer_capacity, devices,
-                 sampler_devices, random_seed=0):
+                 sampler_devices, actor_critic_type, input_channels=None, random_seed=0):
         super().__init__(env_func, env_kwargs, state_encoder,
                          state_dim, action_dim, hidden_dims, activation, n_past_actions,
                          initial_alpha, use_popart, beta, n_samplers, buffer_capacity,
-                         devices, sampler_devices, random_seed)
+                         devices, sampler_devices, actor_critic_type, input_channels, random_seed)
 
         self.target_critic = clone_network(src_net=self.critic, device=self.model_device)
         self.target_critic.eval().requires_grad_(False)
@@ -194,6 +210,7 @@ class Trainer(ModelBase):
         self.train(mode=True)
 
     def update_sac(self, state, action, reward, next_state, done,
+                   additional_state, next_additional_state,
                    normalize_rewards=True, reward_scale=1.0,
                    adaptive_entropy=True, target_entropy=-2.0,
                    clip_gradient=False, gamma=0.99, soft_tau=0.01, epsilon=1E-6):
@@ -204,7 +221,7 @@ class Trainer(ModelBase):
 
         # Update temperature parameter
         with amp.autocast(dtype=self.amp_dtype):
-            new_action, log_prob, _ = self.actor.evaluate(state)
+            new_action, log_prob, _ = self.actor.evaluate(state, additional_state)
             if adaptive_entropy:
                 # equation 18
                 alpha_loss = -(self.log_alpha * (log_prob + target_entropy).detach()).mean()
@@ -220,10 +237,10 @@ class Trainer(ModelBase):
         with amp.autocast(dtype=self.amp_dtype):
             # Train Q function
             with torch.no_grad():
-                new_next_action, next_log_prob, _ = self.actor.evaluate(next_state)
+                new_next_action, next_log_prob, _ = self.actor.evaluate(next_state, next_additional_state)
 
                 # use min to mitigate bias
-                target_q_min = torch.min(*self.target_critic(next_state, new_next_action))
+                target_q_min = torch.min(*self.target_critic(next_state, new_next_action, next_additional_state))
                 # target_q_min is V(s_t+1) through equation 3
                 target_q_min -= alpha * next_log_prob
                 # equation 5
@@ -238,15 +255,15 @@ class Trainer(ModelBase):
                 normalized_target = True
                 target_q_value1, target_q_value2 = self.critic.get_normalized_targets(target_q_value)
 
-            predicted_q_value_1, predicted_q_value_2 = self.critic(state, action, normalize=normalized_target)
+            predicted_q_value_1, predicted_q_value_2 = self.critic(state, action, additional_state, normalize=normalized_target)
 
             critic_loss_1 = self.critic_criterion(predicted_q_value_1, target_q_value1)
             critic_loss_2 = self.critic_criterion(predicted_q_value_2, target_q_value2)
             critic_loss = (critic_loss_1 + critic_loss_2) / 2.0
 
             # Train policy function
-            predicted_new_q_value = torch.min(*self.critic(state, new_action))
-            predicted_new_q_value_critic_grad_only = torch.min(*self.critic(state, new_action.detach()))
+            predicted_new_q_value = torch.min(*self.critic(state, new_action, additional_state))
+            predicted_new_q_value_critic_grad_only = torch.min(*self.critic(state, new_action.detach(), additional_state))
             actor_loss = (alpha * log_prob - predicted_new_q_value).mean()
             actor_loss_unbiased = actor_loss + predicted_new_q_value_critic_grad_only.mean()
 
@@ -278,9 +295,10 @@ class Trainer(ModelBase):
         self.train()
 
         # size: (batch_size, item_size)
-        state, action, reward, next_state, done = self.prepare_batch(batch_size)
+        state, action, reward, next_state, done, additional_state, next_additional_state = self.prepare_batch(batch_size)
 
         return self.update_sac(state, action, reward, next_state, done,
+                               additional_state, next_additional_state,
                                normalize_rewards, reward_scale,
                                adaptive_entropy, target_entropy,
                                clip_gradient, gamma, soft_tau, epsilon)
@@ -309,32 +327,42 @@ class Trainer(ModelBase):
             reward = torch.tensor(reward, dtype=torch.float32, device=self.model_device)
             done = torch.tensor(done, dtype=torch.float16, device=self.model_device)
 
-        with amp.autocast(dtype=self.amp_dtype):
-            if isinstance(self.state_encoder.encoder, VAEBase):
-                with torch.no_grad():
-                    self.state_encoder.eval()
-                    # observation size is [32, 256, 512, 3]
-                    state = encode_vae_observation(observation,
-                                                self.state_encoder,
-                                                device=self.model_device,
-                                                output_device=self.model_device,
-                                                normalize=False)
-                    next_state = encode_vae_observation(next_observation,
-                                                        self.state_encoder,
-                                                        device=self.model_device,
-                                                        output_device=self.model_device,
-                                                        normalize=False)
-            else:
-                state = self.state_encoder(observation)
-                with torch.no_grad():
-                    next_state = self.state_encoder(next_observation)
+            additional_state = None
+            next_additional_state = None
 
-        if self.n_past_actions > 1:
-            state = torch.cat((state, additional_state.view(batch_size, -1)), dim=1)
-            next_state = torch.cat((next_state, next_additional_state.view(batch_size, -1)), dim=1)
+        if self.actor_critic_type == 'MLP':
+            with amp.autocast(dtype=self.amp_dtype):
+                if isinstance(self.state_encoder.encoder, VAEBase):
+                    with torch.no_grad():
+                        self.state_encoder.eval()
+                        # observation size is [32, 256, 512, 3]
+                        state = encode_vae_observation(observation,
+                                                    self.state_encoder,
+                                                    device=self.model_device,
+                                                    output_device=self.model_device,
+                                                    normalize=False)
+                        next_state = encode_vae_observation(next_observation,
+                                                            self.state_encoder,
+                                                            device=self.model_device,
+                                                            output_device=self.model_device,
+                                                            normalize=False)
+                else:
+                    state = self.state_encoder(observation)
+                    with torch.no_grad():
+                        next_state = self.state_encoder(next_observation)
+
+            if self.n_past_actions > 1:
+                state = torch.cat((state, additional_state.view(batch_size, -1)), dim=1)
+                next_state = torch.cat((next_state, next_additional_state.view(batch_size, -1)), dim=1)
+
+                additional_state = None
+                next_additional_state = None
+        else:
+            state = observation
+            next_state = next_observation
 
         # size: (batch_size, item_size)
-        return state, action, reward, next_state, done
+        return state, action, reward, next_state, done, additional_state, next_additional_state
 
     def save_model(self, path):
         self.modules.save_model(path, optimizer=self.optimizer, scaler=self.loss_scaler)

@@ -23,7 +23,7 @@ class Sampler(mp.Process):
     def __init__(self, rank, n_samplers, lock,
                  running_event, event, next_sampler_event,
                  env_func, env_kwargs, state_encoder, actor,
-                 eval_only, replay_buffer,
+                 actor_type, eval_only, replay_buffer,
                  n_total_steps, episode_steps, episode_rewards,
                  n_episodes, max_episode_steps,
                  deterministic, random_sample, render, log_episode_video,
@@ -46,6 +46,7 @@ class Sampler(mp.Process):
         self.shared_actor = actor
         self.state_encoder = None
         self.actor = None
+        self.actor_type = actor_type
         self.device = device
         self.eval_only = eval_only
 
@@ -127,10 +128,13 @@ class Sampler(mp.Process):
                         if additional_state is not None:
                             # use amp_dtype for additional state to match state dtype
                             additional_state_tensor = torch.tensor(additional_state, dtype=amp_dtype, device=self.device)
+                        
+                        if self.actor_type == 'MLP':
                             state = torch.cat((state, additional_state_tensor))
+                            additional_state_tensor = None
 
                         with amp.autocast(dtype=amp_dtype):
-                            action = self.actor.get_action(state, deterministic=self.deterministic)
+                            action = self.actor.get_action(state, additional_state_tensor, deterministic=self.deterministic)
 
                     next_observation, reward, done, info = self.env.step(action)
                     if 'additional_state' in info:
@@ -262,7 +266,7 @@ class Collector(object):
     REPLAY_BUFFER = ReplayBuffer
 
     def __init__(self, env_func, env_kwargs, state_encoder, actor,
-                 n_samplers, buffer_capacity,
+                 actor_type, n_samplers, buffer_capacity,
                  devices, random_seed):
         self.manager = mp.Manager()
         self.running_event = self.manager.Event()
@@ -274,6 +278,7 @@ class Collector(object):
 
         self.state_encoder = state_encoder
         self.actor = actor
+        self.actor_type = actor_type
         self.eval_only = False
 
         self.n_samplers = n_samplers
@@ -308,7 +313,7 @@ class Collector(object):
             sampler = self.SAMPLER(rank, self.n_samplers, self.lock,
                                    self.running_event, events[rank], events[(rank + 1) % self.n_samplers],
                                    self.env_func, self.env_kwargs, self.state_encoder, self.actor,
-                                   self.eval_only, self.replay_buffer,
+                                   self.actor_type, self.eval_only, self.replay_buffer,
                                    self.total_steps, self.episode_steps, self.episode_rewards,
                                    n_episodes, max_episode_steps,
                                    deterministic, random_sample, render, log_episode_video,
