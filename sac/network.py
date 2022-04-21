@@ -229,7 +229,7 @@ class PolicyNetwork(MultilayerPerceptron):
     @torch.no_grad()
     def get_action(self, state, deterministic=False):
         if isinstance(state, np.ndarray):
-            state = torch.FloatTensor(state).unsqueeze(dim=0).to(self.device)
+            state = torch.tensor(state, dtype=torch.float16, device=self.device).unsqueeze(0)
         else:
             # Tensor
             state = state.unsqueeze(dim=0).to(self.device)
