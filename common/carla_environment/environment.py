@@ -223,6 +223,7 @@ class CarlaEnv(gym.Env):
 
         # clear previous action
         self.current_action = None
+        self.actions_queue.clear()
 
         self.current_lane_dis = 0
 
