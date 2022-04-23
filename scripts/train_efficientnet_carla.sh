@@ -2,8 +2,8 @@
 
 ENV="Carla-v0"
 DATETIME="$(date +"%Y-%m-%d-%T")"
-LOG_DIR="logs/$ENV/CNN/$DATETIME"
-CHECKPOINT_DIR="savedcheckpoints/$ENV/CNN"
+LOG_DIR="logs/$ENV/EFFICIENTNET/$DATETIME"
+CHECKPOINT_DIR="savedcheckpoints/$ENV/EFFICIENTNET"
 
 ROOT_DIR="$(
 	cd "$(dirname "$(dirname "$0")")"
@@ -20,11 +20,9 @@ python main.py \
 	--n-frames 2 \
     --n-past-actions 10 \
 	--image-size 256 512 \
-	--grayscale \
-	--encoder-arch CNN \
-	--encoder-hidden-channels 32 64 128 \
+	--encoder-arch EFFICIENTNET \
 	--activation LeakyReLU \
-	--state-dim 1536 \
+	--state-dim 1024 \
 	--hidden-dims 512 256 \
 	--max-episode-steps 5000 \
 	--n-epochs 1000 --n-updates 256 --batch-size 32 \

@@ -20,9 +20,11 @@ python main.py \
 	--n-frames 2 \
     --n-past-actions 10 \
 	--image-size 256 512 \
+	--grayscale \
 	--encoder-arch RESNET \
 	--activation LeakyReLU \
 	--state-dim 1024 \
+	--actor-critic-type CNN \
 	--hidden-dims 512 256 \
 	--max-episode-steps 5000 \
 	--n-epochs 1000 --n-updates 256 --batch-size 32 \
@@ -37,5 +39,4 @@ python main.py \
 	--checkpoint-dir "$CHECKPOINT_DIR" \
 	--log-episode-video \
 	--dry-run-init-env \
-	--load-checkpoint \
 	"$@" # script arguments (can override args above)
