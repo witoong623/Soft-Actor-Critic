@@ -11,7 +11,7 @@ from common.collector import Collector
 from common.network import VAEBase
 from common.networkbase import Container
 from common.utils import clone_network, sync_params, init_optimizer, clip_grad_norm, encode_vae_observation
-from .network import StateEncoderWrapper, Actor, Critic
+from .network import StateEncoderWrapper, SeparatedStateEncoderWrapper, Actor, Critic
 
 
 __all__ = ['build_model', 'Trainer', 'Tester']
@@ -31,6 +31,7 @@ def build_model(config):
                                            'buffer_capacity',
                                            'devices',
                                            'sampler_devices',
+                                           'separate_encoder',
                                            'random_seed'])
     if config.mode == 'train':
         model_kwargs.update(config.build_from_keys(['critic_lr',
@@ -73,7 +74,7 @@ class ModelBase(object):
     def __init__(self, env_func, env_kwargs, state_encoder,
                  state_dim, action_dim, hidden_dims, activation, n_past_actions,
                  initial_alpha, use_popart, beta, n_samplers, buffer_capacity,
-                 devices, sampler_devices, random_seed=0):
+                 devices, sampler_devices, separate_encoder, random_seed=0):
         self.devices = itertools.cycle(devices)
         self.model_device = next(self.devices)
         self.sampler_devices = sampler_devices
@@ -88,7 +89,11 @@ class ModelBase(object):
 
         self.training = True
 
-        self.state_encoder = self.STATE_ENCODER_WRAPPER(state_encoder)
+        self.separate_encoder = separate_encoder
+        if self.separate_encoder:
+            self.state_encoder = SeparatedStateEncoderWrapper(state_encoder)
+        else:
+            self.state_encoder = self.STATE_ENCODER_WRAPPER(state_encoder)
 
         self.critic = Critic(self.state_dim, action_dim, hidden_dims, activation=activation, use_popart=use_popart, beta=beta)
         self.actor = Actor(self.state_dim, action_dim, hidden_dims, activation=activation)
@@ -161,11 +166,11 @@ class Trainer(ModelBase):
                  state_dim, action_dim, hidden_dims, activation, n_past_actions,
                  initial_alpha, critic_lr, actor_lr, alpha_lr, weight_decay,
                  use_popart, beta, n_samplers, buffer_capacity, devices,
-                 sampler_devices, random_seed=0):
+                 sampler_devices, separate_encoder, random_seed=0):
         super().__init__(env_func, env_kwargs, state_encoder,
                          state_dim, action_dim, hidden_dims, activation, n_past_actions,
                          initial_alpha, use_popart, beta, n_samplers, buffer_capacity,
-                         devices, sampler_devices, random_seed)
+                         devices, sampler_devices, separate_encoder, random_seed)
 
         self.target_critic = clone_network(src_net=self.critic, device=self.model_device)
         self.target_critic.eval().requires_grad_(False)
@@ -193,7 +198,8 @@ class Trainer(ModelBase):
 
         self.train(mode=True)
 
-    def update_sac(self, state, action, reward, next_state, done,
+    def update_sac(self, actor_state, critic_state, action, reward, 
+                   actor_next_state, critic_next_state, done,
                    normalize_rewards=True, reward_scale=1.0,
                    adaptive_entropy=True, target_entropy=-2.0,
                    clip_gradient=False, gamma=0.99, soft_tau=0.01, epsilon=1E-6):
@@ -204,7 +210,7 @@ class Trainer(ModelBase):
 
         # Update temperature parameter
         with amp.autocast(dtype=self.amp_dtype):
-            new_action, log_prob, _ = self.actor.evaluate(state)
+            new_action, log_prob, _ = self.actor.evaluate(actor_state)
             if adaptive_entropy:
                 # equation 18
                 alpha_loss = -(self.log_alpha * (log_prob + target_entropy).detach()).mean()
@@ -220,10 +226,10 @@ class Trainer(ModelBase):
         with amp.autocast(dtype=self.amp_dtype):
             # Train Q function
             with torch.no_grad():
-                new_next_action, next_log_prob, _ = self.actor.evaluate(next_state)
+                new_next_action, next_log_prob, _ = self.actor.evaluate(actor_next_state)
 
                 # use min to mitigate bias
-                target_q_min = torch.min(*self.target_critic(next_state, new_next_action))
+                target_q_min = torch.min(*self.target_critic(critic_next_state, new_next_action))
                 # target_q_min is V(s_t+1) through equation 3
                 target_q_min -= alpha * next_log_prob
                 # equation 5
@@ -238,15 +244,15 @@ class Trainer(ModelBase):
                 normalized_target = True
                 target_q_value1, target_q_value2 = self.critic.get_normalized_targets(target_q_value)
 
-            predicted_q_value_1, predicted_q_value_2 = self.critic(state, action, normalize=normalized_target)
+            predicted_q_value_1, predicted_q_value_2 = self.critic(critic_state, action, normalize=normalized_target)
 
             critic_loss_1 = self.critic_criterion(predicted_q_value_1, target_q_value1)
             critic_loss_2 = self.critic_criterion(predicted_q_value_2, target_q_value2)
             critic_loss = (critic_loss_1 + critic_loss_2) / 2.0
 
             # Train policy function
-            predicted_new_q_value = torch.min(*self.critic(state, new_action))
-            predicted_new_q_value_critic_grad_only = torch.min(*self.critic(state, new_action.detach()))
+            predicted_new_q_value = torch.min(*self.critic(critic_state, new_action))
+            predicted_new_q_value_critic_grad_only = torch.min(*self.critic(critic_state, new_action.detach()))
             actor_loss = (alpha * log_prob - predicted_new_q_value).mean()
             actor_loss_unbiased = actor_loss + predicted_new_q_value_critic_grad_only.mean()
 
@@ -278,9 +284,9 @@ class Trainer(ModelBase):
         self.train()
 
         # size: (batch_size, item_size)
-        state, action, reward, next_state, done = self.prepare_batch(batch_size)
+        actor_state, critic_state, action, reward, actor_next_state, critic_next_state, done = self.prepare_batch(batch_size)
 
-        return self.update_sac(state, action, reward, next_state, done,
+        return self.update_sac(actor_state, critic_state, action, reward, actor_next_state, critic_next_state, done,
                                normalize_rewards, reward_scale,
                                adaptive_entropy, target_entropy,
                                clip_gradient, gamma, soft_tau, epsilon)
@@ -325,16 +331,31 @@ class Trainer(ModelBase):
                                                         output_device=self.model_device,
                                                         normalize=False)
             else:
-                state = self.state_encoder(observation)
-                with torch.no_grad():
-                    next_state = self.state_encoder(next_observation)
+                if self.separate_encoder:
+                    actor_state, critic_state = self.state_encoder(observation)
+                    with torch.no_grad():
+                        actor_next_state, critic_next_state = self.state_encoder(next_observation)
+                else:
+                    state = self.state_encoder(observation)
+                    with torch.no_grad():
+                        next_state = self.state_encoder(next_observation)
 
         if self.n_past_actions > 1:
-            state = torch.cat((state, additional_state.view(batch_size, -1)), dim=1)
-            next_state = torch.cat((next_state, next_additional_state.view(batch_size, -1)), dim=1)
+            if self.separate_encoder:
+                actor_state = torch.cat((actor_state, additional_state.view(batch_size, -1)), dim=1)
+                critic_state = torch.cat((critic_state, additional_state.view(batch_size, -1)), dim=1)
+                actor_next_state = torch.cat((actor_next_state, next_additional_state.view(batch_size, -1)), dim=1)
+                critic_next_state = torch.cat((critic_next_state, next_additional_state.view(batch_size, -1)), dim=1)
+            else:
+                state = torch.cat((state, additional_state.view(batch_size, -1)), dim=1)
+                next_state = torch.cat((next_state, next_additional_state.view(batch_size, -1)), dim=1)
+
+        if not self.separate_encoder:
+            actor_state = critic_state = state
+            actor_next_state = critic_next_state = next_state
 
         # size: (batch_size, item_size)
-        return state, action, reward, next_state, done
+        return actor_state, critic_state, action, reward, actor_next_state, critic_next_state, done
 
     def save_model(self, path):
         self.modules.save_model(path, optimizer=self.optimizer, scaler=self.loss_scaler)

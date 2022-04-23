@@ -104,8 +104,15 @@ class SeparatedStateEncoderWrapper(Container):
     def reset(self):
         pass
 
+    @property
+    def encoder(self):
+        return self.actor_encoder
+
     def __getattr__(self, name):
-        return super().__getattr__(name)
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            return getattr(self.actor_encoder, name)
 
 
 class DimensionScaler(Container):

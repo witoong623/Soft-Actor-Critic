@@ -71,6 +71,8 @@ def get_config():
     encoder_group = parser.add_argument_group('state encoder')
     encoder_group.add_argument('--encoder-arch', type=str, choices=['FC', 'RNN', 'CNN', 'VAE', 'BETAVAE', 'EFFICIENTNET', 'RESNET'], default='FC',
                                help='architecture of state encoder network (default: FC)')
+    encoder_group.add_argument('--separate-encoder', action='store_true', default=False,
+                               help='use separate encoder for Actor and Critic (default: False)')
     encoder_group.add_argument('--state-dim', type=int, default=None, metavar='DIM',
                                help='target state dimension of encoded state '
                                     '(use env.observation_space.shape if not present)')

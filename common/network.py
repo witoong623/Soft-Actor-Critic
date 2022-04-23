@@ -27,6 +27,12 @@ __all__ = [
 
 def build_encoder(config):
     state_dim = (config.state_dim or config.observation_dim)
+    # CNN variant case
+    if config.grayscale:
+        input_channels = config.n_frames * 1
+    else:
+        input_channels = config.n_frames * 3
+
     state_encoder = nn.Identity()
     if config.FC_encoder:
         if config.state_dim is not None or len(config.encoder_hidden_dims) > 0:
@@ -89,12 +95,12 @@ def build_encoder(config):
         state_encoder.load_model(config.weight_path)
         state_encoder.eval()
     elif config.EFFICIENTNET_encoder:
-        state_encoder = comma_efficientnet_b2(input_channels=6)
+        state_encoder = comma_efficientnet_b2(input_channels=input_channels)
     elif config.RESNET_encoder:
         if config.encoder_activation is not None:
-            state_encoder = Resnet18Backbone(input_channels=2, activation=config.encoder_activation)
+            state_encoder = Resnet18Backbone(input_channels=input_channels, activation=config.encoder_activation)
         else:
-            state_encoder = Resnet18Backbone(input_channels=2)
+            state_encoder = Resnet18Backbone(input_channels=input_channels)
 
     config.state_encoder = state_encoder
     config.state_dim = state_dim
