@@ -63,7 +63,7 @@ def build_encoder(config):
                                                                'batch_normalization']))
     elif config.CNN_encoder and config.env == 'Carla-v0':
         state_encoder = CarlaCNN(image_size=config.image_size,
-                                 input_channels=config.n_frames * 3,
+                                 input_channels=config.n_frames * 1,
                                  n_hidden_channels=config.encoder_hidden_channels,
                                  output_dim=state_dim)
     elif config.CNN_encoder:
@@ -423,9 +423,6 @@ class CarlaCNN(NetworkBase):
                  output_dim, device=None):
         super().__init__()
 
-        # TODO: delete this
-        assert output_dim == 512
-
         n_hidden_channels = [input_channels, *n_hidden_channels]
 
         def conv_block(n_in, n_out):
@@ -433,11 +430,11 @@ class CarlaCNN(NetworkBase):
                 nn.Conv2d(n_in, n_out, kernel_size=3, bias=False),
                 nn.BatchNorm2d(n_out),
                 nn.MaxPool2d(2),
-                nn.LeakyReLU(negative_slope=0.3, inplace=True),
+                nn.ReLU(inplace=True),
                 nn.Conv2d(n_out, n_out, kernel_size=3, bias=False),
                 nn.BatchNorm2d(n_out),
                 nn.MaxPool2d(2),
-                nn.LeakyReLU(negative_slope=0.3, inplace=True),
+                nn.ReLU(inplace=True),
             )
 
         conv_layers = []
@@ -449,29 +446,11 @@ class CarlaCNN(NetworkBase):
 
         self.conv_layers = nn.Sequential(*conv_layers)
 
-        dummy = torch.zeros(1, input_channels, *image_size)
-        with torch.no_grad():
-            dummy = self(dummy)
-        conv_output_dim = int(np.prod(dummy.size()))
-
-        self.out_features = output_dim
-
-        self.linear_layer = nn.Sequential(
-            nn.Linear(in_features=conv_output_dim,
-                        out_features=self.out_features),
-            nn.LeakyReLU(negative_slope=0.3, inplace=True)
-        )
-
-        self.in_features = (input_channels, *image_size)
-
         self.to(device)
 
     def forward(self, x):
         x = self.conv_layers(x)
         x = x.flatten(1)
-
-        if hasattr(self, 'linear_layer'):
-            x = self.linear_layer(x)
 
         return x
 
@@ -713,10 +692,10 @@ BETAVAE = ConvBetaVAE
 
 if __name__ == '__main__':
     image_size = (256, 512)
-    model = ConvBetaVAE(image_size, input_channel=3, latent_size=512, beta=3)
-    dummy = torch.zeros((1, 3, *image_size))
+    model = CarlaCNN((256, 512), 2, [32, 64, 128], output_dim=1536)
+    dummy = torch.zeros((1, 2, *image_size))
     output = model(dummy)
 
-    # print(f'output size {output.size()}')
+    print(f'output size {output.size()}')
 
-    summary(model, input_size=(1, 3, *image_size))
+    summary(model, input_size=(1, 2, *image_size))
