@@ -28,10 +28,7 @@ __all__ = [
 def build_encoder(config):
     state_dim = (config.state_dim or config.observation_dim)
     state_encoder = nn.Identity()
-    if config.actor_critic_type == 'CNN':
-        # skip creating shared encoder
-        pass
-    elif config.FC_encoder:
+    if config.FC_encoder:
         if config.state_dim is not None or len(config.encoder_hidden_dims) > 0:
             state_encoder = VanillaNeuralNetwork(n_dims=[config.observation_dim,
                                                          *config.encoder_hidden_dims,

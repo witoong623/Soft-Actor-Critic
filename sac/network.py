@@ -8,7 +8,6 @@ import torch.nn as nn
 from torch.distributions import Normal
 
 from common.network import MultilayerPerceptron, VAEBase
-from common.resnet import Resnet18Backbone
 from common.networkbase import Container
 from common.utils import encode_vae_observation, clone_network
 
@@ -237,36 +236,9 @@ class SoftQNetwork(MultilayerPerceptron):
         return super().forward(torch.cat([state, self.action_scaler(action)], dim=-1))
 
 
-class SoftQCNN(MultilayerPerceptron):
-    def __init__(self, input_channels, state_dim, action_dim, hidden_dims, activation=nn.ReLU(inplace=True), device=None):
-        scaled_action_dim = max(state_dim, action_dim)
-
-        super().__init__(n_dims=[state_dim + scaled_action_dim, *hidden_dims, 1],
-                         activation=activation,
-                         output_activation=None)
-
-        self.state_dim = state_dim
-        self.action_dim = action_dim
-        self.scaled_action_dim = scaled_action_dim
-
-        self.action_scaler = DimensionScaler(input_dim=action_dim,
-                                             output_dim=scaled_action_dim)
-
-        self.features_network = Resnet18Backbone(input_channels)
-
-        self.to(device)
-
-    def forward(self, observation, action, additional_state=None):
-        state = self.features_network(observation).flatten(start_dim=1)
-        if additional_state is not None:
-            state = torch.cat([state, additional_state], dim=1)
-
-        return super().forward(torch.cat([state, self.action_scaler(action)], dim=-1))
-
-
 class PolicyNetwork(MultilayerPerceptron):
     def __init__(self, state_dim, action_dim, hidden_dims, activation=nn.ReLU(inplace=True), device=None,
-                 log_std_min=LOG_STD_MIN, log_std_max=LOG_STD_MAX, network_type='MLP', input_channels=None):
+                 log_std_min=LOG_STD_MIN, log_std_max=LOG_STD_MAX):
         # the last layer of perception is the action_dim (output size) * 2, which can be chunk into 2 action_dims
         super().__init__(n_dims=[state_dim, *hidden_dims, 2 * action_dim],
                          activation=activation,
@@ -278,28 +250,16 @@ class PolicyNetwork(MultilayerPerceptron):
         self.log_std_min = log_std_min
         self.log_std_max = log_std_max
 
-        self.network_type = network_type
-        if network_type == 'CNN':
-            self.features_network = Resnet18Backbone(input_channels)
-
         self.to(device)
 
-    def forward(self, observation, additional_state=None):
-        if self.network_type == 'CNN':
-            state = self.features_network(observation)
-        else:
-            state = observation
-
-        if additional_state is not None:
-            state = torch.cat([state, additional_state], dim=1)
-
+    def forward(self, state):
         mean, log_std = super().forward(state).chunk(chunks=2, dim=-1)
         log_std = torch.clamp(log_std, min=self.log_std_min, max=self.log_std_max)
         std = torch.exp(log_std)
         return mean, std
 
-    def evaluate(self, state, additional_state=None, epsilon=1E-6):
-        mean, std = self(state, additional_state)
+    def evaluate(self, state, epsilon=1E-6):
+        mean, std = self(state)
 
         # enforcing Action Bounds
         distribution = Normal(mean, std)
@@ -311,23 +271,13 @@ class PolicyNetwork(MultilayerPerceptron):
         return action, log_prob, distribution
 
     @torch.no_grad()
-    def get_action(self, state, additional_state=None, deterministic=False):
+    def get_action(self, state, deterministic=False):
         if isinstance(state, np.ndarray):
             state = torch.tensor(state, dtype=torch.float16, device=self.device).unsqueeze(0)
         else:
             # Tensor
-            state = state.unsqueeze(0).to(self.device)
-
-        if additional_state is not None:
-            if isinstance(additional_state, np.ndarray):
-                additional_state = torch.tensor(additional_state, dtype=torch.float16, device=self.device)
-            else:
-                # Tensor
-                additional_state = additional_state.to(self.device)
-
-            additional_state = additional_state.unsqueeze(0)
-
-        mean, std = self(state, additional_state)
+            state = state.unsqueeze(dim=0).to(self.device)
+        mean, std = self(state)
 
         if deterministic:
             action = torch.tanh(mean)
@@ -349,21 +299,14 @@ class PolicyNetwork(MultilayerPerceptron):
 
 class Critic(Container):
     def __init__(self, state_dim, action_dim, hidden_dims, activation=nn.ReLU(inplace=True), device=None,
-                 use_popart=False, beta=1e-4, network_type='MLP', input_channels=None):
+                 use_popart=False, beta=1e-4):
         super().__init__()
 
         self.state_dim = state_dim
         self.action_dim = action_dim
 
-        if network_type == 'MLP':
-            self.soft_q_net_1 = SoftQNetwork(state_dim, action_dim, hidden_dims, activation=activation)
-            self.soft_q_net_2 = SoftQNetwork(state_dim, action_dim, hidden_dims, activation=activation)
-        elif network_type == 'CNN':
-            assert input_channels is not None
-            self.soft_q_net_1 = SoftQCNN(input_channels, state_dim, action_dim, hidden_dims, activation=activation)
-            self.soft_q_net_2 = SoftQCNN(input_channels, state_dim, action_dim, hidden_dims, activation=activation)
-        else:
-            raise ValueError(f'unknown network_type: {network_type}')
+        self.soft_q_net_1 = SoftQNetwork(state_dim, action_dim, hidden_dims, activation=activation)
+        self.soft_q_net_2 = SoftQNetwork(state_dim, action_dim, hidden_dims, activation=activation)
 
         if use_popart:
             self.use_popart = use_popart
@@ -375,13 +318,9 @@ class Critic(Container):
 
         self.to(device)
 
-    def forward(self, state, action, additional_state=None, normalize=False):
-        if additional_state is not None:
-            q_value_1 = self.soft_q_net_1(state, action, additional_state)
-            q_value_2 = self.soft_q_net_2(state, action, additional_state)
-        else:
-            q_value_1 = self.soft_q_net_1(state, action)
-            q_value_2 = self.soft_q_net_2(state, action)
+    def forward(self, state, action, normalize=False):
+        q_value_1 = self.soft_q_net_1(state, action)
+        q_value_2 = self.soft_q_net_2(state, action)
 
         if normalize and self.use_popart:
             return self.popart_layer1(self.policy_activation(q_value_1)), self.popart_layer2(self.policy_activation(q_value_2))

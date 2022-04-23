@@ -62,8 +62,6 @@ def get_config():
                         help='image size of vision observation (default: 96)')
     parser.add_argument('--grayscale', action='store_true',
                         help='use grayscale image as an observation')
-    parser.add_argument('--actor-critic-type', type=str, choices=['MLP', 'CNN'], default='MLP',
-                        help='type of actor-critic. if it is CNN, encoder type must be one of CNN type and is not shared between actor-critic (default: MLP)')
     parser.add_argument('--hidden-dims', type=int, default=[], nargs='+', metavar='DIM',
                         help='hidden dimensions of FC controller')
     parser.add_argument('--activation', type=str, choices=['ReLU', 'LeakyReLU', 'Tanh', 'ELU'], default='ReLU',
