@@ -10,7 +10,7 @@ from torch.distributions import Normal
 from common.network import MultilayerPerceptron, VAEBase
 from common.resnet import Resnet18Backbone
 from common.networkbase import Container
-from common.utils import encode_vae_observation
+from common.utils import encode_vae_observation, clone_network
 
 
 __all__ = [
@@ -63,6 +63,50 @@ class StateEncoderWrapper(Container):
             return super().__getattr__(name)
         except AttributeError:
             return getattr(self.encoder, name)
+
+
+class SeparatedStateEncoderWrapper(Container):
+    def __init__(self, encoder, device=None, actor_only=False):
+        super().__init__()
+
+        self.actor_encoder = encoder
+        if not actor_only:
+            self.critic_encoder = clone_network(encoder, device)
+
+        self.actor_only = actor_only
+
+        self.to(device)
+
+        self.reset()
+
+    def forward(self, *input, **kwargs):
+        return self.actor_encoder(*input, **kwargs), self.critic_encoder(*input, **kwargs)
+
+    @torch.no_grad()
+    def encode(self, observation, return_tensor=False):
+        if isinstance(self.encoder, VAEBase):
+            observation = np.expand_dims(observation, axis=0)
+            encoded = encode_vae_observation(observation, self.actor_encoder, device=self.device, normalize=False)
+        elif isinstance(observation, np.ndarray):
+            obs_dtype = torch.float16 if observation.dtype == np.float16 else torch.float32
+            observation = torch.tensor(observation, dtype=obs_dtype, device=self.device).unsqueeze(dim=0)
+            encoded = self.actor_encoder(observation)
+
+        if return_tensor:
+            encoded = encoded.squeeze(dim=0)
+        else:
+            encoded = encoded.cpu()
+            if encoded.dtype is not torch.float16:
+                encoded = encoded.half()
+            encoded = encoded.numpy()[0]
+
+        return encoded
+
+    def reset(self):
+        pass
+
+    def __getattr__(self, name):
+        return super().__getattr__(name)
 
 
 class DimensionScaler(Container):
