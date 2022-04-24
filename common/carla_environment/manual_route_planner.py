@@ -83,8 +83,10 @@ class ManualRoutePlanner:
         ''' Set internal state to current vehicle, must be called in `reset` '''
         self._vehicle = vehicle
 
-        self._start_waypoint_index = self._checkpoint_waypoint_index
-        self._current_waypoint_index = self._checkpoint_waypoint_index
+        if not self._in_random_spawn_point:
+            self._start_waypoint_index = self._checkpoint_waypoint_index
+            self._current_waypoint_index = self._checkpoint_waypoint_index
+
         self.lap_count = 0
 
     def run_step(self):
@@ -306,14 +308,18 @@ class ManualRoutePlanner:
         return next_start, next_frequency
 
     def get_random_spawn_point(self):
-        start_original = random.random() > 0.6
+        start_original = random.random() >= 0.4
         if start_original:
             self._in_random_spawn_point = False
             return self._checkpoint_waypoint_index, self.spawn_transform
 
-        self._checkpoint_waypoint_index = self._checkpoint_waypoint_index + (random.randint(5, 20) // 2 * 2)
-        self.spawn_transform = _route_waypoints[self._checkpoint_waypoint_index][0].transform
-        return self._checkpoint_waypoint_index, self.spawn_transform
+        self._in_random_spawn_point = True
+        random_idx = self._checkpoint_waypoint_index + (random.randint(5, 20) // 2 * 2)
+        self._start_waypoint_index = random_idx
+        self._current_waypoint_index = random_idx
+        self.spawn_transform = _route_waypoints[random_idx][0].transform
+
+        return random_idx, self.spawn_transform
 
     @property
     def next_waypoint(self):
