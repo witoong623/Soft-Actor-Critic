@@ -1,6 +1,7 @@
 # copy from https://github.com/bitsauce/Carla-ppo/blob/master/CarlaEnv/planner.py
 import carla
 import numpy as np
+import random
 
 from numba.typed import List
 from agents.navigation.local_planner import RoadOption
@@ -23,13 +24,14 @@ def carla_to_vector(obj):
 
 
 class ManualRoutePlanner:
-    def __init__(self, start_waypoint, end_waypoint, resolution=2.0, plan=None, initial_checkpoint=0, use_section=False, enable=True, debug_route_waypoint_len=None):
+    def __init__(self, start_waypoint, end_waypoint, world, resolution=2.0, plan=None,
+                 initial_checkpoint=0, use_section=False, enable=True, debug_route_waypoint_len=None):
         ''' route_waypoint_len is purely for testing purpose '''
         global _route_waypoints, _transformed_waypoint_routes
 
         self._vehicle = None
-        self._world = None
-        self._map = None
+        self._world = world
+        self._map = world.get_map()
         self.plan = plan
 
         self._sampling_radius = resolution
@@ -53,6 +55,8 @@ class ManualRoutePlanner:
             _transformed_waypoint_routes = List(self._transform_waypoints(_route_waypoints))
 
             self.spawn_transform = _route_waypoints[self._checkpoint_waypoint_index][0].transform
+
+        self._in_random_spawn_point = False
 
         # for section checkpoint
         if use_section:
@@ -78,8 +82,6 @@ class ManualRoutePlanner:
     def set_vehicle(self, vehicle):
         ''' Set internal state to current vehicle, must be called in `reset` '''
         self._vehicle = vehicle
-        self._world = self._vehicle.get_world()
-        self._map = self._world.get_map()
 
         self._start_waypoint_index = self._checkpoint_waypoint_index
         self._current_waypoint_index = self._checkpoint_waypoint_index
@@ -107,7 +109,8 @@ class ManualRoutePlanner:
 
         # update checkpoint
         # self._checkpoint_waypoint_index = (self._current_waypoint_index // self._checkpoint_frequency) * self._checkpoint_frequency
-        self._update_checkpoint_by_section()
+        if not self._in_random_spawn_point:
+            self._update_checkpoint_by_section()
 
         # update here because vehicle is spawn before set_vehicle call and spawning requires spawn point
         self.spawn_transform = _route_waypoints[self._checkpoint_waypoint_index][0].transform
@@ -302,9 +305,15 @@ class ManualRoutePlanner:
         next_frequency = self.sections_frequency[(end_idx + 1) % len(self.sections_frequency)]
         return next_start, next_frequency
 
-    @property
-    def current_waypoint(self):
-        return _route_waypoints[self._current_waypoint_index % len(_route_waypoints)][0]
+    def get_random_spawn_point(self):
+        start_original = random.random() > 0.6
+        if start_original:
+            self._in_random_spawn_point = False
+            return self._checkpoint_waypoint_index, self.spawn_transform
+
+        self._checkpoint_waypoint_index = self._checkpoint_waypoint_index + (random.randint(5, 20) // 2 * 2)
+        self.spawn_transform = _route_waypoints[self._checkpoint_waypoint_index][0].transform
+        return self._checkpoint_waypoint_index, self.spawn_transform
 
     @property
     def next_waypoint(self):
