@@ -104,8 +104,6 @@ class CarlaEnv(gym.Env):
         self.vehicle_spawn_points = list(self.world.get_map().get_spawn_points())
         # top left spawn point of town4
         self.lap_spwan_point_wp = self.world.get_map().get_waypoint(self.vehicle_spawn_points[1].location)
-        # for collect images
-        self.lap_opposite_spwan_point_wp = self.lap_spwan_point_wp.get_left_lane()
 
         self.walker_spawn_points = []
         # if we can cache more than 70% of spawn points then use cache
@@ -130,13 +128,9 @@ class CarlaEnv(gym.Env):
 
         # route planner mode
         self.route_mode = RouteMode.MANUAL_LAP
-        self.run_backward = kwargs.get('run_backward', False)
-
         if self.route_mode == RouteMode.MANUAL_LAP:
-            if self.run_backward:
-                self.routeplanner = ManualRoutePlanner(self.lap_opposite_spwan_point_wp, self.lap_opposite_spwan_point_wp, resolution=2, plan=TOWN7_REVERSE_PLAN)
-            else:
-                self.routeplanner = ManualRoutePlanner(self.lap_spwan_point_wp, self.lap_spwan_point_wp, resolution=2, plan=TOWN7_PLAN, use_section=True)
+            self.routeplanner = ManualRoutePlanner(self.lap_spwan_point_wp, self.lap_spwan_point_wp, self.world,
+                                                   resolution=2, plan=TOWN7_PLAN, use_section=True)
 
         # ego vehicle bp
         self.ego_bp = self._create_vehicle_bluepprint('vehicle.mini.cooper_s_2021')
@@ -284,31 +278,23 @@ class CarlaEnv(gym.Env):
 
         # Spawn the ego vehicle
         ego_spawn_times = 0
-        checkpoint_idx = self.routeplanner._checkpoint_waypoint_index
-        if checkpoint_idx not in self.z_steps:
-            self.z_steps[checkpoint_idx] = 0.1
-        z_step = self.z_steps[checkpoint_idx]
+        spawn_transform_index, spawn_transform = self.routeplanner.get_random_spawn_point()
+        if spawn_transform_index not in self.z_steps:
+            self.z_steps[spawn_transform_index] = 0.1
+        z_step = self.z_steps[spawn_transform_index]
 
         while True:
             if ego_spawn_times > self.max_ego_spawn_times:
                 raise Exception(f'cannot spawn at {transform}. waypoint index is {self.routeplanner._checkpoint_waypoint_index}')
 
-            if self.route_mode == RouteMode.BASIC_RANDOM:
-                if self.task_mode == 'random':
-                    transform = random.choice(self.vehicle_spawn_points)
-                if self.task_mode == 'roundabout':
-                    self.start = [52.1 + np.random.uniform(-5,5), -4.2, 178.66] # random
-                    # self.start=[52.1,-4.2, 178.66] # static
-                    transform = set_carla_transform(self.start)
-            elif self.route_mode == RouteMode.MANUAL_LAP:
-                transform = self._make_safe_spawn_transform(self.routeplanner.spawn_transform, z_step)
+            transform = self._make_safe_spawn_transform(spawn_transform, z_step)
 
             if self._try_spawn_ego_vehicle_at(transform):
                 break
             else:
                 ego_spawn_times += 1
                 z_step += 0.1
-                self.z_steps[checkpoint_idx] = z_step
+                self.z_steps[spawn_transform_index] = z_step
                 time.sleep(0.1)
 
         # Add collision sensor
@@ -355,15 +341,7 @@ class CarlaEnv(gym.Env):
         elif self.route_mode == RouteMode.MANUAL_LAP:
             self.routeplanner.set_vehicle(self.ego)
             self.waypoints = self.routeplanner.run_step()
-            self.next_waypoint, self.next_command = self.routeplanner.get_next_route_waypoint()
-
-            # TODO: delete this after record vae training images end
-            # self.route_waypoints = self.routeplanner.get_route_waypoints().copy()
-            # # start_idx = random.randrange(len(self.route_waypoints))
-            # start_idx = CarlaEnv.start_wp_idx
-            # # start route at the new location
-            # self.route_waypoints = self.route_waypoints[start_idx:] + self.route_waypoints[:start_idx]
-            # self.ego.set_transform(self.route_waypoints[0][0].transform)
+            # self.next_waypoint, self.next_command = self.routeplanner.get_next_route_waypoint()
 
         for _ in range(self.num_past_actions):
             self.actions_queue.append(np.array([0, 0]))
