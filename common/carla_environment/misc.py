@@ -173,9 +173,18 @@ def get_lane_dis_numba(waypoints, x, y):
     lv = np.linalg.norm(vec)
     # convert yaw degree to radians, use cos and sin to get rotation around Z axis
     w = np.array([np.cos(waypt[2] * np.pi / 180), np.sin(waypt[2] * np.pi / 180)])
+    # vec/lv is vector/norm give unit vector
     cross = cross2d(w, vec/lv)
     dis = - lv * cross
     return dis, w
+
+
+def get_vehicle_angle(current_transform, waypoint_transform):
+    vehicle_forward = current_transform.get_forward_vector()
+    waypoint_forward = waypoint_transform.get_forward_vector()
+    
+    align = vehicle_forward.dot(waypoint_forward)
+    return np.degrees(np.arccos(align))
 
 
 def get_preview_lane_dis(waypoints, x, y, idx=2):

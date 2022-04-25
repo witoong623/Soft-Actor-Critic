@@ -18,7 +18,7 @@ from gym import spaces
 from PIL import Image
 from tqdm import trange
 
-from .misc import set_carla_transform, get_pos, get_lane_dis_numba
+from .misc import get_pos, get_lane_dis_numba, get_vehicle_angle
 from .route_planner import RoutePlanner
 from .manual_route_planner import ManualRoutePlanner, TOWN7_PLAN, TOWN7_REVERSE_PLAN
 from ..utils import center_crop, normalize_image
@@ -335,13 +335,8 @@ class CarlaEnv(gym.Env):
         self.world.apply_settings(self.settings)
 
         # get route plan
-        if self.route_mode == RouteMode.BASIC_RANDOM:
-            self.routeplanner = RoutePlanner(self.ego, self.max_waypt)
-            self.waypoints = self.routeplanner.run_step()
-        elif self.route_mode == RouteMode.MANUAL_LAP:
             self.routeplanner.set_vehicle(self.ego)
             self.waypoints = self.routeplanner.run_step()
-            # self.next_waypoint, self.next_command = self.routeplanner.get_next_route_waypoint()
 
         for _ in range(self.num_past_actions):
             self.actions_queue.append(np.array([0, 0]))
@@ -374,6 +369,7 @@ class CarlaEnv(gym.Env):
         self.world.tick()
 
         self.waypoints = self.routeplanner.run_step()
+        self.current_waypoint = self.routeplanner.current_waypoint
 
         # Update timesteps
         self.time_step += 1
@@ -446,6 +442,39 @@ class CarlaEnv(gym.Env):
             self.lspeed_lon_hist.append(lspeed_lon)
 
         return r
+
+    def _get_reward_ppo(self):
+        # lane distance reward
+        ego_x, ego_y = get_pos(self.ego)
+        self.current_lane_dis, w = get_lane_dis_numba(self.waypoints, ego_x, ego_y)
+        non_nan_lane_dis = np.nan_to_num(self.current_lane_dis, posinf=self.out_lane_thres + 1, neginf=-(self.out_lane_thres + 1))
+        d_norm = abs(non_nan_lane_dis) / self.out_lane_thres
+        lane_centering_reward = 1 - d_norm
+
+        # termination reward
+        if abs(non_nan_lane_dis) > self.out_lane_thres or len(self.collision_hist) > 0:
+            return -10
+
+        # speed reward
+        v = self.ego.get_velocity()
+        lspeed = np.array([v.x, v.y])
+        lspeed_lon = np.dot(lspeed, w)
+
+        min_desired_speed = 0.8 * self.desired_speed
+        max_desired_speed = 1.2 * self.desired_speed
+        if lspeed_lon < min_desired_speed:
+            speed_reward = lspeed_lon / min_desired_speed
+        elif lspeed_lon > self.desired_speed:
+            speed_reward = 1 - (lspeed_lon - self.desired_speed) / (max_desired_speed - self.desired_speed)
+        else:
+            speed_reward = 1
+
+        # angle
+        angle_degree = get_vehicle_angle(self.ego.get_transform(), self.current_waypoint.transform)
+        # allow only 4 degree until no reward
+        angle_reward = max(1.0 - abs(angle_degree / 4), 0.0)
+
+        return speed_reward + lane_centering_reward + angle_reward
 
     def _get_terminal(self):
         """ Calculate whether to terminate the current episode. """

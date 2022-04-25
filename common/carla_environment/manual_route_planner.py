@@ -125,9 +125,6 @@ class ManualRoutePlanner:
         ''' Return list of (waypoint, RoadOption) '''
         return _route_waypoints
 
-    def get_next_route_waypoint(self):
-        return _route_waypoints[self._current_waypoint_index]
-
     def get_transformed_route_waypoints(self):
         return _transformed_waypoint_routes
 
@@ -324,6 +321,10 @@ class ManualRoutePlanner:
     @property
     def next_waypoint(self):
         return _route_waypoints[(self._current_waypoint_index + 1) % len(_route_waypoints)][0]
+
+    @property
+    def current_waypoint(self):
+        return _route_waypoints[self._current_waypoint_index % len(_route_waypoints)][0]
 
     @property
     def is_end_of_section(self):
