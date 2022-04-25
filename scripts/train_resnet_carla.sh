@@ -24,7 +24,6 @@ python main.py \
 	--encoder-arch RESNET \
 	--activation LeakyReLU \
 	--state-dim 1024 \
-	--actor-critic-type CNN \
 	--hidden-dims 512 256 \
 	--max-episode-steps 5000 \
 	--n-epochs 1000 --n-updates 256 --batch-size 32 \
