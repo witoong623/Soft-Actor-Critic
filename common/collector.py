@@ -1,4 +1,5 @@
 import itertools
+import math
 import os
 import time
 from functools import lru_cache
@@ -13,7 +14,7 @@ from setproctitle import setproctitle
 from torch.utils.tensorboard import SummaryWriter
 
 from .buffer import ReplayBuffer, EpisodeReplayBuffer
-from .utils import clone_network, sync_params, sample_carla_bias_action 
+from .utils import clone_network, sync_params, sample_carla_bias_action, CarlaBiasActionSampler
 
 
 __all__ = ['Collector', 'EpisodeCollector']
@@ -53,6 +54,8 @@ class Sampler(mp.Process):
         self.n_total_steps = n_total_steps
         self.episode_steps = episode_steps
         self.episode_rewards = episode_rewards
+        self.n_bootstrap_step = 5
+        self._cumulative_discount_vector = np.array([math.pow(0.99, n) for n in range(self.n_bootstrap_step)])
 
         if np.isinf(n_episodes):
             self.n_episodes = np.inf
@@ -113,12 +116,15 @@ class Sampler(mp.Process):
                 if hasattr(self.env, 'first_additional_state'):
                     additional_state = self.env.first_additional_state
 
+                if self.random_sample:
+                    action_sampler = CarlaBiasActionSampler()
+
                 self.render()
                 self.frames.clear()
                 self.save_frame(step=0, reward=np.nan, episode_reward=0.0)
                 for step in range(self.max_episode_steps):
                     if self.random_sample:
-                        action = sample_carla_bias_action()
+                        action = action_sampler.sample()
                     else:
                         with amp.autocast(dtype=amp_dtype):
                             # observation shape (H, W, C)
@@ -186,13 +192,68 @@ class Sampler(mp.Process):
             self.writer.close()
 
     def add_transaction(self, observation, action, reward, next_observation, done, additional_state, next_additional_state):
-        if additional_state is None:
-            self.trajectory.append((observation, action, [reward], next_observation, [done]))
+        if self.n_bootstrap_step > 1:
+            # for easy calculation in bootstrapping
+            wrapped_reward = reward
+            wrapped_done = done
         else:
-            self.trajectory.append((observation, additional_state, action, [reward], next_observation, next_additional_state, [done]))
+            wrapped_reward = [reward]
+            wrapped_done = [done]
+
+        self.trajectory.append((observation, additional_state, action, wrapped_reward, next_observation, next_additional_state, wrapped_done))
 
     def save_trajectory(self):
-        self.replay_buffer.extend(self.trajectory)
+        if self.n_bootstrap_step > 1:
+            self._save_bootstrapped_trajectory()
+        else:
+            self.replay_buffer.extend(self.trajectory)
+
+    def _save_bootstrapped_trajectory(self):
+        reward_array = np.array([t[3] for t in self.trajectory])
+        done_array = np.array([t[-1] for t in self.trajectory])
+        new_trajectory = []
+
+        for step_idx in range(len(self.trajectory)):
+            trajectory_indexes = [(step_idx + i) % len(self.trajectory) for i in range(self.n_bootstrap_step)]
+
+            trajectory_dones = done_array[trajectory_indexes]
+            is_done = trajectory_dones.any()
+
+            if is_done:
+                # because argmax return index not count, +1 make it count
+                trajectory_len = np.argmax(trajectory_dones.astype(bool), axis=0) + 1
+            else:
+                trajectory_len = self.n_bootstrap_step
+
+            next_step_idx = min(step_idx + trajectory_len, len(self.trajectory))
+
+            observation = self.trajectory[step_idx][0]
+            additional_state = self.trajectory[step_idx][1]
+            action = self.trajectory[step_idx][2]
+
+            try:
+                reward = np.dot(reward_array[step_idx:next_step_idx], self._cumulative_discount_vector)
+            except ValueError:
+                discount_vector = np.array([math.pow(0.99, n) for n in range(trajectory_len)])
+                reward = np.dot(reward_array[step_idx:next_step_idx], discount_vector)
+
+            try:
+                next_observation = self.trajectory[next_step_idx][4]
+                next_additional_state = self.trajectory[next_step_idx][5]
+            except IndexError:
+                if is_done:
+                    next_step_idx -= 1
+                    # choose last observation, this won't be used anyway if this is terminal state
+                    next_observation = self.trajectory[next_step_idx][4]
+                    next_additional_state = self.trajectory[next_step_idx][5]
+                else:
+                    raise
+
+            done = is_done
+
+            new_trajectory.append((observation, additional_state, action, [float(reward)], next_observation, next_additional_state, [done]))
+
+        self.replay_buffer.extend(new_trajectory)
 
     def close(self):
         try:

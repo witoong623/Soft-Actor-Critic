@@ -133,6 +133,8 @@ def get_config():
                         help='discount factor for rewards (default: 0.99)')
     parser.add_argument('--soft-tau', type=float, default=0.01, metavar='TAU',
                         help='soft update factor for target networks (default: 0.01)')
+    parser.add_argument('--n-bootstrap-step', type=int, default=1, metavar='BOOTSTRAP',
+                        help='n-step return bootstrap (default: 1)')
     parser.add_argument('--normalize-rewards', action='store_true',
                         help='normalize rewards for training')
     parser.add_argument('--reward-scale', type=float, default=1.0, metavar='SCALE',

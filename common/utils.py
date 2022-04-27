@@ -200,6 +200,54 @@ def sample_carla_bias_action():
     return np.array([acc, steer], dtype=np.float32)
 
 
+class CarlaBiasActionSampler:
+    def __init__(self) -> None:
+        self.previous_action = None
+
+    def sample(self):
+
+        action = self._sample_no_brake()
+        self.previous_action = action
+
+        return action
+
+    def _sample_with_brake(self):
+        if self.previous_action is not None and self.previous_action[0] > 0:
+            if np.random.randint(3) % 3:
+                return self.previous_action
+
+        longitudinal = random.random()
+        if longitudinal > 0.4:
+            # 60% chance of accelerating at least 10%
+            acc = max(20, random.random())
+        else:
+            # 40% chance of brake at least 5%
+            acc = -max(0.05, random.random())
+
+        lateral = random.random()
+        if lateral > 0.5:
+            steer = 0
+        else:
+            steer = random.gauss(0, 1)
+
+        return np.array([acc, steer], dtype=np.float32)
+
+    def _sample_no_brake(self):
+        if self.previous_action is not None:
+            if np.random.randint(3) % 3:
+                return self.previous_action
+
+        acc = max(20, random.random())
+
+        lateral = random.random()
+        if lateral > 0.5:
+            steer = 0
+        else:
+            steer = random.gauss(0, 1)
+
+        return np.array([acc, steer], dtype=np.float32)
+
+
 def normalize_image(image, mean, std):
     ''' normalize image in numpy format by divide it by 255
         and standardize it by mean and std.
