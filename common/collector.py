@@ -26,7 +26,7 @@ class Sampler(mp.Process):
                  env_func, env_kwargs, state_encoder, actor,
                  eval_only, replay_buffer,
                  n_total_steps, episode_steps, episode_rewards,
-                 n_episodes, max_episode_steps,
+                 n_bootstrap_step, n_episodes, max_episode_steps,
                  deterministic, random_sample, render, log_episode_video,
                  device, random_seed, log_dir):
         super().__init__(name=f'sampler_{rank}', daemon=True)
@@ -54,7 +54,7 @@ class Sampler(mp.Process):
         self.n_total_steps = n_total_steps
         self.episode_steps = episode_steps
         self.episode_rewards = episode_rewards
-        self.n_bootstrap_step = 5
+        self.n_bootstrap_step = n_bootstrap_step
         self._cumulative_discount_vector = np.array([math.pow(0.99, n) for n in range(self.n_bootstrap_step)])
 
         if np.isinf(n_episodes):
@@ -323,7 +323,7 @@ class Collector(object):
     REPLAY_BUFFER = ReplayBuffer
 
     def __init__(self, env_func, env_kwargs, state_encoder, actor,
-                 n_samplers, buffer_capacity,
+                 n_samplers, n_bootstrap_step, buffer_capacity,
                  devices, random_seed):
         self.manager = mp.Manager()
         self.running_event = self.manager.Event()
@@ -337,6 +337,7 @@ class Collector(object):
         self.actor = actor
         self.eval_only = False
 
+        self.n_bootstrap_step = n_bootstrap_step
         self.n_samplers = n_samplers
         self.replay_buffer = self.REPLAY_BUFFER(capacity=buffer_capacity, initializer=self.manager.list,
                                                 Value=self.manager.Value, Lock=self.manager.Lock)
@@ -371,7 +372,7 @@ class Collector(object):
                                    self.env_func, self.env_kwargs, self.state_encoder, self.actor,
                                    self.eval_only, self.replay_buffer,
                                    self.total_steps, self.episode_steps, self.episode_rewards,
-                                   n_episodes, max_episode_steps,
+                                   self.n_bootstrap_step, n_episodes, max_episode_steps,
                                    deterministic, random_sample, render, log_episode_video,
                                    self.devices[rank], self.random_seed + rank, log_dir)
             sampler.start()

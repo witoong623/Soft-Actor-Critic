@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import math
 import os
 import random
 import sys
@@ -247,6 +248,9 @@ def initialize_hyperparameters(config):
     config.critic_lr = (config.critic_lr or config.lr)
     config.actor_lr = (config.actor_lr or config.lr)
     config.alpha_lr = (config.alpha_lr or config.actor_lr)
+
+    if config.n_bootstrap_step > 1:
+        config.gamma = math.pow(config.gamma, config.n_bootstrap_step)
 
 
 def main():

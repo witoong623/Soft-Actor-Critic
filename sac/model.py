@@ -26,6 +26,7 @@ def build_model(config):
                                            'hidden_dims',
                                            'activation',
                                            'n_past_actions',
+                                           'n_bootstrap_step',
                                            'initial_alpha',
                                            'n_samplers',
                                            'buffer_capacity',
@@ -72,7 +73,7 @@ class ModelBase(object):
     COLLECTOR = Collector
 
     def __init__(self, env_func, env_kwargs, state_encoder,
-                 state_dim, action_dim, hidden_dims, activation, n_past_actions,
+                 state_dim, action_dim, hidden_dims, activation, n_past_actions, n_bootstrap_step,
                  initial_alpha, use_popart, beta, n_samplers, buffer_capacity,
                  devices, sampler_devices, separate_encoder, random_seed=0):
         self.devices = itertools.cycle(devices)
@@ -115,6 +116,7 @@ class ModelBase(object):
                                         state_encoder=self.state_encoder,
                                         actor=self.actor,
                                         n_samplers=n_samplers,
+                                        n_bootstrap_step=n_bootstrap_step,
                                         buffer_capacity=buffer_capacity,
                                         devices=self.sampler_devices,
                                         random_seed=random_seed)
@@ -163,12 +165,12 @@ class ModelBase(object):
 
 class Trainer(ModelBase):
     def __init__(self, env_func, env_kwargs, state_encoder,
-                 state_dim, action_dim, hidden_dims, activation, n_past_actions,
+                 state_dim, action_dim, hidden_dims, activation, n_past_actions, n_bootstrap_step,
                  initial_alpha, critic_lr, actor_lr, alpha_lr, weight_decay,
                  use_popart, beta, n_samplers, buffer_capacity, devices,
                  sampler_devices, separate_encoder, random_seed=0):
         super().__init__(env_func, env_kwargs, state_encoder,
-                         state_dim, action_dim, hidden_dims, activation, n_past_actions,
+                         state_dim, action_dim, hidden_dims, activation, n_past_actions, n_bootstrap_step,
                          initial_alpha, use_popart, beta, n_samplers, buffer_capacity,
                          devices, sampler_devices, separate_encoder, random_seed)
 
