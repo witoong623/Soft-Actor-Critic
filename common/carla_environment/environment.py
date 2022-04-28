@@ -134,12 +134,14 @@ class CarlaEnv(gym.Env):
 
         # ego vehicle bp
         self.ego_bp = self._create_vehicle_bluepprint('vehicle.mini.cooper_s_2021')
+        self.ego = None
 
         # Collision sensor
         self.collision_hist = []
          # collision history length
         self.collision_hist_l = 1
         self.collision_bp = self.bp_library.find('sensor.other.collision')
+        self.collision_sensor = None
 
         # camera
         self.camera_img = None
@@ -152,6 +154,7 @@ class CarlaEnv(gym.Env):
         self.camera_bp.set_attribute('image_size_x', str(self.camera_width))
         self.camera_bp.set_attribute('image_size_y', str(self.camera_height))
         self.camera_bp.set_attribute('fov', str(self.camera_fov))
+        self.camera_sensor = None
 
         # Set fixed simulation step for synchronous mode
         self.settings = self.world.get_settings()
@@ -223,11 +226,24 @@ class CarlaEnv(gym.Env):
 
         # delete sensor, vehicles and walkers
         # self._clear_all_actors(['sensor.other.collision', self.camera_sensor_type, 'vehicle.*', 'controller.ai.walker', 'walker.*'])
-        self._clear_all_actors(['sensor.other.collision', self.camera_sensor_type, 'vehicle.*'])
+        # self._clear_all_actors(['sensor.other.collision', self.camera_sensor_type, 'vehicle.*'])
 
         # Clear sensor objects
+        if self.camera_sensor is not None:
+            # not the first time
+            self.camera_sensor.stop()
+            self.collision_sensor.stop()
+
+            destroy_commands = [
+                carla.command.DestroyActor(self.ego.id),
+                carla.command.DestroyActor(self.camera_sensor.id),
+                carla.command.DestroyActor(self.collision_sensor.id)
+            ]
+            self.client.apply_batch_sync(destroy_commands, True)
+
         self.camera_sensor = None
         self.collision_sensor = None
+        self.ego = None
 
         # clear image
         self.camera_img = None
@@ -235,46 +251,8 @@ class CarlaEnv(gym.Env):
         # Disable sync mode
         self._set_synchronous_mode(False)
 
-        # Spawn surrounding vehicles
-        random.shuffle(self.vehicle_spawn_points)
-        if self.spawn_batch and self.number_of_vehicles > 0:
-            self._spawn_random_vehicles_batch(self.vehicle_spawn_points, self.number_of_vehicles, number_of_wheels=self.number_of_wheels)
-        else:
-            count = self.number_of_vehicles
-            vehicles = []
-            if count > 0:
-                for spawn_point in self.vehicle_spawn_points:
-                    success_spwan, vehicle = self._try_spawn_random_vehicle_at(spawn_point, number_of_wheels=self.number_of_wheels)
-                    if success_spwan:
-                        count -= 1
-                        vehicles.append(vehicle)
-                    if count <= 0:
-                        break
-            while count > 0:
-                success_spwan, vehicle = self._try_spawn_random_vehicle_at(random.choice(self.vehicle_spawn_points), number_of_wheels=self.number_of_wheels)
-                if success_spwan:
-                    count -= 1
-
-        # Spawn pedestrians
-        random.shuffle(self.walker_spawn_points)
-        if self.spawn_batch and self.number_of_walkers > 0:
-            self._spwan_random_walkers_batch(self.walker_spawn_points, self.number_of_walkers)
-        else:
-            count = self.number_of_walkers
-            if count > 0:
-                for spawn_point in self.walker_spawn_points:
-                    if self._try_spawn_random_walker_at(spawn_point):
-                        count -= 1
-                    if count <= 0:
-                        break
-            while count > 0:
-                if self._try_spawn_random_walker_at(random.choice(self.walker_spawn_points)):
-                    count -= 1
-
         # Get actors polygon list
         self.vehicle_polygons = []
-        vehicle_poly_dict = self._get_actor_polygons('vehicle.*')
-        self.vehicle_polygons.append(vehicle_poly_dict)
 
         # Spawn the ego vehicle
         ego_spawn_times = 0
@@ -746,6 +724,7 @@ class CarlaEnv(gym.Env):
         vehicle = None
         # Check if ego position overlaps with surrounding vehicles
         overlap = False
+        if self.vehicle_polygons:
         for idx, poly in self.vehicle_polygons[-1].items():
             poly_center = np.mean(poly, axis=0)
             ego_center = np.array([transform.location.x, transform.location.y])
@@ -788,6 +767,9 @@ class CarlaEnv(gym.Env):
         gray_obs = (cv2.cvtColor(resized_obs, cv2.COLOR_RGB2GRAY) / 255.).astype(np.float16)
 
         return gray_obs
+
+    def _transform_CNN_observation_no_resize(self, obs):
+        return (obs / 255.).astype(np.float16)
 
     def _transform_VAE_observation(self, obs):
         cropped_obs = self._crop_image(obs)
