@@ -211,6 +211,8 @@ class CarlaEnv(gym.Env):
 
         self.z_steps = {}
 
+        self._set_synchronous_mode(True)
+
     def reset(self):
         # Clear history if exist
         if self.store_history:
@@ -236,6 +238,7 @@ class CarlaEnv(gym.Env):
             # not the first time
             self.camera_sensor.stop()
             self.collision_sensor.stop()
+            self.world.tick()
 
             destroy_commands = [
                 carla.command.DestroyActor(self.ego.id),
@@ -252,7 +255,7 @@ class CarlaEnv(gym.Env):
         self.camera_img = None
 
         # Disable sync mode
-        self._set_synchronous_mode(False)
+        # self._set_synchronous_mode(False)
 
         # Get actors polygon list
         self.vehicle_polygons = []
@@ -278,6 +281,8 @@ class CarlaEnv(gym.Env):
                 self.z_steps[spawn_transform_index] = z_step
                 time.sleep(0.1)
 
+        self.world.tick()
+
         # Add collision sensor
         self.collision_sensor = self.world.spawn_actor(self.collision_bp, carla.Transform(), attach_to=self.ego)
         self.collision_sensor.listen(lambda event: get_collision_hist(event))
@@ -288,6 +293,8 @@ class CarlaEnv(gym.Env):
         if len(self.collision_hist) > self.collision_hist_l:
             self.collision_hist.pop(0)
         self.collision_hist = []
+
+        self.world.tick()
 
         # Add camera sensor
         self.camera_sensor = self.world.spawn_actor(self.camera_bp, self.camera_trans, attach_to=self.ego)
@@ -303,6 +310,8 @@ class CarlaEnv(gym.Env):
             array = np.ascontiguousarray(array[:, :, ::-1])
             self.camera_img = array
 
+        self.world.tick()
+
         # wait for camera image from sensor
         while self.camera_img is None:
             time.sleep(1)
@@ -312,8 +321,8 @@ class CarlaEnv(gym.Env):
         self.reset_step += 1
 
         # Enable sync mode
-        self.settings.synchronous_mode = True
-        self.world.apply_settings(self.settings)
+        # self.settings.synchronous_mode = True
+        # self.world.apply_settings(self.settings)
 
         # get route plan
             self.routeplanner.set_vehicle(self.ego)
@@ -772,7 +781,8 @@ class CarlaEnv(gym.Env):
         return gray_obs
 
     def _transform_CNN_observation_no_resize(self, obs):
-        return (obs / 255.).astype(np.float16)
+        scaled_obs = (obs / 255.).astype(np.float16)
+        return scaled_obs.transpose((2, 0, 1))
 
     def _transform_VAE_observation(self, obs):
         cropped_obs = self._crop_image(obs)
