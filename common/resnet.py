@@ -133,7 +133,7 @@ class ResNet(nn.Module):
 
 
 class BackboneResNet(NetworkBase):
-    def __init__(self, input_channels, block, block_num, activation=nn.ReLU()):
+    def __init__(self, input_channels, block, block_num, projection_channel=32, activation=nn.ReLU()):
         super().__init__()
 
         self.layers = []
@@ -150,7 +150,7 @@ class BackboneResNet(NetworkBase):
         self.layers.append(self._make_conv_layers(block, output_channel=512, time=block_num[3], activation=activation))
 
         # projection
-        self.layers.append(self._make_conv_layers(block, output_channel=32, time=1, activation=activation))
+        self.layers.append(self._make_conv_layers(block, output_channel=projection_channel, time=1, activation=activation))
         
         self.features = nn.Sequential(*self.layers)
 
@@ -201,13 +201,14 @@ def backbone_resnet34():
 
 
 class Resnet18Backbone(BackboneResNet):
-    def __init__(self, input_channels, activation=nn.ReLU()):
-        super().__init__(input_channels, BasicBlock, block_num=[2, 2, 2, 2], activation=activation)
+    def __init__(self, input_channels, projection_channel=32, activation=nn.ReLU()):
+        super().__init__(input_channels, BasicBlock, block_num=[2, 2, 2, 2],
+                         projection_channel=projection_channel, activation=activation)
 
 
 if __name__ == '__main__':
-    model = backbone_resnet18(3)
-    dummy = torch.randn((1, 3, 256, 512))
+    model = Resnet18Backbone(6, projection_channel=16)
+    dummy = torch.randn((1, 6, 80, 160))
 
     output = model(dummy)
     print(output.size())
