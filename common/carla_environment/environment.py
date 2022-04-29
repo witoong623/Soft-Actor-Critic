@@ -192,7 +192,10 @@ class CarlaEnv(gym.Env):
         if self.encoder_mode == EncoderMode.CNN:
             self._transform_observation = self._transform_CNN_observation
             if self.n_images > 1:
+                # RGB image, stack in channel dimension
                 self._combine_observations = lambda obs_array: np.concatenate(obs_array, axis=0, dtype=np.float16)
+                # grayscale image, stack in new axis in place of channel
+                # self._combine_observations = lambda obs_array: np.array(obs_array, dtype=np.float16)
             else:
                 self._combine_observations = lambda obs_array: obs_array
         else:
@@ -725,15 +728,15 @@ class CarlaEnv(gym.Env):
         # Check if ego position overlaps with surrounding vehicles
         overlap = False
         if self.vehicle_polygons:
-        for idx, poly in self.vehicle_polygons[-1].items():
-            poly_center = np.mean(poly, axis=0)
-            ego_center = np.array([transform.location.x, transform.location.y])
-            dis = np.linalg.norm(poly_center - ego_center)
-            if dis > 8:
-                continue
-            else:
-                overlap = True
-                break
+            for idx, poly in self.vehicle_polygons[-1].items():
+                poly_center = np.mean(poly, axis=0)
+                ego_center = np.array([transform.location.x, transform.location.y])
+                dis = np.linalg.norm(poly_center - ego_center)
+                if dis > 8:
+                    continue
+                else:
+                    overlap = True
+                    break
 
         if not overlap:
             vehicle = self.world.try_spawn_actor(self.ego_bp, transform)
