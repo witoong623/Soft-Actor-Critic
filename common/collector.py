@@ -9,7 +9,7 @@ import torch
 import torch.multiprocessing as mp
 import torch.cuda.amp as amp
 import tqdm
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 from setproctitle import setproctitle
 from torch.utils.tensorboard import SummaryWriter
 
@@ -81,6 +81,7 @@ class Sampler(mp.Process):
         self.episode = 0
         self.trajectory = []
         self.frames = []
+        self.image_font = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoMono-Regular.ttf", 10)
         self.render()
 
     def run(self):
@@ -288,7 +289,7 @@ class Sampler(mp.Process):
                         f'episode reward = {episode_reward:+.3f}')
                 img = Image.fromarray(img, mode='RGB')
                 draw = ImageDraw.Draw(img)
-                draw.multiline_text(xy=(10, 10), text=text, fill=(255, 0, 0))
+                draw.multiline_text(xy=(10, 10), text=text, font=self.image_font, fill=(255, 0, 0))
                 img = np.asanyarray(img, dtype=np.uint8)
                 self.frames.append(img)
 
