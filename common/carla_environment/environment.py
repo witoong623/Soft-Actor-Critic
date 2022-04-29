@@ -238,14 +238,13 @@ class CarlaEnv(gym.Env):
             # not the first time
             self.camera_sensor.stop()
             self.collision_sensor.stop()
-            self.world.tick()
 
             destroy_commands = [
                 carla.command.DestroyActor(self.ego.id),
                 carla.command.DestroyActor(self.camera_sensor.id),
                 carla.command.DestroyActor(self.collision_sensor.id)
             ]
-            self.client.apply_batch_sync(destroy_commands, True)
+            self.client.apply_batch_sync(destroy_commands, False)
 
         self.camera_sensor = None
         self.collision_sensor = None
@@ -281,8 +280,6 @@ class CarlaEnv(gym.Env):
                 self.z_steps[spawn_transform_index] = z_step
                 time.sleep(0.1)
 
-        self.world.tick()
-
         # Add collision sensor
         self.collision_sensor = self.world.spawn_actor(self.collision_bp, carla.Transform(), attach_to=self.ego)
         self.collision_sensor.listen(lambda event: get_collision_hist(event))
@@ -293,8 +290,6 @@ class CarlaEnv(gym.Env):
         if len(self.collision_hist) > self.collision_hist_l:
             self.collision_hist.pop(0)
         self.collision_hist = []
-
-        self.world.tick()
 
         # Add camera sensor
         self.camera_sensor = self.world.spawn_actor(self.camera_bp, self.camera_trans, attach_to=self.ego)
@@ -781,7 +776,7 @@ class CarlaEnv(gym.Env):
         return gray_obs
 
     def _transform_CNN_observation_no_resize(self, obs):
-        scaled_obs = (obs / 255.).astype(np.float16)
+        scaled_obs = obs / 255.
         return scaled_obs.transpose((2, 0, 1))
 
     def _transform_VAE_observation(self, obs):
