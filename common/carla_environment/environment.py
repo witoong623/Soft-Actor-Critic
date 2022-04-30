@@ -767,6 +767,10 @@ class CarlaEnv(gym.Env):
         scaled_obs = obs / 255.
         return scaled_obs.transpose((2, 0, 1))
 
+    def _transform_CNN_grayscale_observation_no_resize(self, obs):
+        scaled_obs = cv2.cvtColor(obs, cv2.COLOR_RGB2GRAY) / 255.
+        return scaled_obs
+
     def _transform_VAE_observation(self, obs):
         cropped_obs = self._crop_image(obs)
         resized_obs = cv2.resize(cropped_obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
