@@ -16,6 +16,7 @@ from copy import deepcopy
 from enum import Enum, auto
 from gym import spaces
 from PIL import Image
+from queue import Queue
 from tqdm import trange
 
 from .misc import get_pos, get_lane_dis_numba, get_vehicle_angle
@@ -98,6 +99,12 @@ class CarlaEnv(gym.Env):
             _load_world = True
         print('Carla server connected!')
 
+        # Set fixed simulation step for synchronous mode
+        self.settings = self.world.get_settings()
+        self.settings.fixed_delta_seconds = self.dt
+        self.settings.synchronous_mode = True
+        self.world.apply_settings(self.settings)
+
         self.bp_library = self.world.get_blueprint_library()
 
         # spawn points
@@ -166,6 +173,7 @@ class CarlaEnv(gym.Env):
 
         # frame buffer
         self.img_buff = deque(maxlen=self.n_images)
+        self.frame_data_queue = Queue()
 
         # action buffer
         self.num_past_actions = 10
@@ -210,8 +218,6 @@ class CarlaEnv(gym.Env):
         self.std = np.array([0.0946, 0.1767, 0.1865])
 
         self.z_steps = {}
-
-        self._set_synchronous_mode(True)
 
     def reset(self):
         # Clear history if exist
@@ -287,41 +293,21 @@ class CarlaEnv(gym.Env):
             impulse = event.normal_impulse
             intensity = np.sqrt(impulse.x**2 + impulse.y**2 + impulse.z**2)
             self.collision_hist.append(intensity)
-        if len(self.collision_hist) > self.collision_hist_l:
-            self.collision_hist.pop(0)
         self.collision_hist = []
 
         # Add camera sensor
         self.camera_sensor = self.world.spawn_actor(self.camera_bp, self.camera_trans, attach_to=self.ego)
-        self.camera_sensor.listen(lambda data: get_camera_img(data))
-        def get_camera_img(data):
-            if self.use_semantic_camera:
-                data.convert(cc.CityScapesPalette)
-            array = np.frombuffer(data.raw_data, dtype=np.uint8)
-            array = np.reshape(array, (data.height, data.width, 4))
-            array = array[:, :, :3]
-
-            # BGR(OpenCV) > RGB
-            array = np.ascontiguousarray(array[:, :, ::-1])
-            self.camera_img = array
-
-        self.world.tick()
-
-        # wait for camera image from sensor
-        while self.camera_img is None:
-            time.sleep(1)
+        self.camera_sensor.listen(self.frame_data_queue.put)
 
         # Update timesteps
         self.time_step = 1
         self.reset_step += 1
 
-        # Enable sync mode
-        # self.settings.synchronous_mode = True
-        # self.world.apply_settings(self.settings)
+        self.frame = self.world.tick()
 
         # get route plan
-            self.routeplanner.set_vehicle(self.ego)
-            self.waypoints = self.routeplanner.run_step()
+        self.routeplanner.set_vehicle(self.ego)
+        self.waypoints = self.routeplanner.run_step()
 
         for _ in range(self.num_past_actions):
             self.actions_queue.append(np.array([0, 0]))
@@ -351,7 +337,7 @@ class CarlaEnv(gym.Env):
         self.current_action = (throttle, steer, brake)
         self.actions_queue.append(action)
 
-        self.world.tick()
+        self.frame = self.world.tick()
 
         self.waypoints = self.routeplanner.run_step()
         self.current_waypoint = self.routeplanner.current_waypoint
@@ -491,6 +477,8 @@ class CarlaEnv(gym.Env):
         return False
 
     def _get_obs(self):
+        self._retrieve_image_data()
+
         if self.n_images == 1:
             transformed_observation = self._transform_observation(self.camera_img)
             return self._combine_observations(transformed_observation)
@@ -811,6 +799,22 @@ class CarlaEnv(gym.Env):
     def _crop_image(self, img):
         cropped_size = (384, 768)
         return center_crop(img, cropped_size, shift_H=1.2)
+
+    def _retrieve_image_data(self):
+        while True:
+            data = self.frame_data_queue.get()
+            if data.frame == self.frame:
+                break
+
+        if self.use_semantic_camera:
+            data.convert(cc.CityScapesPalette)
+        array = np.frombuffer(data.raw_data, dtype=np.uint8)
+        array = np.reshape(array, (data.height, data.width, 4))
+        array = array[:, :, :3]
+
+        # BGR(OpenCV) > RGB
+        array = np.ascontiguousarray(array[:, :, ::-1])
+        self.camera_img = array
 
     def _draw_debug_waypoints(self, waypoints, size=1, color=(255,0,0)):
         ''' Draw debug point on waypoints '''
