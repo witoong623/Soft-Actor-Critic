@@ -70,7 +70,7 @@ def get_config():
     parser.add_argument('--dry-run-init-env', action='store_true', default=False,
                         help='dry run when initialize environment for the first time only')
     encoder_group = parser.add_argument_group('state encoder')
-    encoder_group.add_argument('--encoder-arch', type=str, choices=['FC', 'RNN', 'CNN', 'VAE', 'BETAVAE', 'EFFICIENTNET', 'RESNET'], default='FC',
+    encoder_group.add_argument('--encoder-arch', type=str, choices=['FC', 'RNN', 'CNN', 'VAE', 'BETAVAE', 'EFFICIENTNET', 'RESNET', 'TINY_CNN'], default='FC',
                                help='architecture of state encoder network (default: FC)')
     encoder_group.add_argument('--separate-encoder', action='store_true', default=False,
                                help='use separate encoder for Actor and Critic (default: False)')
@@ -215,6 +215,7 @@ def initialize_hyperparameters(config):
     config.RESNET_encoder = (config.encoder_arch == 'RESNET')
     config.BETAVAE_encoder = (config.encoder_arch == 'BETAVAE')
     config.EFFICIENTNET_encoder = (config.encoder_arch == 'EFFICIENTNET')
+    config.TINY_CNN_encoder = (config.encoder_arch == 'TINY_CNN')
 
     # need to be set explicitly
     if config.RESNET_encoder:

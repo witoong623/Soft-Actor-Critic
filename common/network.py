@@ -66,7 +66,7 @@ def build_encoder(config):
                                                                'batch_normalization']))
     elif config.CNN_encoder and config.env == 'Carla-v0':
         state_encoder = CarlaCNN(image_size=config.image_size,
-                                 input_channels=config.n_frames * 1,
+                                 input_channels=input_channels,
                                  n_hidden_channels=config.encoder_hidden_channels,
                                  output_dim=state_dim)
     elif config.CNN_encoder:
@@ -82,6 +82,8 @@ def build_encoder(config):
                                                                              'poolings',
                                                                              'batch_normalization']))
 
+    elif config.TINY_CNN_encoder:
+        state_encoder = TinyConvNet(input_channels=input_channels)
     elif config.BETAVAE_encoder:
         state_encoder = ConvBetaVAE((256, 512), latent_size=512, beta=3)
         if not config.weight_path:
@@ -100,7 +102,7 @@ def build_encoder(config):
         if config.encoder_activation is not None:
             state_encoder = Resnet18Backbone(input_channels=input_channels, activation=config.encoder_activation)
         else:
-            state_encoder = Resnet18Backbone(input_channels=input_channels)
+            state_encoder = Resnet18Backbone(input_channels=input_channels, projection_channel=16)
 
     config.state_encoder = state_encoder
     config.state_dim = state_dim
@@ -687,6 +689,41 @@ class ConvVAE(NetworkBase, VAEBase):
         return (H, W), size_hist
 
 
+class TinyConvNet(NetworkBase):
+    def __init__(self, input_channels, device=None):
+        super().__init__()
+
+        self.settings = [
+            # out channel, k, s, p
+            (16, 3, 2, 0),
+            (32, 3, 2, 0),
+            (32, 3, 2, 0),
+            (64, 3, 2, 0),
+            (64, 3, 2, 0),
+        ]
+
+        self.last_encoder_output_channels = self.settings[-1][0]
+
+        next_block_input_channels = input_channels
+        features = []
+        for (out_channel, kernel, stride, padding) in self.settings:
+            features.extend([
+                nn.Conv2d(next_block_input_channels, out_channels=out_channel, kernel_size=kernel, stride=stride, padding=padding, bias=False),
+                nn.BatchNorm2d(out_channel),
+                nn.ReLU()
+            ])
+
+            next_block_input_channels = out_channel
+
+        self.features = nn.Sequential(*features)
+
+        self.to(device)
+
+    def forward(self, x):
+        x = self.features(x)
+        return torch.flatten(x, start_dim=1)
+
+
 MLP = MultilayerPerceptron = VanillaNN = VanillaNeuralNetwork
 RNN = RecurrentNeuralNetwork
 CNN = ConvolutionalNeuralNetwork
@@ -694,11 +731,11 @@ BETAVAE = ConvBetaVAE
 
 
 if __name__ == '__main__':
-    image_size = (256, 512)
-    model = CarlaCNN((256, 512), 2, [32, 64, 128], output_dim=1536)
-    dummy = torch.zeros((1, 2, *image_size))
+    image_size = (80, 160)
+    model = TinyConvNet(3)
+    dummy = torch.zeros((1, 3, *image_size))
     output = model(dummy)
 
     print(f'output size {output.size()}')
 
-    summary(model, input_size=(1, 2, *image_size))
+    summary(model, input_size=(1, 3, *image_size))
