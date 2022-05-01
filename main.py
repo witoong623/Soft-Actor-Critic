@@ -61,6 +61,10 @@ def get_config():
                         help='use rendered images as observation')
     parser.add_argument('--image-size', type=int, default=[96], metavar='SIZE', nargs='*',
                         help='image size of vision observation (default: 96)')
+    parser.add_argument('--camera-size', type=int, default=None, metavar='CAMERA_SIZE', nargs='*',
+                        help='size of camera in environment (default: same as image size)')
+    parser.add_argument('--camera-fov', type=int, default=None, metavar='CAMERA_FOV',
+                        help='camera FOV (default: None)')
     parser.add_argument('--grayscale', action='store_true',
                         help='use grayscale image as an observation')
     parser.add_argument('--hidden-dims', type=int, default=[], nargs='+', metavar='DIM',
@@ -227,6 +231,12 @@ def initialize_hyperparameters(config):
 
     if len(config.image_size) == 1:
         config.image_size = (config.image_size, config.image_size)
+
+    if config.camera_size is None:
+        config.camera_size = config.image_size
+    else:
+        if len(config.camera_size) == 1:
+            config.camera_size = (config.camera_size, config.camera_size)
 
     if config.CNN_encoder:
         kernel_sizes = config.kernel_sizes

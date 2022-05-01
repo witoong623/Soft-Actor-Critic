@@ -50,9 +50,11 @@ class CarlaEnv(gym.Env):
         self.host = 'localhost'
         self.port = 2000
 
-        self.n_images = 2
-        self.obs_width = 512
-        self.obs_height = 256
+        self.n_images = kwargs.get('n_frames', 1)
+        observation_size = kwargs.get('image_size', [256, 512])
+        self.obs_width = observation_size[1]
+        self.obs_height = observation_size[0]
+        self.obs_dtype = np.float32
 
         self.map = 'Town07'
         self.dt = 0.1
@@ -60,15 +62,17 @@ class CarlaEnv(gym.Env):
         self.reload_world = True
         self.use_semantic_camera = True
 
-        self.camera_width = 800
-        self.camera_height = 600
-        self.camera_fov = 110
+        camera_size = kwargs.get('camera_size')
+        self.camera_width = camera_size[1]
+        self.camera_height = camera_size[0]
+        if kwargs.get('camera_fov'):
+            self.camera_fov = kwargs.get('camera_fov')
 
         self.number_of_walkers = 0
         self.number_of_vehicles = 0
         self.number_of_wheels = [4]
         self.max_ego_spawn_times = 100
-        self.max_time_episode = 5000
+        self.max_time_episode = kwargs.get('max_episode_steps', 5000)
         self.max_waypt = 12
         # in m/s. 5.5 is 20KMH
         self.desired_speed = 5.5
@@ -84,7 +88,7 @@ class CarlaEnv(gym.Env):
         # steering, accel/brake
         self.action_space = spaces.Box(low=np.array([-1., -1.]), high=np.array([1., 1.]), dtype=np.float32)
 
-        self.dry_run = kwargs.get('dry_run', False)
+        self.dry_run = kwargs.get('dry_run_init_env', False)
         if self.dry_run:
             print('dry run, exit init')
             return
@@ -160,12 +164,9 @@ class CarlaEnv(gym.Env):
         # Modify the attributes of the blueprint to set image resolution and field of view.
         self.camera_bp.set_attribute('image_size_x', str(self.camera_width))
         self.camera_bp.set_attribute('image_size_y', str(self.camera_height))
-        self.camera_bp.set_attribute('fov', str(self.camera_fov))
+        if hasattr(self, 'camera_fov'):
+            self.camera_bp.set_attribute('fov', str(self.camera_fov))
         self.camera_sensor = None
-
-        # Set fixed simulation step for synchronous mode
-        self.settings = self.world.get_settings()
-        self.settings.fixed_delta_seconds = self.dt
 
         # Record the time of total steps and resetting steps
         self.reset_step = 0
@@ -176,7 +177,7 @@ class CarlaEnv(gym.Env):
         self.frame_data_queue = Queue()
 
         # action buffer
-        self.num_past_actions = 10
+        self.num_past_actions = kwargs.get('n_past_actions', 10)
         self.actions_queue = deque(maxlen=self.num_past_actions)
 
         # control history
