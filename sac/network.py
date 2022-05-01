@@ -48,8 +48,8 @@ class StateEncoderWrapper(Container):
             encoded = encoded.squeeze(dim=0)
         else:
             encoded = encoded.cpu()
-            if encoded.dtype is not torch.float16:
-                encoded = encoded.half()
+            # if encoded.dtype is not torch.float16:
+            #     encoded = encoded.half()
             encoded = encoded.numpy()[0]
 
         return encoded
@@ -95,8 +95,8 @@ class SeparatedStateEncoderWrapper(Container):
             encoded = encoded.squeeze(dim=0)
         else:
             encoded = encoded.cpu()
-            if encoded.dtype is not torch.float16:
-                encoded = encoded.half()
+            # if encoded.dtype is not torch.float16:
+            #     encoded = encoded.half()
             encoded = encoded.numpy()[0]
 
         return encoded
@@ -298,8 +298,8 @@ class PolicyNetwork(MultilayerPerceptron):
             action = torch.tanh(mean + std * z)
 
         action = action.cpu()
-        if action.dtype is not torch.float16:
-            action = action.half()
+        # if action.dtype is not torch.float16:
+        #     action = action.half()
         action = action.numpy()[0]
         return action
 

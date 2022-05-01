@@ -181,7 +181,7 @@ class Trainer(ModelBase):
 
         self.global_step = 0
         self.use_popart = use_popart
-        self.amp_dtype = torch.float16
+        self.amp_dtype = torch.float32
 
         if isinstance(self.state_encoder.encoder, VAEBase):
             self.optimizer = optim.Adam(itertools.chain(self.critic.parameters(),
@@ -196,7 +196,7 @@ class Trainer(ModelBase):
         self.actor_loss_weight = actor_lr / critic_lr
         self.alpha_optimizer = optim.Adam([self.log_alpha], lr=alpha_lr)
 
-        self.loss_scaler = amp.GradScaler()
+        self.loss_scaler = amp.GradScaler(enabled=False)
 
         self.train(mode=True)
 
@@ -211,7 +211,7 @@ class Trainer(ModelBase):
                 reward = reward_scale * (reward - reward.mean()) / (reward.std() + epsilon)
 
         # Update temperature parameter
-        with amp.autocast(dtype=self.amp_dtype):
+        with amp.autocast(dtype=self.amp_dtype, enabled=False):
             new_action, log_prob, _ = self.actor.evaluate(actor_state)
             if adaptive_entropy:
                 # equation 18
@@ -225,7 +225,7 @@ class Trainer(ModelBase):
         with torch.no_grad():
             alpha = self.log_alpha.exp()
 
-        with amp.autocast(dtype=self.amp_dtype):
+        with amp.autocast(dtype=self.amp_dtype, enabled=False):
             # Train Q function
             with torch.no_grad():
                 new_next_action, next_log_prob, _ = self.actor.evaluate(actor_next_state)
@@ -297,27 +297,27 @@ class Trainer(ModelBase):
         if self.n_past_actions > 1:
             observation, additional_state, action, reward, next_observation, next_additional_state, done = self.replay_buffer.sample(batch_size)
 
-            observation = torch.tensor(observation, dtype=torch.float16, device=self.model_device)
-            additional_state = torch.tensor(additional_state, dtype=torch.float16, device=self.model_device)
-            next_observation = torch.tensor(next_observation, dtype=torch.float16, device=self.model_device)
-            next_additional_state = torch.tensor(next_additional_state, dtype=torch.float16, device=self.model_device)
+            observation = torch.tensor(observation, dtype=torch.float32, device=self.model_device)
+            additional_state = torch.tensor(additional_state, dtype=torch.float32, device=self.model_device)
+            next_observation = torch.tensor(next_observation, dtype=torch.float32, device=self.model_device)
+            next_additional_state = torch.tensor(next_additional_state, dtype=torch.float32, device=self.model_device)
 
-            action = torch.tensor(action, dtype=torch.float16, device=self.model_device)
+            action = torch.tensor(action, dtype=torch.float32, device=self.model_device)
 
             reward = torch.tensor(reward, dtype=torch.float32, device=self.model_device)
-            done = torch.tensor(done, dtype=torch.float16, device=self.model_device)
+            done = torch.tensor(done, dtype=torch.float32, device=self.model_device)
         else:
             observation, action, reward, next_observation, done = self.replay_buffer.sample(batch_size)
 
-            observation = torch.tensor(observation, dtype=torch.float16, device=self.model_device)
-            next_observation = torch.tensor(next_observation, dtype=torch.float16, device=self.model_device)
+            observation = torch.tensor(observation, dtype=torch.float32, device=self.model_device)
+            next_observation = torch.tensor(next_observation, dtype=torch.float32, device=self.model_device)
 
-            action = torch.tensor(action, dtype=torch.float16, device=self.model_device)
+            action = torch.tensor(action, dtype=torch.float32, device=self.model_device)
 
             reward = torch.tensor(reward, dtype=torch.float32, device=self.model_device)
-            done = torch.tensor(done, dtype=torch.float16, device=self.model_device)
+            done = torch.tensor(done, dtype=torch.float32, device=self.model_device)
 
-        with amp.autocast(dtype=self.amp_dtype):
+        with amp.autocast(dtype=self.amp_dtype, enabled=False):
             if isinstance(self.state_encoder.encoder, VAEBase):
                 with torch.no_grad():
                     self.state_encoder.eval()

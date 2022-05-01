@@ -89,7 +89,7 @@ class Sampler(mp.Process):
 
         self.env = self.env_func(**self.env_kwargs)
         self.env.seed(self.random_seed)
-        amp_dtype = torch.float16
+        amp_dtype = torch.float32
 
         if not self.random_sample:
             self.state_encoder = clone_network(src_net=self.shared_state_encoder, device=self.device)
@@ -127,7 +127,7 @@ class Sampler(mp.Process):
                     if self.random_sample:
                         action = action_sampler.sample()
                     else:
-                        with amp.autocast(dtype=amp_dtype):
+                        with amp.autocast(dtype=amp_dtype, enabled=False):
                             # observation shape (H, W, C)
                             state = self.state_encoder.encode(observation, return_tensor=True)
 
@@ -136,7 +136,7 @@ class Sampler(mp.Process):
                             additional_state_tensor = torch.tensor(additional_state, dtype=amp_dtype, device=self.device)
                             state = torch.cat((state, additional_state_tensor))
 
-                        with amp.autocast(dtype=amp_dtype):
+                        with amp.autocast(dtype=amp_dtype, enabled=False):
                             action = self.actor.get_action(state, deterministic=self.deterministic)
 
                     next_observation, reward, done, info = self.env.step(action)
