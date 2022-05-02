@@ -4,6 +4,7 @@ import argparse
 import math
 import os
 import random
+import shutil
 import sys
 
 import matplotlib as mpl
@@ -203,6 +204,7 @@ def initialize(config):
     build_encoder(config)
     check_devices(config)
     check_logging(config)
+    copy_environment_file(config)
 
 
 def initialize_hyperparameters(config):
@@ -264,6 +266,11 @@ def initialize_hyperparameters(config):
 
     if config.n_bootstrap_step > 1:
         config.gamma = math.pow(config.gamma, config.n_bootstrap_step)
+
+
+def copy_environment_file(config):
+    shutil.copy('common/carla_environment/environment.py', config.log_dir)
+    shutil.copy('common/carla_environment/manual_route_planner.py', config.log_dir)
 
 
 def main():
