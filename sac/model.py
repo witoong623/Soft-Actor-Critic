@@ -39,6 +39,7 @@ def build_model(config):
                                                     'actor_lr',
                                                     'alpha_lr',
                                                     'weight_decay',
+                                                    'actor_update_frequency',
                                                     'use_popart',
                                                     'beta']))
 
@@ -166,7 +167,7 @@ class ModelBase(object):
 class Trainer(ModelBase):
     def __init__(self, env_func, env_kwargs, state_encoder,
                  state_dim, action_dim, hidden_dims, activation, n_past_actions, n_bootstrap_step,
-                 initial_alpha, critic_lr, actor_lr, alpha_lr, weight_decay,
+                 initial_alpha, critic_lr, actor_lr, alpha_lr, weight_decay, actor_update_frequency,
                  use_popart, beta, n_samplers, buffer_capacity, devices,
                  sampler_devices, separate_encoder, random_seed=0):
         super().__init__(env_func, env_kwargs, state_encoder,
@@ -180,6 +181,7 @@ class Trainer(ModelBase):
         self.critic_criterion = nn.MSELoss()
 
         self.global_step = 0
+        self.actor_update_frequency = actor_update_frequency
         self.use_popart = use_popart
         self.amp_dtype = torch.float32
 
@@ -252,13 +254,16 @@ class Trainer(ModelBase):
             critic_loss_2 = self.critic_criterion(predicted_q_value_2, target_q_value2)
             critic_loss = (critic_loss_1 + critic_loss_2) / 2.0
 
-            # Train policy function
-            predicted_new_q_value = torch.min(*self.critic(critic_state, new_action))
-            predicted_new_q_value_critic_grad_only = torch.min(*self.critic(critic_state, new_action.detach()))
-            actor_loss = (alpha * log_prob - predicted_new_q_value).mean()
-            actor_loss_unbiased = actor_loss + predicted_new_q_value_critic_grad_only.mean()
+            if self._should_update_actor():
+                # Train policy function
+                predicted_new_q_value = torch.min(*self.critic(critic_state, new_action))
+                predicted_new_q_value_critic_grad_only = torch.min(*self.critic(critic_state, new_action.detach()))
+                actor_loss = (alpha * log_prob - predicted_new_q_value).mean()
+                actor_loss_unbiased = actor_loss + predicted_new_q_value_critic_grad_only.mean()
 
-            loss = critic_loss + self.actor_loss_weight * actor_loss_unbiased
+                loss = critic_loss + self.actor_loss_weight * actor_loss_unbiased
+            else:
+                loss = critic_loss
 
         self.optimizer.zero_grad()
         self.loss_scaler.scale(loss).backward()
@@ -268,16 +273,19 @@ class Trainer(ModelBase):
 
         self.loss_scaler.update()
 
-        # Soft update the target value net
-        sync_params(src_net=self.critic, dst_net=self.target_critic, soft_tau=soft_tau)
+        if self._should_update_actor():
+            # Soft update the target value net
+            sync_params(src_net=self.critic, dst_net=self.target_critic, soft_tau=soft_tau)
 
         self.global_step += 1
 
         info = {
             'critic_loss': critic_loss.item(),
-            'actor_loss': actor_loss.item(),
             'temperature_parameter': alpha.item()
         }
+        if self._should_update_actor():
+            info['actor_loss'] = actor_loss.item()
+
         return info
 
     def update(self, batch_size, normalize_rewards=True, reward_scale=1.0,
@@ -359,6 +367,9 @@ class Trainer(ModelBase):
         # size: (batch_size, item_size)
         return actor_state, critic_state, action, reward, actor_next_state, critic_next_state, done
 
+    def _should_update_actor(self):
+        return self.global_step % self.actor_update_frequency == 0
+    
     def save_model(self, path):
         self.modules.save_model(path, optimizer=self.optimizer, scaler=self.loss_scaler)
 
