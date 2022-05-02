@@ -277,14 +277,14 @@ class Trainer(ModelBase):
             # Soft update the target value net
             sync_params(src_net=self.critic, dst_net=self.target_critic, soft_tau=soft_tau)
 
-        self.global_step += 1
-
         info = {
             'critic_loss': critic_loss.item(),
             'temperature_parameter': alpha.item()
         }
         if self._should_update_actor():
             info['actor_loss'] = actor_loss.item()
+
+        self.global_step += 1
 
         return info
 

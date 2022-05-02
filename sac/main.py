@@ -47,7 +47,8 @@ def train_loop(model, config, update_kwargs):
                     mean_episode_reward = np.mean(model.collector.episode_rewards[recent_slice])
                     mean_episode_steps = np.mean(model.collector.episode_steps[recent_slice])
                     epoch_critic_loss += (info['critic_loss'] - epoch_critic_loss) / (i + 1)
-                    epoch_actor_loss += (info['actor_loss'] - epoch_actor_loss) / (i + 1)
+                    if 'actor_loss' in info:
+                        epoch_actor_loss += (info['actor_loss'] - epoch_actor_loss) / ((i + 1) / config.actor_update_frequency)
                     epoch_alpha += (info['temperature_parameter'] - epoch_alpha) / (i + 1)
                     for item in info:
                         writer.add_scalar(tag=f'train/{item}', scalar_value=info[item],
