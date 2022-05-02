@@ -63,22 +63,40 @@ def build_env(**kwargs):
     return env
 
 
-def initialize_environment(config):
-    config.env_func = build_env
-    config.env_kwargs = config.build_from_keys(['vision_observation',
-                                                'image_size',
-                                                'n_frames',
-                                                'max_episode_steps',
-                                                'random_seed',
-                                                'n_repeat_actions',
-                                                'n_past_actions',
-                                                'encoder_arch',
-                                                'record_video'])
-    config.env_kwargs.update(name=config.env)
+def build_carla_env(**kwargs):
+    env = gym.make('Carla-v0', **kwargs)
+    env.seed(kwargs['random_seed'])
 
-    # pass dry_run only if it is true
-    if config.dry_run_init_env:
-        config.env_kwargs.update(dry_run=config.dry_run_init_env)
+    env = NormalizedAction(FlattenedAction(env))
+
+    return env
+
+
+def initialize_environment(config):
+    if config.env == 'Carla-v0':
+        config.env_func = build_carla_env
+        config.env_kwargs = config.build_from_keys(['image_size',
+                                                    'camera_size',
+                                                    'camera_fov',
+                                                    'n_frames',
+                                                    'max_episode_steps',
+                                                    'random_seed',
+                                                    'n_repeat_actions',
+                                                    'n_past_actions',
+                                                    'record_video',
+                                                    'dry_run_init_env'])
+    else:
+        config.env_func = build_env
+        config.env_kwargs = config.build_from_keys(['vision_observation',
+                                                    'image_size',
+                                                    'n_frames',
+                                                    'max_episode_steps',
+                                                    'random_seed',
+                                                    'n_repeat_actions',
+                                                    'n_past_actions',
+                                                    'encoder_arch',
+                                                    'record_video'])
+        config.env_kwargs.update(name=config.env)
 
     with config.env_func(**config.env_kwargs) as env:
         print(f'env = {env}')
@@ -98,7 +116,7 @@ def initialize_environment(config):
             assert config.step_size <= config.max_episode_steps
 
     # use this option only if in this function
-    config.env_kwargs.pop('dry_run', None)
+    config.env_kwargs.pop('dry_run_init_env', None)
 
 
 class FlattenedAction(gym.ActionWrapper):
