@@ -311,7 +311,19 @@ class ManualRoutePlanner:
             return self._checkpoint_waypoint_index, self.spawn_transform
 
         self._in_random_spawn_point = True
-        random_idx = self._checkpoint_waypoint_index + (random.randint(5, 20) // 2 * 2)
+        if random.random() >= 0.3 or self._checkpoint_waypoint_index in self.sections_start:
+            # random start in the same section
+            random_idx = self._checkpoint_waypoint_index + (random.randint(5, 20) // 2 * 2)
+        else:
+            # random start at any point before current checkpoint
+            lower_bound = 0
+            for start, end in zip(self.sections_start, self.sections_ends):
+                if start <= self._checkpoint_waypoint_index < end:
+                    lower_bound = start
+                    break
+
+            random_idx = random.randint(lower_bound, self._checkpoint_waypoint_index)
+
         self._start_waypoint_index = random_idx
         self._current_waypoint_index = random_idx
         self.spawn_transform = _route_waypoints[random_idx][0].transform
