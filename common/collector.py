@@ -1,6 +1,7 @@
 import itertools
 import math
 import os
+import random
 import time
 from functools import lru_cache
 
@@ -14,7 +15,8 @@ from setproctitle import setproctitle
 from torch.utils.tensorboard import SummaryWriter
 
 from .buffer import ReplayBuffer, EpisodeReplayBuffer
-from .utils import clone_network, sync_params, sample_carla_bias_action, CarlaBiasActionSampler
+from .utils import clone_network, sync_params, CarlaBiasActionSampler
+from .carla_environment.environment import CarlaPerfectActionSampler
 
 
 __all__ = ['Collector', 'EpisodeCollector']
@@ -79,6 +81,7 @@ class Sampler(mp.Process):
         self.log_dir = log_dir
 
         self.episode = 0
+        self.does_perfect_sample = False
         self.trajectory = []
         self.frames = []
         self.image_font = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoMono-Regular.ttf", 6)
@@ -118,14 +121,19 @@ class Sampler(mp.Process):
                     additional_state = self.env.first_additional_state
 
                 if self.random_sample:
-                    action_sampler = CarlaBiasActionSampler()
+                    if random.random() > 0.90 or \
+                        (self.n_episodes - self.episode == 1 and not self.does_perfect_sample):
+                        self.does_perfect_sample = True
+                        action_sampler = CarlaPerfectActionSampler(self.env)
+                    else:
+                        action_sampler = CarlaBiasActionSampler()
 
                 self.render()
                 self.frames.clear()
                 self.save_frame(step=0, reward=np.nan, episode_reward=0.0)
                 for step in range(self.max_episode_steps):
                     if self.random_sample:
-                        action = action_sampler.sample()
+                        action, done_sample = action_sampler.sample()
                     else:
                         with amp.autocast(dtype=amp_dtype, enabled=False):
                             # observation shape (H, W, C)
@@ -145,22 +153,14 @@ class Sampler(mp.Process):
 
                     episode_reward += reward
                     episode_steps += 1
-                    # self.render()
+
                     self.save_frame(step=episode_steps, reward=reward, episode_reward=episode_reward)
-
-                    # if more than 50% of capacity, add transactions to replay buffer and clear
-                    # before saving current trajectory. prevent trajectory holding too much data.
-                    if len(self.trajectory) / self.replay_buffer.capacity > 0.5:
-                        with self.lock:
-                            self.save_trajectory()
-                            self.trajectory.clear()
-
                     self.add_transaction(observation, action, reward, next_observation, done, additional_state, next_additional_state)
 
                     observation = next_observation
                     additional_state = next_additional_state
 
-                    if done:
+                    if done or (self.random_sample and done_sample):
                         break
 
                 # wait for signal from Collector to stop or continue
@@ -224,9 +224,10 @@ class Sampler(mp.Process):
                 # because argmax return index not count, +1 make it count
                 trajectory_len = np.argmax(trajectory_dones.astype(bool), axis=0) + 1
             else:
-                trajectory_len = self.n_bootstrap_step
+                # prevent len is more than remaining trajectory, -1 to convert to base 0 index
+                trajectory_len = min(self.n_bootstrap_step, len(self.trajectory) - step_idx - 1)
 
-            next_step_idx = min(step_idx + trajectory_len, len(self.trajectory))
+            next_step_idx = step_idx + trajectory_len
 
             observation = self.trajectory[step_idx][0]
             additional_state = self.trajectory[step_idx][1]

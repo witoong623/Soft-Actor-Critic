@@ -201,7 +201,7 @@ def sample_carla_bias_action():
 
 
 class CarlaBiasActionSampler:
-    def __init__(self) -> None:
+    def __init__(self, *args, **kwargs) -> None:
         self.previous_action = None
 
     def sample(self):
@@ -209,7 +209,7 @@ class CarlaBiasActionSampler:
         action = self._sample_no_brake()
         self.previous_action = action
 
-        return action
+        return action, False
 
     def _sample_with_brake(self):
         if self.previous_action is not None and self.previous_action[0] > 0:

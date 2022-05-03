@@ -969,3 +969,38 @@ class ManualAgent:
 
     def done(self):
         return False
+
+
+class CarlaPerfectActionSampler:
+    def __init__(self, env: CarlaEnv) -> None:
+        self.agent = BasicAgent(env.ego,
+                                target_speed=env.desired_speed * 3.6)
+
+        self.agent.set_global_plan(env.routeplanner.get_route_waypoints())
+        self.agent.ignore_traffic_lights(active=True)
+        self.agent.ignore_stop_signs(active=True)
+
+        self.time_step = 0
+        self.max_time_step = 15 * env.frame_per_second
+
+    def sample(self):
+        self.time_step += 1
+        action_command = self.agent.run_step()
+        action = self._carla_command_to_action(action_command)
+
+        return action, self.time_step == self.max_time_step
+
+    def _carla_command_to_action(self, command):
+        ''' Convert CARLA control command to environment action '''
+        throttle = command.throttle
+        brake = command.brake
+        steer = command.steer
+
+        if throttle > 0:
+            acc = throttle
+        elif brake > 0:
+            acc = -brake
+        else:
+            acc = 0
+
+        return np.array([acc, steer])
