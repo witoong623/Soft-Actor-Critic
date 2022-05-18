@@ -264,7 +264,7 @@ def _transform_np_image_to_tensor(imgs, normalize=True):
     if normalize:
         new_images = new_images / 255.
 
-    return torch.from_numpy(new_images)
+    return torch.tensor(new_images, dtype=torch.float32)
 
 
 def _transform_tensor(img_tensors, normalize=True):
