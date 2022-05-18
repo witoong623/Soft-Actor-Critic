@@ -121,7 +121,7 @@ class Sampler(mp.Process):
                     additional_state = self.env.first_additional_state
 
                 if self.random_sample:
-                    if random.random() > 0.90 or \
+                    if random.random() > 0.95 or \
                         (self.n_episodes - self.episode == 1 and not self.does_perfect_sample):
                         self.does_perfect_sample = True
                         action_sampler = CarlaPerfectActionSampler(self.env)
