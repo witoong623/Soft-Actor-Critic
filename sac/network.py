@@ -40,8 +40,7 @@ class StateEncoderWrapper(Container):
             observation = np.expand_dims(observation, axis=0)
             encoded = encode_vae_observation(observation, self.encoder, device=self.device, normalize=False, output_device=self.device)
         elif isinstance(observation, np.ndarray):
-            obs_dtype = torch.float16 if observation.dtype == np.float16 else torch.float32
-            observation = torch.tensor(observation, dtype=obs_dtype, device=self.device).unsqueeze(dim=0)
+            observation = torch.tensor(observation, dtype=torch.float32, device=self.device).unsqueeze(dim=0)
             encoded = self(observation)
 
         if return_tensor:

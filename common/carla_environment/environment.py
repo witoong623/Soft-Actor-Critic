@@ -54,7 +54,7 @@ class CarlaEnv(gym.Env):
         observation_size = kwargs.get('image_size', [256, 512])
         self.obs_width = observation_size[1]
         self.obs_height = observation_size[0]
-        self.obs_dtype = np.float32
+        self.obs_dtype = np.float16
 
         self.map = 'Town07'
         self.dt = 0.1
