@@ -36,8 +36,10 @@ class Trainer(OriginalTrainer):
             episodes, lengths = self.replay_buffer.sample(batch_size - len(self.episode_cache),
                                                           min_length=step_size)
             for episode, length in zip(episodes, lengths):
+                # each items are sequence of respective component
                 observation, action, reward, done = episode
                 next_observation = np.zeros_like(observation)
+                # shift time step +1, the last time step is zero
                 next_observation[:-1] = observation[1:]
                 episode = [observation, action, reward, next_observation, done]
                 self.episode_cache.append((episode, length, 0,

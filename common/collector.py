@@ -317,6 +317,7 @@ class EpisodeSampler(Sampler):
         self.trajectory.append((observation, action, [reward], [done]))
 
     def save_trajectory(self):
+        # each component is stacked from t_0 to t_T
         self.replay_buffer.push(*tuple(map(np.stack, zip(*self.trajectory))))
 
 

@@ -58,6 +58,7 @@ class ReplayBuffer(object):
 class EpisodeReplayBuffer(ReplayBuffer):
     def __init__(self, capacity, initializer, Value=mp.Value, Lock=mp.Lock):
         super().__init__(capacity=capacity, initializer=initializer, Value=Value, Lock=Lock)
+        # initializer is list
         self.lengths = initializer()
         self.buffer_size = Value('L', 0)
         self.n_total_episodes = Value('L', 0)
@@ -65,14 +66,17 @@ class EpisodeReplayBuffer(ReplayBuffer):
         self.length_square_mean = Value('f', 0.0)
 
     def push(self, *args):
+        # items is whole episode's trajectory
         items = tuple(args)
         length = len(args[0])
         with self.lock:
             buffer_len = len(self.buffer)
+            # size is sum of every episode length
             if self.size + length <= self.capacity:
                 self.buffer.append(items)
                 self.lengths.append(length)
                 self.buffer_size.value += length
+                # offset tracks len of buffer 1 step behind
                 self.offset = buffer_len + 1
             else:
                 self.offset %= buffer_len
@@ -87,13 +91,16 @@ class EpisodeReplayBuffer(ReplayBuffer):
                                              / self.n_total_episodes.value
 
     def sample(self, batch_size, min_length=16):
+        ''' Sample entire episode. 1 item in batch is 1 episode '''
         length_mean = self.length_mean.value
         length_square_mean = self.length_square_mean.value
         length_stddev = np.sqrt(length_square_mean - length_mean * length_mean)
 
+        # if std is small (most episodes have similar length)
         if length_stddev / length_mean < 0.1:
             weights = np.ones(shape=(len(self.lengths),))
         else:
+            # otherwise, favor long episode
             weights = np.asanyarray(list(self.lengths))
         weights = weights / weights.sum()
 
