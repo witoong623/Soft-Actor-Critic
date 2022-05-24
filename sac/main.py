@@ -15,6 +15,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import trange
 
 from common.utils import CHECKPOINT_FORMAT, _transform_np_image_to_tensor
+from sac.model import RenderTester
 
 
 def train_loop(model, config, update_kwargs):
@@ -188,7 +189,7 @@ def to_image(tensor):
     return (img_np.transpose(1, 2, 0) * 255).astype('uint8')
 
 
-def test_render(model, config):
+def test_render(model: RenderTester, config):
     model.state_encoder.reset()
     observation = model.env.reset()
     additional_state = None
@@ -211,14 +212,13 @@ def test_render(model, config):
 
     for step in trange(1, config.max_episode_steps + 1):
         with amp.autocast(dtype=torch.bfloat16):
-            state = model.state_encoder.encode(observation)
+            state = model.state_encoder.encode(observation, return_tensor=True)
 
         if additional_state is not None:
-            state_tensor = torch.FloatTensor(state)
-            additional_state_tensor = torch.FloatTensor(additional_state)
-            state = torch.cat((state_tensor, additional_state_tensor))
+            additional_state_tensor = torch.tensor(additional_state, dtype=torch.float32, device=model.model_device)
+            state = torch.cat((state, additional_state_tensor))
 
-        with amp.autocast(dtype=torch.bfloat16):
+        with amp.autocast(dtype=torch.bfloat16, enabled=False):
             action = model.actor.get_action(state, deterministic=True)
 
         next_observation, reward, done, info = model.env.step(action)
@@ -239,7 +239,6 @@ def test_render(model, config):
         rewards += reward
         observation = next_observation
         additional_state = next_additional_state
-
 
         if done:
             break

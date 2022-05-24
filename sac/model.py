@@ -49,6 +49,8 @@ def build_model(config):
             from .rnn.model import Trainer as Model
     elif config.mode == 'test_render':
         Model = RenderTester
+        model_kwargs.pop('n_bootstrap_step', None)
+        model_kwargs.pop('separate_encoder', None)
     else:
         if not config.RNN_encoder:
             Model = Tester

@@ -168,6 +168,13 @@ class CarlaEnv(gym.Env):
             self.camera_bp.set_attribute('fov', str(self.camera_fov))
         self.camera_sensor = None
 
+        self.record_video = kwargs.get('record_video', False)
+        if self.record_video:
+            self.obs_camera_bp = self.bp_library.find('sensor.camera.rgb')
+            self.obs_camera_bp.set_attribute('image_size_x', '800')
+            self.obs_camera_bp.set_attribute('image_size_y', '600')
+            self.obs_frame_data_queue = Queue()
+
         # Record the time of total steps and resetting steps
         self.reset_step = 0
         self.total_step = 0
@@ -181,7 +188,7 @@ class CarlaEnv(gym.Env):
         self.actions_queue = deque(maxlen=self.num_past_actions)
 
         # control history
-        self.store_history = False
+        self.store_history = self.record_video
         if self.store_history:
             self.throttle_hist = []
             self.brakes_hist = []
@@ -198,13 +205,27 @@ class CarlaEnv(gym.Env):
                 self.vehicle_bp_caches[nw] = self._cache_vehicle_blueprints(number_of_wheels=nw)
 
         self.encoder_mode = EncoderMode.CNN
+        grayscale = kwargs.get('grayscale', False)
         if self.encoder_mode == EncoderMode.CNN:
-            self._transform_observation = self._transform_CNN_observation
+            if observation_size == camera_size:
+                if grayscale:
+                    self._transform_observation = self._transform_CNN_grayscale_observation_no_resize
+                else:
+                    self._transform_observation = self._transform_CNN_observation_no_resize
+            else:
+                if grayscale:
+                    self._transform_observation = self._transform_CNN_grayscale_observation
+                else:
+                    self._transform_observation = self._transform_CNN_observation
+
             if self.n_images > 1:
-                # RGB image, stack in channel dimension
-                self._combine_observations = lambda obs_array: np.concatenate(obs_array, axis=0, dtype=np.float16)
-                # grayscale image, stack in new axis in place of channel
-                # self._combine_observations = lambda obs_array: np.array(obs_array, dtype=np.float16)
+                if grayscale:
+                    # grayscale image, stack in new axis in place of channel
+                    self._combine_observations = lambda obs_array: np.array(obs_array, dtype=self.obs_dtype)
+                else:
+                    # RGB image, stack in channel dimension
+                    self._combine_observations = lambda obs_array: np.concatenate(obs_array, axis=0, dtype=self.obs_dtype)
+                
             else:
                 self._combine_observations = lambda obs_array: obs_array
         else:
@@ -300,6 +321,16 @@ class CarlaEnv(gym.Env):
         self.camera_sensor = self.world.spawn_actor(self.camera_bp, self.camera_trans, attach_to=self.ego)
         self.camera_sensor.listen(self.frame_data_queue.put)
 
+        if self.record_video:
+            bound_x = 0.5 + self.ego.bounding_box.extent.x
+            bound_y = 0.5 + self.ego.bounding_box.extent.y
+            bound_z = 0.5 + self.ego.bounding_box.extent.z
+
+            obs_camera_trans = carla.Transform(carla.Location(x=-2.0*bound_x, y=+0.0*bound_y, z=2.0*bound_z), carla.Rotation(pitch=8.0))
+            self.obs_camera_sensor = self.world.spawn_actor(blueprint=self.obs_camera_bp, transform=obs_camera_trans,
+                                                            attach_to=self.ego, attachment_type=carla.AttachmentType.SpringArm)
+            self.obs_camera_sensor.listen(self.obs_frame_data_queue.put)
+
         # Update timesteps
         self.time_step = 1
         self.reset_step += 1
@@ -360,7 +391,10 @@ class CarlaEnv(gym.Env):
             cv2.imshow('Carla environment', self.camera_img)
             cv2.waitKey(1)
         elif mode == 'rgb_array':
-            return self._get_observation_image()
+            if self.record_video:
+                return self._retrieve_image_data(self.obs_frame_data_queue, use_semantic_mask=False)
+            else:
+                return self._get_observation_image()
         elif mode == 'observation':
             return self._transform_observation(self.camera_img)
 
@@ -412,6 +446,7 @@ class CarlaEnv(gym.Env):
         if self.store_history:
             self.speed_hist.append(speed)
             self.lspeed_lon_hist.append(lspeed_lon)
+            self.original_dis.append(self.current_lane_dis)
 
         return r
 
@@ -478,7 +513,8 @@ class CarlaEnv(gym.Env):
         return False
 
     def _get_obs(self):
-        self._retrieve_image_data()
+        self.camera_img = self._retrieve_image_data(self.frame_data_queue,
+                                                    use_semantic_mask=self.use_semantic_camera)
 
         if self.n_images == 1:
             transformed_observation = self._transform_observation(self.camera_img)
@@ -802,24 +838,27 @@ class CarlaEnv(gym.Env):
     #     return self.camera_img
 
     def _crop_image(self, img):
+        # this size is suitable for 800x600, fov 110 camera
         cropped_size = (384, 768)
         return center_crop(img, cropped_size, shift_H=1.2)
 
-    def _retrieve_image_data(self):
+    def _retrieve_image_data(self, queue_to_wait, use_semantic_mask=False):
         while True:
-            data = self.frame_data_queue.get()
+            data = queue_to_wait.get()
+            queue_to_wait.task_done()
             if data.frame == self.frame:
                 break
 
-        if self.use_semantic_camera:
+        if use_semantic_mask:
             data.convert(cc.CityScapesPalette)
+        else:
+            data.convert(cc.Raw)
         array = np.frombuffer(data.raw_data, dtype=np.uint8)
         array = np.reshape(array, (data.height, data.width, 4))
         array = array[:, :, :3]
 
         # BGR(OpenCV) > RGB
-        array = np.ascontiguousarray(array[:, :, ::-1])
-        self.camera_img = array
+        return np.ascontiguousarray(array[:, :, ::-1])
 
     def _draw_debug_waypoints(self, waypoints, size=1, color=(255,0,0)):
         ''' Draw debug point on waypoints '''
