@@ -52,7 +52,11 @@ class CarlaEnv(gym.Env):
         self.obs_dtype = np.float16
 
         self.map = 'Town07'
-        self.dt = 0.1
+        self.fps_mode = kwargs.get('fps_mode')
+        if self.fps_mode == 'high':
+            self.dt = 0.1
+        else:
+            self.dt = 0.2
         self.frame_per_second = round(1 / self.dt)
         self.reload_world = True
         self.use_semantic_camera = True
@@ -101,6 +105,9 @@ class CarlaEnv(gym.Env):
         # Set fixed simulation step for synchronous mode
         self.settings = self.world.get_settings()
         self.settings.fixed_delta_seconds = self.dt
+        if self.fps_mode == 'low':
+            self.settings.max_substep_delta_time = 0.01666
+            self.settings.max_substeps = 13
         self.settings.synchronous_mode = True
         self.world.apply_settings(self.settings)
 
