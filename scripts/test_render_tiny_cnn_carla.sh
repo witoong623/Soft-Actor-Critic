@@ -1,0 +1,18 @@
+python main.py \
+	--gpu 0 --sampler-gpu 1 \
+	--mode test_render \
+	--env Carla-v0 \
+	--n-frames 5 \
+	--grayscale \
+	--image-size 80 160 \
+	--n-past-actions 10 \
+	--hidden-dims 512 256 \
+	--activation LeakyReLU \
+	--encoder-arch TINY_CNN \
+	--state-dim 256 \
+	--max-episode-steps 5000 \
+	--random-seed 69 \
+	--record-video \
+	--load-checkpoint \
+	--dry-run-init-env \
+	--checkpoint-dir "savedcheckpoints/Carla-v0/TINY_CNN_2022-05-08-16:03:33"
