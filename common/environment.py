@@ -88,7 +88,8 @@ def initialize_environment(config):
                                                     'n_past_actions',
                                                     'record_video',
                                                     'dry_run_init_env',
-                                                    'grayscale'])
+                                                    'grayscale',
+                                                    'encoder_type'])
     else:
         config.env_func = build_env
         config.env_kwargs = config.build_from_keys(['vision_observation',

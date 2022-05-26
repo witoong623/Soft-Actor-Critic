@@ -225,6 +225,13 @@ def initialize_hyperparameters(config):
     config.EFFICIENTNET_encoder = (config.encoder_arch == 'EFFICIENTNET')
     config.TINY_CNN_encoder = (config.encoder_arch == 'TINY_CNN')
 
+    if config.encoder_arch in ['VAE', 'BETAVAE']:
+        config.encoder_type = 'VAE'
+    elif config.encoder_arch in ['CNN', 'RESNET', 'EFFICIENTNET', 'TINY_CNN']:
+        config.encoder_type = 'CNN'
+    else:
+        config.encoder_type = None
+
     # need to be set explicitly
     if config.RESNET_encoder:
         config.encoder_activation = {

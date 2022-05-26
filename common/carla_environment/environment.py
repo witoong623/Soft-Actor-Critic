@@ -33,11 +33,6 @@ class RouteMode(Enum):
     MANUAL_LAP = auto()
 
 
-class EncoderMode(Enum):
-    CNN = auto()
-    VAE = auto()
-
-
 _walker_spawn_points_cache = []
 _load_world = False
 
@@ -204,9 +199,12 @@ class CarlaEnv(gym.Env):
             for nw in self.number_of_wheels:
                 self.vehicle_bp_caches[nw] = self._cache_vehicle_blueprints(number_of_wheels=nw)
 
-        self.encoder_mode = EncoderMode.CNN
+        encoder_type = kwargs.get('encoder_type')
+        if encoder_type is None:
+            raise ValueError(f'unknown encoder_type {self.encoder_type}')
+
         grayscale = kwargs.get('grayscale', False)
-        if self.encoder_mode == EncoderMode.CNN:
+        if encoder_type == 'CNN':
             if observation_size == camera_size:
                 if grayscale:
                     self._transform_observation = self._transform_CNN_grayscale_observation_no_resize
@@ -225,10 +223,9 @@ class CarlaEnv(gym.Env):
                 else:
                     # RGB image, stack in channel dimension
                     self._combine_observations = lambda obs_array: np.concatenate(obs_array, axis=0, dtype=self.obs_dtype)
-                
             else:
                 self._combine_observations = lambda obs_array: obs_array
-        else:
+        elif encoder_type == 'VAE':
             # VAE case
             self._transform_observation = self._transform_VAE_observation
             if self.n_images > 1:
