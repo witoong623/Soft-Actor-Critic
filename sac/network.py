@@ -36,12 +36,12 @@ class StateEncoderWrapper(Container):
         return self.encoder(*input, **kwargs)
 
     @torch.no_grad()
-    def encode(self, observation, return_tensor=False):
+    def encode(self, observation, return_tensor=False, data_dtype=torch.float32):
         if isinstance(self.encoder, VAEBase):
             observation = np.expand_dims(observation, axis=0)
             encoded = encode_vae_observation(observation, self.encoder, device=self.device, normalize=False, output_device=self.device)
         elif isinstance(observation, np.ndarray):
-            observation = torch.tensor(observation, dtype=torch.float32, device=self.device).unsqueeze(dim=0)
+            observation = torch.tensor(observation, dtype=data_dtype, device=self.device).unsqueeze(dim=0)
             encoded = self(observation)
 
         if return_tensor:

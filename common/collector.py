@@ -92,7 +92,7 @@ class Sampler(mp.Process):
 
         self.env = self.env_func(**self.env_kwargs)
         self.env.seed(self.random_seed)
-        amp_dtype = torch.float32
+        amp_dtype = torch.float16
 
         if not self.random_sample:
             self.state_encoder = clone_network(src_net=self.shared_state_encoder, device=self.device)
@@ -137,7 +137,7 @@ class Sampler(mp.Process):
                     else:
                         with amp.autocast(dtype=amp_dtype, enabled=False):
                             # observation shape (H, W, C)
-                            state = self.state_encoder.encode(observation, return_tensor=True)
+                            state = self.state_encoder.encode(observation, return_tensor=True, data_dtype=amp_dtype)
 
                         if additional_state is not None:
                             # use amp_dtype for additional state to match state dtype

@@ -201,6 +201,8 @@ class Trainer(ModelBase):
             self.target_critic.half()
             self.target_critic_scaled.half()
             self.target_critic_kahan.half()
+
+            self.state_encoder.half()
             self.actor.half()
             self.log_alpha.half()
 
@@ -322,7 +324,7 @@ class Trainer(ModelBase):
                 actor_loss_unbiased = actor_loss + predicted_new_q_value_critic_grad_only.mean()
 
             if self.half_training:
-                self._step_half_training(critic_loss, self.critic_optimizer, self.critic_loss_scaler)
+                self._step_half_training(critic_loss, self.critic_optimizer, self.critic_loss_scaler, retain_graph=True)
 
                 if self._should_update_actor():
                     self._step_half_training(actor_loss_unbiased, self.actor_optimizer, self.actor_loss_scaler)
@@ -443,9 +445,9 @@ class Trainer(ModelBase):
     def _should_update_actor(self):
         return self.global_step % self.actor_update_frequency == 0
 
-    def _step_half_training(self, loss, optimizer, scaler):
+    def _step_half_training(self, loss, optimizer, scaler, retain_graph=False):
         optimizer.zero_grad()
-        scaler.scale(loss).backward()
+        scaler.scale(loss).backward(retain_graph=retain_graph)
         if scaler.can_step(optimizer):
             optimizer.step()
         scaler.post_step(optimizer)
