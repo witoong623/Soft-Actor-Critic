@@ -70,6 +70,8 @@ def get_config():
                         help='activation function in controller networks (default: ReLU)')
     parser.add_argument('--dry-run-init-env', action='store_true', default=False,
                         help='dry run when initialize environment for the first time only')
+    parser.add_argument('--half-training', action='store_true', default=False,
+                        help='train in native FP16')
     carla_environment_group = parser.add_argument_group('carla environment')
     carla_environment_group.add_argument('--camera-size', type=int, default=None, nargs='*',
                                          help='size of camera in environment (default: same as image size)')

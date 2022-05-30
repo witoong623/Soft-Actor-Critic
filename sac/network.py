@@ -316,7 +316,8 @@ class StablePolicyNetwork(PolicyNetwork):
         dist = SquashedNormal(mean, std, stable=True)
         action = dist.rsample()
         log_prob = dist.log_prob(action)
-        
+        log_prob = log_prob.sum(dim=-1, keepdim=True)
+
         return action, log_prob, dist
 
     @torch.no_grad()

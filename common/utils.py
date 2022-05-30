@@ -44,6 +44,25 @@ def sync_params(src_net, dst_net, soft_tau=1.0):
             dst_param.data.copy_(dst_param.data * (1.0 - soft_tau) + src_param.data * soft_tau)
 
 
+def soft_update_params_kahan(net, target_net, target_net_scaled, target_net_kahan, tau, soft_scale):
+    ''' Address 4.Stability of Soft-Updates '''
+    for param, target_param, target_scaled_param, kahan_param in zip(net.parameters(), target_net.parameters(),
+                                                                     target_net_scaled.parameters(),
+                                                                     target_net_kahan.parameters()):
+        update = tau * (soft_scale * param.data  -  target_scaled_param.data)
+        y = update - kahan_param.data
+        t = target_scaled_param.data + y
+        kahan_new = (t - target_scaled_param.data) - y
+        kahan_param.data.copy_(kahan_new)
+        target_scaled_param.data.copy_(t)
+        target_param.data.copy_(target_scaled_param.data/soft_scale)
+
+
+def scale_all_weights(net, scale):
+    for param in net.parameters():
+        param.data.copy_(param.data * scale)
+
+
 def init_optimizer(optimizer):
     for param_group in optimizer.param_groups:
         n_params = 0

@@ -10,7 +10,10 @@ import torch.cuda.amp as amp
 from common.collector import Collector
 from common.network import VAEBase
 from common.networkbase import Container
-from common.utils import clone_network, sync_params, init_optimizer, clip_grad_norm, encode_vae_observation
+from common.stable_optim import hAdam
+from common.gscale import StableGradScaler
+from common.utils import clone_network, sync_params, init_optimizer, \
+    clip_grad_norm, encode_vae_observation, scale_all_weights, soft_update_params_kahan
 from .network import StateEncoderWrapper, SeparatedStateEncoderWrapper, Actor, Critic
 
 
@@ -21,6 +24,7 @@ def build_model(config):
     model_kwargs = config.build_from_keys(['env_func',
                                            'env_kwargs',
                                            'state_encoder',
+                                           'half_training',
                                            'state_dim',
                                            'action_dim',
                                            'hidden_dims',
@@ -75,13 +79,14 @@ class ModelBase(object):
     STATE_ENCODER_WRAPPER = StateEncoderWrapper
     COLLECTOR = Collector
 
-    def __init__(self, env_func, env_kwargs, state_encoder,
+    def __init__(self, env_func, env_kwargs, state_encoder, half_training,
                  state_dim, action_dim, hidden_dims, activation, n_past_actions, n_bootstrap_step,
                  initial_alpha, use_popart, beta, n_samplers, buffer_capacity,
                  devices, sampler_devices, separate_encoder, random_seed=0):
         self.devices = itertools.cycle(devices)
         self.model_device = next(self.devices)
         self.sampler_devices = sampler_devices
+        self.half_training = half_training
 
         self.n_past_actions = n_past_actions
         if n_past_actions > 1:
@@ -167,18 +172,33 @@ class ModelBase(object):
 
 
 class Trainer(ModelBase):
-    def __init__(self, env_func, env_kwargs, state_encoder,
+    def __init__(self, env_func, env_kwargs, state_encoder, half_training,
                  state_dim, action_dim, hidden_dims, activation, n_past_actions, n_bootstrap_step,
                  initial_alpha, critic_lr, actor_lr, alpha_lr, weight_decay, actor_update_frequency,
                  use_popart, beta, n_samplers, buffer_capacity, devices,
                  sampler_devices, separate_encoder, random_seed=0):
-        super().__init__(env_func, env_kwargs, state_encoder,
+        super().__init__(env_func, env_kwargs, state_encoder, half_training,
                          state_dim, action_dim, hidden_dims, activation, n_past_actions, n_bootstrap_step,
                          initial_alpha, use_popart, beta, n_samplers, buffer_capacity,
                          devices, sampler_devices, separate_encoder, random_seed)
 
         self.target_critic = clone_network(src_net=self.critic, device=self.model_device)
         self.target_critic.eval().requires_grad_(False)
+
+        if self.half_training:
+            self.target_critic_scaled = clone_network(src_net=self.critic, device=self.model_device)
+            self.target_critic_kahan = clone_network(src_net=self.critic, device=self.model_device)
+            self.target_critic_scaled.eval().requires_grad_(False)
+            self.target_critic_kahan.eval().requires_grad_(False)
+
+            self.soft_update_scale = 1e4
+            scale_all_weights(self.target_critic_kahan, 0)
+            scale_all_weights(self.target_critic_scaled, self.soft_update_scale)
+
+            self.critic.half()
+            self.target_critic.half()
+            self.target_critic_scaled.half()
+            self.target_critic_kahan.half()
 
         self.critic_criterion = nn.MSELoss()
 
@@ -191,16 +211,47 @@ class Trainer(ModelBase):
             self.optimizer = optim.Adam(itertools.chain(self.critic.parameters(),
                                                         self.actor.parameters()),
                                         lr=critic_lr, weight_decay=weight_decay)
+        elif self.half_training:
+            self.actor_optimizer = hAdam(self.actor.parameters(),
+                                         lr=actor_lr,
+                                         weight_decay=weight_decay)
+            self.critic_optimizer = hAdam(itertools.chain(self.state_encoder.parameters(),
+                                                          self.critic.parameters()),
+                                          lr=critic_lr,
+                                          weight_decay=weight_decay,
+                                          kahan=True)
         else:
             self.optimizer = optim.Adam(itertools.chain(self.state_encoder.parameters(),
                                                         self.critic.parameters(),
                                                         self.actor.parameters()),
                                         lr=critic_lr, weight_decay=weight_decay)
-        init_optimizer(self.optimizer)
-        self.actor_loss_weight = actor_lr / critic_lr
-        self.alpha_optimizer = optim.Adam([self.log_alpha], lr=alpha_lr)
 
-        self.loss_scaler = amp.GradScaler(enabled=False)
+        if self.half_training:
+            init_optimizer(self.critic_optimizer)
+            init_optimizer(self.actor_optimizer)
+
+            self.actor_loss_weight = 1
+
+            self.alpha_optimizer = hAdam([self.log_alpha], lr=alpha_lr, kahan=True)
+
+            loss_scaler_params = dict(
+                init_scale=10000,
+                increase_every=10000,
+                min_eps=1e-7,
+                betas=(0.9, 0.999),
+                margin=1.1
+            )
+
+            self.critic_loss_scaler = StableGradScaler(**loss_scaler_params)
+            self.actor_loss_scaler = StableGradScaler(**loss_scaler_params)
+            self.alpha_loss_scaler = StableGradScaler(**loss_scaler_params)
+        else:
+            init_optimizer(self.optimizer)
+            self.actor_loss_weight = actor_lr / critic_lr
+
+            self.alpha_optimizer = optim.Adam([self.log_alpha], lr=alpha_lr)
+
+            self.loss_scaler = amp.GradScaler(enabled=False)
 
         self.train(mode=True)
 
@@ -222,9 +273,12 @@ class Trainer(ModelBase):
                 alpha_loss = -(self.log_alpha * (log_prob + target_entropy).detach()).mean()
 
         if adaptive_entropy:
-            self.alpha_optimizer.zero_grad()
-            self.loss_scaler.scale(alpha_loss).backward()
-            self.loss_scaler.step(self.alpha_optimizer)
+            if self.half_training:
+                self._step_half_training(alpha_loss, self.alpha_optimizer, self.alpha_loss_scaler)
+            else:
+                self.alpha_optimizer.zero_grad()
+                self.loss_scaler.scale(alpha_loss).backward()
+                self.loss_scaler.step(self.alpha_optimizer)
 
         with torch.no_grad():
             alpha = self.log_alpha.exp()
@@ -263,21 +317,34 @@ class Trainer(ModelBase):
                 actor_loss = (alpha * log_prob - predicted_new_q_value).mean()
                 actor_loss_unbiased = actor_loss + predicted_new_q_value_critic_grad_only.mean()
 
-                loss = critic_loss + self.actor_loss_weight * actor_loss_unbiased
+            if self.half_training:
+                self._step_half_training(critic_loss, self.critic_optimizer, self.critic_loss_scaler)
+
+                if self._should_update_actor():
+                    self._step_half_training(actor_loss_unbiased, self.actor_optimizer, self.actor_loss_scaler)
             else:
-                loss = critic_loss
+                if self._should_update_actor():
+                    loss = critic_loss + self.actor_loss_weight * actor_loss_unbiased
+                else:
+                    loss = critic_loss
 
-        self.optimizer.zero_grad()
-        self.loss_scaler.scale(loss).backward()
-        if clip_gradient:
-            clip_grad_norm(self.optimizer)
-        self.loss_scaler.step(self.optimizer)
+                self.optimizer.zero_grad()
+                self.loss_scaler.scale(loss).backward()
+                if clip_gradient:
+                    clip_grad_norm(self.optimizer)
+                self.loss_scaler.step(self.optimizer)
 
-        self.loss_scaler.update()
+                self.loss_scaler.update()
 
-        if self._should_update_actor():
-            # Soft update the target value net
-            sync_params(src_net=self.critic, dst_net=self.target_critic, soft_tau=soft_tau)
+        if self.half_training:
+            if self._should_update_actor():
+                # Soft update the target value net
+                soft_update_params_kahan(self.critic, self.target_critic, self.target_critic_scaled,
+                                         self.target_critic_kahan, soft_tau, self.soft_update_scale)
+        else:
+            if self._should_update_actor():
+                # Soft update the target value net
+                sync_params(src_net=self.critic, dst_net=self.target_critic, soft_tau=soft_tau)
 
         info = {
             'critic_loss': critic_loss.item(),
@@ -371,14 +438,34 @@ class Trainer(ModelBase):
 
     def _should_update_actor(self):
         return self.global_step % self.actor_update_frequency == 0
-    
+
+    def _step_half_training(self, loss, optimizer, scaler):
+        optimizer.zero_grad()
+        scaler.scale(loss).backward()
+        if scaler.can_step(optimizer):
+            optimizer.step()
+        scaler.post_step(optimizer)
+
     def save_model(self, path):
-        self.modules.save_model(path, optimizer=self.optimizer, scaler=self.loss_scaler)
+        loss_scaler = None
+        if hasattr(self, 'loss_scaler') and self.loss_scaler.is_enabled():
+            loss_scaler = self.loss_scaler
+
+        optimizer = None
+        if hasattr(self, 'optimizer'):
+            optimizer = self.optimizer
+
+        self.modules.save_model(path, optimizer=optimizer, scaler=loss_scaler)
 
     def load_model(self, path, strict=True):
         load_result = super().load_model(path=path, strict=strict)
         self.target_critic.load_state_dict(self.critic.state_dict())
         self.target_critic.eval().requires_grad_(False)
+
+        if self.half_training:
+            self.target_critic_scaled.load_state_dict(self.critic.state_dict())
+            self.target_critic_scaled.eval().requires_grad_(False)
+            self.target_critic_kahan.eval().requires_grad_(False)
 
         state_dict = torch.load(path, map_location=self.model_device)
         if 'optimizer' in state_dict:
