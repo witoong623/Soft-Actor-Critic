@@ -28,8 +28,6 @@ class TanhTransform(pyd.transforms.Transform):
 
     def __init__(self, cache_size=1, threshold=20):
         super().__init__(cache_size=cache_size)
-        # if I want to match the paper, threshold must be 10, and beta should be -2
-        # in implementation, beta is 1 and threshold is 20 though
         self.softplus = torch.nn.Softplus(threshold=threshold)
 
     @staticmethod

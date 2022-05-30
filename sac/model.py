@@ -193,7 +193,8 @@ class Trainer(ModelBase):
             self.target_critic_scaled.eval().requires_grad_(False)
             self.target_critic_kahan.eval().requires_grad_(False)
 
-            self.soft_update_scale = 1e4
+            # 1e4 for state, 1e2 for image
+            self.soft_update_scale = 1e2
             scale_all_weights(self.target_critic_kahan, 0)
             scale_all_weights(self.target_critic_scaled, self.soft_update_scale)
 
