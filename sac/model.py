@@ -182,6 +182,8 @@ class Trainer(ModelBase):
                          initial_alpha, use_popart, beta, n_samplers, buffer_capacity,
                          devices, sampler_devices, separate_encoder, random_seed)
 
+        self.dtype = torch.float16 if self.half_training else torch.float32
+
         self.target_critic = clone_network(src_net=self.critic, device=self.model_device)
         self.target_critic.eval().requires_grad_(False)
 
@@ -199,6 +201,8 @@ class Trainer(ModelBase):
             self.target_critic.half()
             self.target_critic_scaled.half()
             self.target_critic_kahan.half()
+            self.actor.half()
+            self.log_alpha.half()
 
         self.critic_criterion = nn.MSELoss()
 
@@ -374,15 +378,15 @@ class Trainer(ModelBase):
         if self.n_past_actions > 1:
             observation, additional_state, action, reward, next_observation, next_additional_state, done = self.replay_buffer.sample(batch_size)
 
-            observation = torch.tensor(observation, dtype=torch.float32, device=self.model_device)
-            additional_state = torch.tensor(additional_state, dtype=torch.float32, device=self.model_device)
-            next_observation = torch.tensor(next_observation, dtype=torch.float32, device=self.model_device)
-            next_additional_state = torch.tensor(next_additional_state, dtype=torch.float32, device=self.model_device)
+            observation = torch.tensor(observation, dtype=self.dtype, device=self.model_device)
+            additional_state = torch.tensor(additional_state, dtype=self.dtype, device=self.model_device)
+            next_observation = torch.tensor(next_observation, dtype=self.dtype, device=self.model_device)
+            next_additional_state = torch.tensor(next_additional_state, dtype=self.dtype, device=self.model_device)
 
-            action = torch.tensor(action, dtype=torch.float32, device=self.model_device)
+            action = torch.tensor(action, dtype=self.dtype, device=self.model_device)
 
-            reward = torch.tensor(reward, dtype=torch.float32, device=self.model_device)
-            done = torch.tensor(done, dtype=torch.float32, device=self.model_device)
+            reward = torch.tensor(reward, dtype=self.dtype, device=self.model_device)
+            done = torch.tensor(done, dtype=self.dtype, device=self.model_device)
         else:
             observation, action, reward, next_observation, done = self.replay_buffer.sample(batch_size)
 

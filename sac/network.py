@@ -313,7 +313,7 @@ class StablePolicyNetwork(PolicyNetwork):
     def evaluate(self, state):
         mean, std = self(state)
 
-        dist = SquashedNormal(mean, std, stable=True)
+        dist = SquashedNormal(mean, std, stable=True, threshold=10)
         action = dist.rsample()
         log_prob = dist.log_prob(action)
         log_prob = log_prob.sum(dim=-1, keepdim=True)
@@ -332,7 +332,7 @@ class StablePolicyNetwork(PolicyNetwork):
         if deterministic:
             action = torch.tanh(mean)
         else:
-            dist = SquashedNormal(mean, std, stable=True)
+            dist = SquashedNormal(mean, std, stable=True, threshold=10)
             action = dist.sample()
 
         return action
