@@ -71,14 +71,6 @@ def train_loop(model, config, update_kwargs):
                         model.collector.pause()
                     else:
                         model.collector.resume()
-                        while True:
-                            updates_number = config.n_samples_per_update * model.global_step
-                            samples_number = model.collector.n_total_steps - n_initial_samples
-                            needed_samples = updates_number / config.update_sample_ratio
-                            if samples_number < needed_samples:
-                                time.sleep(0.5)
-                            else:
-                                break
 
             writer.add_scalar(tag='epoch/critic_loss', scalar_value=epoch_critic_loss, global_step=epoch)
             writer.add_scalar(tag='epoch/actor_loss', scalar_value=epoch_actor_loss, global_step=epoch)

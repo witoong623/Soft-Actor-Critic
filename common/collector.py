@@ -92,7 +92,7 @@ class Sampler(mp.Process):
 
         self.env = self.env_func(**self.env_kwargs)
         self.env.seed(self.random_seed)
-        amp_dtype = torch.float16
+        amp_dtype = torch.float32
 
         if not self.random_sample:
             self.state_encoder = clone_network(src_net=self.shared_state_encoder, device=self.device)

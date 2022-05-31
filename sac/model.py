@@ -55,6 +55,7 @@ def build_model(config):
         Model = RenderTester
         model_kwargs.pop('n_bootstrap_step', None)
         model_kwargs.pop('separate_encoder', None)
+        model_kwargs.pop('half_training', None)
     else:
         if not config.RNN_encoder:
             Model = Tester

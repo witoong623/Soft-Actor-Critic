@@ -435,11 +435,11 @@ class CarlaCNN(NetworkBase):
                 nn.Conv2d(n_in, n_out, kernel_size=3, bias=False),
                 nn.BatchNorm2d(n_out),
                 nn.MaxPool2d(2),
-                nn.ReLU(inplace=True),
+                nn.SiLU(inplace=True),
                 nn.Conv2d(n_out, n_out, kernel_size=3, bias=False),
                 nn.BatchNorm2d(n_out),
                 nn.MaxPool2d(2),
-                nn.ReLU(inplace=True),
+                nn.SiLU(inplace=True),
             )
 
         conv_layers = []
