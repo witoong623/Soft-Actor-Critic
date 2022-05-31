@@ -203,15 +203,13 @@ def test_render(model: RenderTester, config):
     # save_image(rgb_array, num=0)
 
     for step in trange(1, config.max_episode_steps + 1):
-        with amp.autocast(dtype=torch.bfloat16):
-            state = model.state_encoder.encode(observation, return_tensor=True)
+        state = model.state_encoder.encode(observation, return_tensor=True)
 
         if additional_state is not None:
             additional_state_tensor = torch.tensor(additional_state, dtype=torch.float32, device=model.model_device)
             state = torch.cat((state, additional_state_tensor))
 
-        with amp.autocast(dtype=torch.bfloat16, enabled=False):
-            action = model.actor.get_action(state, deterministic=True)
+        action = model.actor.get_action(state, deterministic=True)
 
         next_observation, reward, done, info = model.env.step(action)
 

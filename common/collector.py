@@ -135,17 +135,15 @@ class Sampler(mp.Process):
                     if self.random_sample:
                         action, done_sample = action_sampler.sample()
                     else:
-                        with amp.autocast(dtype=amp_dtype, enabled=False):
-                            # observation shape (H, W, C)
-                            state = self.state_encoder.encode(observation, return_tensor=True, data_dtype=amp_dtype)
+                        # observation shape (H, W, C)
+                        state = self.state_encoder.encode(observation, return_tensor=True, data_dtype=amp_dtype)
 
                         if additional_state is not None:
                             # use amp_dtype for additional state to match state dtype
                             additional_state_tensor = torch.tensor(additional_state, dtype=amp_dtype, device=self.device)
                             state = torch.cat((state, additional_state_tensor))
 
-                        with amp.autocast(dtype=amp_dtype, enabled=False):
-                            action = self.actor.get_action(state, deterministic=self.deterministic)
+                        action = self.actor.get_action(state, deterministic=self.deterministic)
 
                     next_observation, reward, done, info = self.env.step(action)
                     if 'additional_state' in info:

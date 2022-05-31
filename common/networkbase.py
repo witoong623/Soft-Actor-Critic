@@ -22,7 +22,7 @@ class Container(nn.Module):
             self.device = device
         return super().to(*args, **kwargs)
 
-    def save_model(self, path, key_filter=None, optimizer=None, alpha_optimizer=None, scaler=None):
+    def save_model(self, path, key_filter=None, optimizer=None, alpha_optimizer=None):
         state_dict = self.state_dict()
         keys = list(state_dict.keys())
         for key in keys:
@@ -39,9 +39,6 @@ class Container(nn.Module):
         if alpha_optimizer is not None:
             state_dict['alpha_optimizer'] = alpha_optimizer.state_dict()
 
-        if scaler is not None:
-            state_dict['scaler'] = scaler.state_dict()
-
         torch.save(state_dict, path)
         return state_dict
 
@@ -52,9 +49,6 @@ class Container(nn.Module):
 
         if 'alpha_optimizer' in state_dict:
             del state_dict['alpha_optimizer']
-
-        if 'scaler' in state_dict:
-            del state_dict['scaler']
 
         if 'model' in state_dict:
             state_dict = state_dict['model']
