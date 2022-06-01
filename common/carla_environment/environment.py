@@ -255,8 +255,8 @@ class CarlaEnv(gym.Env):
             self.lspeed_lon_hist.clear()
             self.original_dis.clear()
 
-        # clear previous action
         self.current_action = None
+        self.img_buff.clear()
         self.actions_queue.clear()
 
         self.current_lane_dis = 0
