@@ -70,7 +70,8 @@ def build_carla_env(**kwargs):
     env = NormalizedAction(FlattenedAction(env))
 
     if kwargs['record_video']:
-        env = RecordVideo(env, video_folder='carla_videos', name_prefix='carla_video')
+        assert kwargs['video_dir'] is not None
+        env = RecordVideo(env, video_folder=kwargs['video_dir'], name_prefix='carla_video')
 
     return env
 
@@ -90,7 +91,8 @@ def initialize_environment(config):
                                                     'record_video',
                                                     'dry_run_init_env',
                                                     'grayscale',
-                                                    'encoder_type'])
+                                                    'encoder_type',
+                                                    'video_dir'])
     else:
         config.env_func = build_env
         config.env_kwargs = config.build_from_keys(['vision_observation',

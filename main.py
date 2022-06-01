@@ -187,8 +187,12 @@ def get_config():
                         help='folder to save checkpoint')
     parser.add_argument('--load-checkpoint', action='store_true',
                         help='load latest checkpoint in checkpoint dir')
+    parser.add_argument('--epoch-number', type=int, default=None,
+                        help='number of epoch to load')
     parser.add_argument('--record-video', action='store_true',
                         help='record video directly from environment')
+    parser.add_argument('--video-dir', type=str, default=None,
+                        help='path to directory to store recorded video')
     args = parser.parse_args()
     if len(sys.argv) == 1:
         parser.print_help()
@@ -217,7 +221,7 @@ def initialize_hyperparameters(config):
         'ReLU': nn.ReLU(inplace=True),
         'LeakyReLU': nn.LeakyReLU(negative_slope=0.3, inplace=True),
         'Tanh': nn.Tanh(),
-        'ELU': nn.ELU(),
+        'ELU': nn.ELU(inplace=True),
         'SiLU': nn.SiLU(inplace=True)
     }.get(config.activation)
 
