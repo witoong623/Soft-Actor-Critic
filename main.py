@@ -185,6 +185,8 @@ def get_config():
                         help='folder to save TensorBoard logs')
     parser.add_argument('--checkpoint-dir', type=str, default=os.path.join(ROOT_DIR, 'checkpoints'),
                         help='folder to save checkpoint')
+    parser.add_argument('--checkpoint-save-frequency', type=int, default=10,
+                        help='how often to save checkpoint(default: 10)')
     parser.add_argument('--load-checkpoint', action='store_true',
                         help='load latest checkpoint in checkpoint dir')
     parser.add_argument('--epoch-number', type=int, default=None,
