@@ -38,13 +38,14 @@ def train_loop(model, config, update_kwargs):
 
                     n_samples = model.collector.n_total_steps
                     n_episodes = model.collector.n_episodes
+                    stat_len = len(model.collector.n_episodes)
                     buffer_size = model.replay_buffer.size
                     try:
                         update_sample_ratio = (config.n_samples_per_update * model.global_step) / \
                                               (n_samples - n_initial_samples)
                     except ZeroDivisionError:
                         update_sample_ratio = config.update_sample_ratio
-                    recent_slice = slice(max(n_episodes - 100, n_initial_episodes + 1), n_episodes)
+                    recent_slice = slice(max(stat_len - 100, n_initial_episodes + 1), stat_len)
                     mean_episode_reward = np.mean(model.collector.episode_rewards[recent_slice])
                     mean_episode_steps = np.mean(model.collector.episode_steps[recent_slice])
                     epoch_critic_loss += (info['critic_loss'] - epoch_critic_loss) / (i + 1)
