@@ -290,6 +290,7 @@ def initialize_hyperparameters(config):
 def copy_environment_file(config):
     shutil.copy('common/carla_environment/environment.py', config.log_dir)
     shutil.copy('common/carla_environment/manual_route_planner.py', config.log_dir)
+    shutil.copy('common/network.py', config.log_dir)
 
 
 def main():

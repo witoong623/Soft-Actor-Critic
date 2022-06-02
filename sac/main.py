@@ -38,7 +38,7 @@ def train_loop(model, config, update_kwargs):
 
                     n_samples = model.collector.n_total_steps
                     n_episodes = model.collector.n_episodes
-                    stat_len = len(model.collector.n_episodes)
+                    stat_len = len(model.collector.episode_rewards)
                     buffer_size = model.replay_buffer.size
                     try:
                         update_sample_ratio = (config.n_samples_per_update * model.global_step) / \
@@ -240,8 +240,8 @@ def test_render(model: RenderTester, config):
     bkk_tz = pytz.timezone('Asia/Bangkok')
     now = datetime.now(bkk_tz)
     now_str = now.strftime('%Y-%m-%dT%H-%M-%S')
-    model.env.plot_control_graph(f'command_graphs/vae_town7/commands/command_epoch_{config.initial_epoch}_{now_str}.jpeg')
+    model.env.plot_control_graph(os.path.join(config.video_dir, f'command_epoch_{config.initial_epoch}_{now_str}.jpeg'))
     plt.clf()
-    model.env.plot_speed_graph(f'command_graphs/vae_town7/speeds/speed_epoch_{config.initial_epoch}_{now_str}.jpeg')
+    model.env.plot_speed_graph(os.path.join(config.video_dir, f'speed_epoch_{config.initial_epoch}_{now_str}.jpeg'))
     plt.clf()
-    model.env.plot_distance_graph(f'command_graphs/vae_town7/distances/distance_epoch_{config.initial_epoch}_{now_str}.jpeg')
+    model.env.plot_distance_graph(os.path.join(config.video_dir, f'distance_epoch_{config.initial_epoch}_{now_str}.jpeg'))

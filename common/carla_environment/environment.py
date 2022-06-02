@@ -319,7 +319,7 @@ class CarlaEnv(gym.Env):
             impulse = event.normal_impulse
             intensity = np.sqrt(impulse.x**2 + impulse.y**2 + impulse.z**2)
             self.collision_hist.append(intensity)
-        self.collision_hist = []
+        self.collision_hist.clear()
 
         # Add camera sensor
         self.camera_sensor = self.world.spawn_actor(self.camera_bp, self.camera_trans, attach_to=self.ego)
