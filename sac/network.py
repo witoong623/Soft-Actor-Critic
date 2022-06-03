@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 from torch.distributions import Normal
 
-from common.network import MultilayerPerceptron, VAEBase
+from common.network import MultilayerPerceptron, VAEBase, BottleneckNeuralNetwork
 from common.networkbase import Container
 from common.utils import encode_vae_observation, clone_network
 from common.stable_distributions import SquashedNormal
@@ -222,7 +222,7 @@ class ValueNetwork(MultilayerPerceptron):
         return super().forward(state)
 
 
-class SoftQNetwork(MultilayerPerceptron):
+class SoftQNetwork(BottleneckNeuralNetwork):
     def __init__(self, state_dim, action_dim, hidden_dims, activation=nn.ReLU(inplace=True), device=None):
         scaled_action_dim = max(state_dim, action_dim)
 
@@ -243,7 +243,7 @@ class SoftQNetwork(MultilayerPerceptron):
         return super().forward(torch.cat([state, self.action_scaler(action)], dim=-1))
 
 
-class PolicyNetwork(MultilayerPerceptron):
+class PolicyNetwork(BottleneckNeuralNetwork):
     def __init__(self, state_dim, action_dim, hidden_dims, activation=nn.ReLU(inplace=True), device=None,
                  log_std_min=LOG_STD_MIN, log_std_max=LOG_STD_MAX):
         # the last layer of perception is the action_dim (output size) * 2, which can be chunk into 2 action_dims
