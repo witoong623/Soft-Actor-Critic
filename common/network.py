@@ -21,7 +21,8 @@ __all__ = [
     'GRUHidden', 'cat_hidden',
     'RecurrentNeuralNetwork', 'RNN',
     'ConvolutionalNeuralNetwork', 'CNN',
-    'ConvBetaVAE', 'BETAVAE'
+    'ConvBetaVAE', 'BETAVAE',
+    'BottleneckNeuralNetwork'
 ]
 
 
@@ -68,7 +69,8 @@ def build_encoder(config):
         state_encoder = CarlaCNN(image_size=config.image_size,
                                  input_channels=input_channels,
                                  n_hidden_channels=config.encoder_hidden_channels,
-                                 output_dim=state_dim)
+                                 output_dim=state_dim,
+                                 activation=config.encoder_activation)
     elif config.CNN_encoder:
         state_encoder = ConvolutionalNeuralNetwork(image_size=config.image_size,
                                                    input_channels=config.observation_dim,
@@ -137,6 +139,39 @@ class VanillaNeuralNetwork(NetworkBase):
         if self.output_activation is not None:
             x = self.output_activation(x)
         return x
+
+
+class BottleneckNeuralNetwork(NetworkBase):
+    def __init__(self, n_dims, activation=nn.ReLU(inplace=True), output_activation=None, device=None):
+        super().__init__()
+        assert len(n_dims) == 3, f'len is {len(n_dims)}, value {n_dims}'
+
+        in_features = n_dims[0]
+        hidden_features = n_dims[1]
+        out_features = n_dims[2]
+
+        self.in_features = nn.Linear(in_features, hidden_features)
+
+        self.hidden_block = nn.Sequential(
+            nn.Linear(hidden_features, hidden_features),
+            activation,
+            nn.Linear(hidden_features, hidden_features),
+        )
+
+        self.out_features = nn.Linear(hidden_features, out_features)
+
+        self.activation = activation
+
+        self.to(device)
+
+    def forward(self, x):
+        x = self.activation(self.in_features(x))
+
+        hidden = self.hidden_block(x)
+
+        x = self.activation(hidden + x)
+
+        return self.out_features(x)
 
 
 class GRUHidden(object):
@@ -425,24 +460,31 @@ class CarRacingCNN(NetworkBase):
 class CarlaCNN(NetworkBase):
 
     def __init__(self, image_size, input_channels, n_hidden_channels,
-                 output_dim, device=None):
+                 output_dim, activation=nn.ReLU(inplace=True), device=None):
         super().__init__()
 
-        n_hidden_channels = [input_channels, *n_hidden_channels]
+        activation = activation if activation is not None else nn.ReLU(inplace=True)
+
+        conv_layers = []
+        first_out_channel = 32
+        conv_layers.append(nn.Sequential(
+            nn.Conv2d(input_channels, first_out_channel, 3, stride=2, bias=False),
+            nn.BatchNorm2d(first_out_channel),
+            activation
+        ))
+
+        n_hidden_channels = [first_out_channel, *n_hidden_channels]
 
         def conv_block(n_in, n_out):
             return nn.Sequential(
-                nn.Conv2d(n_in, n_out, kernel_size=3, bias=False),
+                nn.Conv2d(n_in, n_out, kernel_size=3, stride=2, bias=False),
                 nn.BatchNorm2d(n_out),
-                nn.MaxPool2d(2),
-                nn.SiLU(inplace=True),
-                nn.Conv2d(n_out, n_out, kernel_size=3, bias=False),
+                activation,
+                nn.Conv2d(n_out, n_out, kernel_size=3, stride=2, bias=False),
                 nn.BatchNorm2d(n_out),
-                nn.MaxPool2d(2),
-                nn.SiLU(inplace=True),
+                activation,
             )
 
-        conv_layers = []
         for i in range(len(n_hidden_channels) - 1):
             conv_layer = conv_block(n_hidden_channels[i],
                                     n_hidden_channels[i + 1])
@@ -731,11 +773,11 @@ BETAVAE = ConvBetaVAE
 
 
 if __name__ == '__main__':
-    image_size = (80, 160)
-    model = TinyConvNet(3)
-    dummy = torch.zeros((1, 3, *image_size))
+    image_size = (256, 512)
+    model = CarlaCNN(image_size, 6, [32, 64, 128], 384)
+    dummy = torch.zeros((1, 6, *image_size))
     output = model(dummy)
 
     print(f'output size {output.size()}')
 
-    summary(model, input_size=(1, 3, *image_size))
+    summary(model, input_size=(1, 6, *image_size))

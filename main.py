@@ -87,7 +87,7 @@ def get_config():
     encoder_group.add_argument('--state-dim', type=int, default=None, metavar='DIM',
                                help='target state dimension of encoded state '
                                     '(use env.observation_space.shape if not present)')
-    encoder_group.add_argument('--encoder-activation', type=str, choices=['ReLU', 'LeakyReLU'], metavar='ACTIVATION',
+    encoder_group.add_argument('--encoder-activation', type=str, choices=['ReLU', 'LeakyReLU', 'Tanh', 'ELU', 'SiLU'], metavar='ACTIVATION',
                                help='activation function in state encoder networks '
                                     '(use activation function in controller if not present)')
     fc_encoder_group = parser.add_argument_group('FC state encoder')
@@ -244,12 +244,13 @@ def initialize_hyperparameters(config):
     else:
         config.encoder_type = None
 
-    # need to be set explicitly
-    if config.RESNET_encoder:
+    if config.encoder_activation is not None:
         config.encoder_activation = {
             'ReLU': nn.ReLU(inplace=True),
             'LeakyReLU': nn.LeakyReLU(negative_slope=0.3, inplace=True),
-            'ELU': nn.ELU(inplace=True)
+            'Tanh': nn.Tanh(),
+            'ELU': nn.ELU(inplace=True),
+            'SiLU': nn.SiLU(inplace=True)
         }.get(config.encoder_activation)
 
     if len(config.image_size) == 1:
