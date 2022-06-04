@@ -229,7 +229,7 @@ class CarlaEnv(gym.Env):
                     self._combine_observations = lambda obs_array: np.array(obs_array, dtype=self.obs_dtype)
                 else:
                     # RGB image, stack in channel dimension
-                    self._combine_observations = lambda obs_array: np.concatenate(obs_array, axis=0, dtype=self.obs_dtype)
+                    self._combine_observations = lambda obs_array: np.concatenate(obs_array, axis=-1, dtype=np.uint8)
             else:
                 self._combine_observations = lambda obs_array: obs_array
         elif encoder_type == 'VAE':
@@ -793,9 +793,9 @@ class CarlaEnv(gym.Env):
     def _transform_CNN_observation(self, obs):
         cropped_obs = self._crop_image(obs)
         resized_obs = cv2.resize(cropped_obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
-        normalized_obs = normalize_image(resized_obs, self.mean, self.std).astype(np.float16)
+        # normalized_obs = normalize_image(resized_obs, self.mean, self.std).astype(np.float16)
 
-        return normalized_obs.transpose((2, 0, 1))
+        return resized_obs
 
     def _transform_CNN_grayscale_observation(self, obs):
         cropped_obs = self._crop_image(obs)

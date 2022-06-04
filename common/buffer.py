@@ -1,6 +1,8 @@
 import numpy as np
 import torch.multiprocessing as mp
 
+from .utils import batch_normalize
+
 
 __all__ = ['ReplayBuffer', 'EpisodeReplayBuffer']
 
@@ -11,6 +13,9 @@ class ReplayBuffer(object):
         self.buffer = initializer()
         self.buffer_offset = Value('L', 0)
         self.lock = Lock()
+
+        self.mean = np.array([0.4652, 0.4417, 0.3799, 0.4652, 0.4417, 0.3799])
+        self.std = np.array([0.0946, 0.1767, 0.1865, 0.0946, 0.1767, 0.1865])
 
     def push(self, *args):
         items = tuple(args)
@@ -23,6 +28,8 @@ class ReplayBuffer(object):
 
     def extend(self, trajectory):
         with self.lock:
+            # trajectory is list of tuples, and this look like wrap tuple with tuple again
+            # but this results in the same structure, don't know why use this code
             for items in map(tuple, trajectory):
                 if self.size < self.capacity:
                     self.buffer.append(items)
@@ -35,9 +42,14 @@ class ReplayBuffer(object):
         for i in np.random.randint(self.size, size=batch_size):
             batch.append(self.buffer[i])
 
+        batch_samples = list(zip(*batch))
+        # normalize batch of observations
+        batch_samples[0] = batch_normalize(batch_samples[0], self.mean, self.std)
+        batch_samples[4] = batch_normalize(batch_samples[4], self.mean, self.std)
+
         # size: (batch_size, item_size)
-        # observation, action, reward, next_observation, done
-        return tuple(map(np.stack, zip(*batch)))
+        # observation, additional_state, action, reward, next_observation, next_additional_state, done
+        return tuple(map(np.stack, batch_samples))
 
     def __len__(self):
         return self.size

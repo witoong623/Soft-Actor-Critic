@@ -276,6 +276,16 @@ def normalize_image(image, mean, std):
     return (image - mean) / std
 
 
+def batch_normalize(images, mean, std):
+    batch_size = len(images)
+    stacked_imgs = np.vstack(images)
+    normalized_stacked_imgs = ((stacked_imgs / 255.) - mean) / std
+
+    normalized_stacked_imgs = normalized_stacked_imgs.transpose((2, 0, 1))
+
+    return np.split(normalized_stacked_imgs, batch_size, axis=1)
+
+
 def _transform_np_image_to_tensor(imgs, normalize=True):
     # input should be (number of image, H, W, C)
     new_images = imgs.transpose(0, 3, 1, 2)

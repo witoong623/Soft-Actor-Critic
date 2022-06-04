@@ -15,7 +15,7 @@ from setproctitle import setproctitle
 from torch.utils.tensorboard import SummaryWriter
 
 from .buffer import ReplayBuffer, EpisodeReplayBuffer
-from .utils import clone_network, sync_params, CarlaBiasActionSampler
+from .utils import clone_network, sync_params, normalize_image, CarlaBiasActionSampler
 from .carla_environment.environment import CarlaPerfectActionSampler
 
 
@@ -86,8 +86,11 @@ class Sampler(mp.Process):
         self.does_perfect_sample = False
         self.trajectory = []
         self.frames = []
-        self.image_font = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoMono-Regular.ttf", 6)
+        self.image_font = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoMono-Regular.ttf", 16)
         self.render()
+
+        self.mean = np.array([0.4652, 0.4417, 0.3799, 0.4652, 0.4417, 0.3799])
+        self.std = np.array([0.0946, 0.1767, 0.1865, 0.0946, 0.1767, 0.1865])
 
     def run(self):
         setproctitle(title=self.name)
@@ -138,7 +141,8 @@ class Sampler(mp.Process):
                         action, done_sample = action_sampler.sample()
                     else:
                         # observation shape (H, W, C)
-                        state = self.state_encoder.encode(observation, return_tensor=True, data_dtype=amp_dtype)
+                        normalized_obs = normalize_image(observation, self.mean, self.std).transpose((2, 0, 1))
+                        state = self.state_encoder.encode(normalized_obs, return_tensor=True, data_dtype=amp_dtype)
 
                         if additional_state is not None:
                             # use amp_dtype for additional state to match state dtype
