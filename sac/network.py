@@ -222,7 +222,7 @@ class ValueNetwork(MultilayerPerceptron):
         return super().forward(state)
 
 
-class SoftQNetwork(BottleneckNeuralNetwork):
+class SoftQNetwork(MultilayerPerceptron):
     def __init__(self, state_dim, action_dim, hidden_dims, activation=nn.ReLU(inplace=True), device=None):
         scaled_action_dim = max(state_dim, action_dim)
 
@@ -243,7 +243,7 @@ class SoftQNetwork(BottleneckNeuralNetwork):
         return super().forward(torch.cat([state, self.action_scaler(action)], dim=-1))
 
 
-class PolicyNetwork(BottleneckNeuralNetwork):
+class PolicyNetwork(MultilayerPerceptron):
     def __init__(self, state_dim, action_dim, hidden_dims, activation=nn.ReLU(inplace=True), device=None,
                  log_std_min=LOG_STD_MIN, log_std_max=LOG_STD_MAX):
         # the last layer of perception is the action_dim (output size) * 2, which can be chunk into 2 action_dims
