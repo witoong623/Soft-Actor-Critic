@@ -49,7 +49,7 @@ class CarlaEnv(gym.Env):
         observation_size = kwargs.get('image_size', [256, 512])
         self.obs_width = observation_size[1]
         self.obs_height = observation_size[0]
-        self.obs_dtype = np.float16
+        self.obs_dtype = np.uint8
 
         self.map = 'Town07'
         self.fps_mode = kwargs.get('fps_mode')
@@ -229,7 +229,7 @@ class CarlaEnv(gym.Env):
                     self._combine_observations = lambda obs_array: np.array(obs_array, dtype=self.obs_dtype)
                 else:
                     # RGB image, stack in channel dimension
-                    self._combine_observations = lambda obs_array: np.concatenate(obs_array, axis=-1, dtype=np.uint8)
+                    self._combine_observations = lambda obs_array: np.concatenate(obs_array, axis=-1, dtype=self.obs_dtype)
             else:
                 self._combine_observations = lambda obs_array: obs_array
         elif encoder_type == 'VAE':
@@ -800,7 +800,8 @@ class CarlaEnv(gym.Env):
     def _transform_CNN_grayscale_observation(self, obs):
         cropped_obs = self._crop_image(obs)
         resized_obs = cv2.resize(cropped_obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
-        gray_obs = (cv2.cvtColor(resized_obs, cv2.COLOR_RGB2GRAY) / 255.).astype(np.float16)
+        # gray_obs = (cv2.cvtColor(resized_obs, cv2.COLOR_RGB2GRAY) / 255.).astype(np.float16)
+        gray_obs = cv2.cvtColor(resized_obs, cv2.COLOR_RGB2GRAY)
 
         return gray_obs
 
