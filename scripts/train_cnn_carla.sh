@@ -22,7 +22,7 @@ python main.py \
 	--image-size 256 512 \
 	--camera-size 600 800 \
 	--camera-fov 110 \
-	--fps-mode low \
+	--fps-mode high \
 	--encoder-arch CNN \
 	--encoder-hidden-channels 64 128 256 \
 	--activation ELU \
@@ -32,9 +32,9 @@ python main.py \
 	--max-episode-steps 5000 \
 	--n-epochs 1000 --n-updates 256 --batch-size 32 \
 	--n-samplers 1 \
-	--buffer-capacity 22000 \
-	--update-sample-ratio 1.0 \
-	--critic-lr 6E-4 --actor-lr 3E-4 \
+	--buffer-capacity 21000 \
+	--update-sample-ratio 2.0 \
+	--critic-lr 3E-4 --actor-lr 3E-4 \
 	--alpha-lr 3E-4 --initial-alpha 1.0 \
 	--adaptive-entropy --target-entropy -3 \
 	--gamma 0.99 --soft-tau 0.005 --random-seed 69 \

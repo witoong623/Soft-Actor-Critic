@@ -1,0 +1,24 @@
+python main.py \
+	--gpu 0 --sampler-gpu 1 \
+	--mode test_render \
+	--env Carla-v0 \
+	--n-frames 2 \
+	--image-size 256 512 \
+	--camera-size 600 800 \
+	--camera-fov 110 \
+	--fps-mode low \
+	--n-past-actions 10 \
+	--hidden-dims 512 256 \
+	--activation ELU \
+	--encoder-activation ELU \
+	--encoder-arch CNN \
+	--encoder-hidden-channels 64 128 256 \
+	--state-dim 768 \
+	--max-episode-steps 5000 \
+	--random-seed 69 \
+	--record-video \
+	--dry-run-init-env \
+	--load-checkpoint \
+	--epoch-number 40 \
+	--checkpoint-dir "savedcheckpoints/Carla-v0/CNN_2022-06-01-16:43:30" \
+	--video-dir "carla_videos/CNN_2022-06-01-16:43:30"

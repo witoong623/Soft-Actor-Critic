@@ -1,19 +1,20 @@
 python main.py \
+	--gpu 0 --sampler-gpu 1 \
 	--mode test_render \
 	--env Carla-v0 \
+	--n-frames 5 \
+	--grayscale \
 	--image-size 256 512 \
-	--camera-fov 110 \
 	--camera-size 600 800 \
-	--gpu 0 --sampler-gpu 1 \
+	--camera-fov 110 \
 	--n-past-actions 10 \
 	--hidden-dims 512 256 \
 	--activation LeakyReLU \
-	--encoder-arch BETAVAE \
-	--state-dim 512 \
+	--encoder-arch TINY_CNN \
+	--state-dim 256 \
 	--max-episode-steps 5000 \
 	--random-seed 69 \
 	--record-video \
 	--load-checkpoint \
 	--dry-run-init-env \
-	--weight-path "vae_weights/Carla-v0_town7_b3_new_tanh_mse/bvae_town7_epoch(100)-loss(+8.729E+04).pkl" \
-	--checkpoint-dir "savedcheckpoints/Carla-v0/BETAVAE 2022-05-19-11:36:29"
+	--checkpoint-dir "savedcheckpoints/Carla-v0/TINY_CNN_2022-05-08-16:03:33"
