@@ -14,7 +14,7 @@ from PIL import Image
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import trange
 
-from common.utils import CHECKPOINT_FORMAT, _transform_np_image_to_tensor
+from common.utils import CHECKPOINT_FORMAT, normalize_image
 from sac.model import RenderTester
 
 
@@ -204,7 +204,9 @@ def test_render(model: RenderTester, config):
     # save_image(rgb_array, num=0)
 
     for step in trange(1, config.max_episode_steps + 1):
-        state = model.state_encoder.encode(observation, return_tensor=True)
+        normalized_obs = normalize_image(observation).transpose((2, 0, 1))
+
+        state = model.state_encoder.encode(normalized_obs, return_tensor=True)
 
         if additional_state is not None:
             additional_state_tensor = torch.tensor(additional_state, dtype=torch.float32, device=model.model_device)

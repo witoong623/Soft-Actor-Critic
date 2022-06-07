@@ -13,6 +13,7 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 
+from functools import partial
 from common.config import Config
 from common.environment import initialize_environment
 from common.network import build_encoder
@@ -211,6 +212,7 @@ def initialize(config):
     torch.manual_seed(config.random_seed)
 
     initialize_hyperparameters(config)
+    initialize_functions(config)
     initialize_environment(config)
     build_encoder(config)
     check_devices(config)
@@ -286,6 +288,17 @@ def initialize_hyperparameters(config):
 
     if config.n_bootstrap_step > 1:
         config.gamma = math.pow(config.gamma, config.n_bootstrap_step)
+
+
+def initialize_functions(config):
+    import common.utils
+
+    # initialize normalize function
+    mean = np.tile([0.4652, 0.4417, 0.3799], config.n_frames)
+    std = np.tile([0.0946, 0.1767, 0.1865], config.n_frames)
+
+    common.utils.normalize_image = partial(common.utils._normalize_image, mean=mean, std=std)
+    common.utils.batch_normalize_images = partial(common.utils._batch_normalize_images, mean=mean, std=std)
 
 
 def copy_environment_file(config):

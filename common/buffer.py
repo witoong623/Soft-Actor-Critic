@@ -14,9 +14,6 @@ class ReplayBuffer(object):
         self.buffer_offset = Value('L', 0)
         self.lock = Lock()
 
-        self.mean = np.array([0.4652, 0.4417, 0.3799, 0.4652, 0.4417, 0.3799])
-        self.std = np.array([0.0946, 0.1767, 0.1865, 0.0946, 0.1767, 0.1865])
-
     def push(self, *args):
         items = tuple(args)
         with self.lock:
@@ -44,8 +41,8 @@ class ReplayBuffer(object):
 
         batch_samples = list(zip(*batch))
         # normalize batch of observations
-        batch_samples[0] = batch_normalize_images(batch_samples[0], self.mean, self.std)
-        batch_samples[4] = batch_normalize_images(batch_samples[4], self.mean, self.std)
+        batch_samples[0] = batch_normalize_images(batch_samples[0])
+        batch_samples[4] = batch_normalize_images(batch_samples[4])
 
         # batch_samples[0] = batch_normalize_grayscale_images(batch_samples[0])
         # batch_samples[4] = batch_normalize_grayscale_images(batch_samples[4])

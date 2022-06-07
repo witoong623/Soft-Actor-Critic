@@ -33,7 +33,6 @@ class Sampler(mp.Process):
                  device, random_seed, log_dir):
         super().__init__(name=f'sampler_{rank}', daemon=True)
 
-        self.list_maxlen = 110
         self.rank = rank
         self.lock = lock
         self.running_event = running_event
@@ -82,15 +81,15 @@ class Sampler(mp.Process):
 
         self.log_dir = log_dir
 
+        # for maintaining size of statistic
+        self.list_maxlen = 110
+
         self.episode = 0
         self.does_perfect_sample = False
         self.trajectory = []
         self.frames = []
         self.image_font = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoMono-Regular.ttf", 16)
         self.render()
-
-        self.mean = np.array([0.4652, 0.4417, 0.3799, 0.4652, 0.4417, 0.3799])
-        self.std = np.array([0.0946, 0.1767, 0.1865, 0.0946, 0.1767, 0.1865])
 
     def run(self):
         setproctitle(title=self.name)
@@ -141,7 +140,7 @@ class Sampler(mp.Process):
                         action, done_sample = action_sampler.sample()
                     else:
                         # observation shape (H, W, C)
-                        normalized_obs = normalize_image(observation, self.mean, self.std).transpose((2, 0, 1))
+                        normalized_obs = normalize_image(observation).transpose((2, 0, 1))
                         # this is for grayscale
                         # normalized_obs = normalize_grayscale_image(observation)
                         state = self.state_encoder.encode(normalized_obs, return_tensor=True, data_dtype=amp_dtype)
