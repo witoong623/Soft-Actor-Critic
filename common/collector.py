@@ -15,7 +15,7 @@ from setproctitle import setproctitle
 from torch.utils.tensorboard import SummaryWriter
 
 from .buffer import ReplayBuffer, EpisodeReplayBuffer
-from .utils import clone_network, sync_params, normalize_image, CarlaBiasActionSampler
+from .utils import clone_network, sync_params, normalize_image, normalize_grayscale_image, CarlaBiasActionSampler
 from .carla_environment.environment import CarlaPerfectActionSampler
 
 
@@ -142,6 +142,8 @@ class Sampler(mp.Process):
                     else:
                         # observation shape (H, W, C)
                         normalized_obs = normalize_image(observation, self.mean, self.std).transpose((2, 0, 1))
+                        # this is for grayscale
+                        # normalized_obs = normalize_grayscale_image(observation)
                         state = self.state_encoder.encode(normalized_obs, return_tensor=True, data_dtype=amp_dtype)
 
                         if additional_state is not None:

@@ -276,12 +276,28 @@ def normalize_image(image, mean, std):
     return (image - mean) / std
 
 
-def batch_normalize(images, mean, std):
+def normalize_grayscale_image(image):
+    ''' normalize image in numpy format by divide it by 255
+    '''
+    image = image / 255.
+
+    return image
+
+
+def batch_normalize_images(images, mean, std):
     batch_size = len(images)
     stacked_imgs = np.vstack(images)
     normalized_stacked_imgs = ((stacked_imgs / 255.) - mean) / std
 
     normalized_stacked_imgs = normalized_stacked_imgs.transpose((2, 0, 1))
+
+    return np.split(normalized_stacked_imgs, batch_size, axis=1)
+
+
+def batch_normalize_grayscale_images(images):
+    batch_size = len(images)
+    stacked_imgs = np.concatenate(images, axis=1)
+    normalized_stacked_imgs = stacked_imgs / 255.
 
     return np.split(normalized_stacked_imgs, batch_size, axis=1)
 
