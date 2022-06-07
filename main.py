@@ -77,7 +77,7 @@ def get_config():
                                          help='size of camera in environment (default: same as image size)')
     carla_environment_group.add_argument('--camera-fov', type=int, default=None,
                                          help='camera FOV (default: None)')
-    carla_environment_group.add_argument('--fps-mode', type=str, choices=['low', 'high'], default='HIGH',
+    carla_environment_group.add_argument('--fps-mode', type=str, choices=['low', 'high'], default='high',
                                          help='set FPS of CARLA. low is 5FPS, high is 10FPS (default: high)')
     encoder_group = parser.add_argument_group('state encoder')
     encoder_group.add_argument('--encoder-arch', type=str, choices=['FC', 'RNN', 'CNN', 'VAE', 'BETAVAE', 'EFFICIENTNET', 'RESNET', 'TINY_CNN'], default='FC',
