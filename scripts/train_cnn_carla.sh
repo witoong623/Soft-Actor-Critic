@@ -34,8 +34,8 @@ python main.py \
 	--n-samplers 1 \
 	--buffer-capacity 21000 \
 	--update-sample-ratio 2.0 \
-	--critic-lr 3E-4 --actor-lr 3E-4 \
-	--alpha-lr 3E-4 --initial-alpha 1.0 \
+	--critic-lr 1E-4 --actor-lr 1E-4 \
+	--alpha-lr 1E-4 --initial-alpha 1.0 \
 	--adaptive-entropy --target-entropy -3 \
 	--gamma 0.99 --soft-tau 0.005 --random-seed 69 \
 	--n-bootstrap-step 2 \
