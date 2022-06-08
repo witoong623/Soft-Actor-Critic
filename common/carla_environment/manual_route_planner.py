@@ -280,7 +280,11 @@ class ManualRoutePlanner:
             end = s3[1]
             frequency = s3[2]
 
-        idx = (((self._current_waypoint_index - start) // frequency) * frequency) + start
+        # this equation find the most recent progress in term of index complete, discard any progress that doesn't reach checkpoint index
+        if self._current_waypoint_index == end:
+            idx = end
+        else:
+            idx = (((self._current_waypoint_index - start) // frequency) * frequency) + start
 
         if idx >= self._intermediate_checkpoint_waypoint_index:
             self._repeat_count += 1
@@ -293,6 +297,8 @@ class ManualRoutePlanner:
                     else:
                         self._checkpoint_waypoint_index = self._intermediate_checkpoint_waypoint_index
                         self._intermediate_checkpoint_waypoint_index += frequency
+
+                        self._intermediate_checkpoint_waypoint_index = min(self._intermediate_checkpoint_waypoint_index, end)
                 else:
                     self._checkpoint_waypoint_index = start
 
