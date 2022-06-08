@@ -268,15 +268,13 @@ class CarlaBiasActionSampler:
         return np.array([acc, steer], dtype=np.float32)
 
 
-def _normalize_image(image, mean, std):
+def normalize_image(image, mean, std):
     ''' normalize image in numpy format by divide it by 255
         and standardize it by mean and std.
     '''
     image = image / 255.
 
     return (image - mean) / std
-
-normalize_image: Callable = None
 
 
 def normalize_grayscale_image(image):
@@ -287,7 +285,7 @@ def normalize_grayscale_image(image):
     return image
 
 
-def _batch_normalize_images(images, mean, std):
+def batch_normalize_images(images, mean, std):
     batch_size = len(images)
     stacked_imgs = np.vstack(images)
     normalized_stacked_imgs = ((stacked_imgs / 255.) - mean) / std
@@ -295,8 +293,6 @@ def _batch_normalize_images(images, mean, std):
     normalized_stacked_imgs = normalized_stacked_imgs.transpose((2, 0, 1))
 
     return np.split(normalized_stacked_imgs, batch_size, axis=1)
-
-batch_normalize_images: Callable = None
 
 
 def batch_normalize_grayscale_images(images):

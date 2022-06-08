@@ -18,6 +18,10 @@ from common.utils import CHECKPOINT_FORMAT, normalize_image
 from sac.model import RenderTester
 
 
+MEAN = np.tile([0.4652, 0.4417, 0.3799], 2)
+STD = np.tile([0.0946, 0.1767, 0.1865], 2)
+
+
 def train_loop(model, config, update_kwargs):
     with SummaryWriter(log_dir=os.path.join(config.log_dir, 'trainer'), comment='trainer') as writer:
         n_initial_samples = model.collector.n_total_steps
@@ -204,7 +208,7 @@ def test_render(model: RenderTester, config):
     # save_image(rgb_array, num=0)
 
     for step in trange(1, config.max_episode_steps + 1):
-        normalized_obs = normalize_image(observation).transpose((2, 0, 1))
+        normalized_obs = normalize_image(observation, MEAN, STD).transpose((2, 0, 1))
 
         state = model.state_encoder.encode(normalized_obs, return_tensor=True)
 

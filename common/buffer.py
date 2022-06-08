@@ -4,6 +4,10 @@ import torch.multiprocessing as mp
 from .utils import batch_normalize_images, batch_normalize_grayscale_images
 
 
+MEAN = np.tile([0.4652, 0.4417, 0.3799], 2)
+STD = np.tile([0.0946, 0.1767, 0.1865], 2)
+
+
 __all__ = ['ReplayBuffer', 'EpisodeReplayBuffer']
 
 
@@ -41,8 +45,8 @@ class ReplayBuffer(object):
 
         batch_samples = list(zip(*batch))
         # normalize batch of observations
-        batch_samples[0] = batch_normalize_images(batch_samples[0])
-        batch_samples[4] = batch_normalize_images(batch_samples[4])
+        batch_samples[0] = batch_normalize_images(batch_samples[0], MEAN, STD)
+        batch_samples[4] = batch_normalize_images(batch_samples[4], MEAN, STD)
 
         # batch_samples[0] = batch_normalize_grayscale_images(batch_samples[0])
         # batch_samples[4] = batch_normalize_grayscale_images(batch_samples[4])

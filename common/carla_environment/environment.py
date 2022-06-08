@@ -240,6 +240,9 @@ class CarlaEnv(gym.Env):
             else:
                 self._combine_observations = lambda obs_array: obs_array
 
+        self.mean = np.tile([0.4652, 0.4417, 0.3799], self.n_images)
+        self.std = np.tile([0.0946, 0.1767, 0.1865], self.n_images)
+
         self.z_steps = {}
 
     def reset(self):
@@ -813,7 +816,7 @@ class CarlaEnv(gym.Env):
     def _transform_VAE_observation(self, obs):
         cropped_obs = self._crop_image(obs)
         resized_obs = cv2.resize(cropped_obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
-        normalized_obs = normalize_image(resized_obs).astype(np.float16)
+        normalized_obs = normalize_image(resized_obs, self.mean, self.std).astype(np.float16)
 
         return normalized_obs
 

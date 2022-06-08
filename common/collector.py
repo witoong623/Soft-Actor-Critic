@@ -22,6 +22,10 @@ from .carla_environment.environment import CarlaPerfectActionSampler
 __all__ = ['Collector', 'EpisodeCollector']
 
 
+MEAN = np.tile([0.4652, 0.4417, 0.3799], 2)
+STD = np.tile([0.0946, 0.1767, 0.1865], 2)
+
+
 class Sampler(mp.Process):
     def __init__(self, rank, n_samplers, lock,
                  running_event, event, next_sampler_event,
@@ -140,7 +144,7 @@ class Sampler(mp.Process):
                         action, done_sample = action_sampler.sample()
                     else:
                         # observation shape (H, W, C)
-                        normalized_obs = normalize_image(observation).transpose((2, 0, 1))
+                        normalized_obs = normalize_image(observation, MEAN, STD).transpose((2, 0, 1))
                         # this is for grayscale
                         # normalized_obs = normalize_grayscale_image(observation)
                         state = self.state_encoder.encode(normalized_obs, return_tensor=True, data_dtype=amp_dtype)
