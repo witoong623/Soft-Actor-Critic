@@ -54,8 +54,6 @@ class ManualRoutePlanner:
             _route_waypoints = self._compute_route_waypoints()
             _transformed_waypoint_routes = List(self._transform_waypoints(_route_waypoints))
 
-            self.spawn_transform = _route_waypoints[self._checkpoint_waypoint_index][0].transform
-
         self._in_random_spawn_point = False
 
         # for section checkpoint
@@ -83,12 +81,6 @@ class ManualRoutePlanner:
         ''' Set internal state to current vehicle, must be called in `reset` '''
         self._vehicle = vehicle
 
-        if not self._in_random_spawn_point:
-            self._start_waypoint_index = self._checkpoint_waypoint_index
-            self._current_waypoint_index = self._checkpoint_waypoint_index
-
-        self.lap_count = 0
-
     def run_step(self):
         waypoint_routes_len = len(_route_waypoints)
         current_transform = self._vehicle.get_transform()
@@ -113,11 +105,6 @@ class ManualRoutePlanner:
         # self._checkpoint_waypoint_index = (self._current_waypoint_index // self._checkpoint_frequency) * self._checkpoint_frequency
         if not self._in_random_spawn_point:
             self._update_checkpoint_by_section()
-
-        # update here because vehicle is spawn before set_vehicle call and spawning requires spawn point
-        self.spawn_transform = _route_waypoints[self._checkpoint_waypoint_index][0].transform
-
-        self.lap_count = (waypoint_index - self._start_waypoint_index) / len(_route_waypoints)
 
         return _transformed_waypoint_routes[self._current_waypoint_index:]
 
@@ -310,31 +297,42 @@ class ManualRoutePlanner:
         next_frequency = self.sections_frequency[(end_idx + 1) % len(self.sections_frequency)]
         return next_start, next_frequency
 
-    def get_random_spawn_point(self):
+    def _get_random_spawn_point(self):
         start_original = random.random() >= 0.4
         if start_original:
             self._in_random_spawn_point = False
-            return self._checkpoint_waypoint_index, self.spawn_transform
-
-        self._in_random_spawn_point = True
-        if random.random() >= 0.3 or self._checkpoint_waypoint_index in self.sections_start:
-            # random start in the same section
-            random_idx = self._checkpoint_waypoint_index + (random.randint(5, 20) // 2 * 2)
+            spawn_idx = self._checkpoint_waypoint_index
         else:
-            # random start at any point before current checkpoint
-            lower_bound = 0
-            for start, end in zip(self.sections_start, self.sections_ends):
-                if start <= self._checkpoint_waypoint_index < end:
-                    lower_bound = start
-                    break
+            self._in_random_spawn_point = True
 
-            random_idx = random.randint(lower_bound, self._checkpoint_waypoint_index)
+            if random.random() >= 0.3 or self._checkpoint_waypoint_index in self.sections_start:
+                # random start in the same section
+                spawn_idx = self._checkpoint_waypoint_index + (random.randint(5, 20) // 2 * 2)
+            else:
+                # random start at any point before current checkpoint
+                lower_bound = 0
+                for start, end in zip(self.sections_start, self.sections_ends):
+                    if start <= self._checkpoint_waypoint_index < end:
+                        lower_bound = start
+                        break
 
-        self._start_waypoint_index = random_idx
-        self._current_waypoint_index = random_idx
-        self.spawn_transform = _route_waypoints[random_idx][0].transform
+                spawn_idx = random.randint(lower_bound, self._checkpoint_waypoint_index)
 
-        return random_idx, self.spawn_transform
+        spawn_transform = _route_waypoints[spawn_idx][0].transform
+
+        return spawn_idx, spawn_transform
+
+    def get_spawn_point(self):
+        ''' get spawn point from pre-defined strategy '''
+        if not self.completed_lap:
+            idx, transform = self._get_random_spawn_point()
+        else:
+            pass
+
+        self._current_waypoint_index = idx
+        self._start_waypoint_index = idx
+
+        return idx, transform
 
     @property
     def next_waypoint(self):
