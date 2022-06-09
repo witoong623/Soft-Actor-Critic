@@ -142,12 +142,15 @@ class CarlaEnv(gym.Env):
         # route planner mode
         self.route_mode = RouteMode.MANUAL_LAP
         if self.route_mode == RouteMode.MANUAL_LAP:
+            initial_checkpoint = kwargs.get('initial_checkpoint', 0)
+            repeat_threshold = kwargs.get('repeat_section_threshold', 5)
             self.routeplanner = ManualRoutePlanner(self.lap_spwan_point_wp,
                                                    self.lap_spwan_point_wp,
                                                    self.world,
                                                    resolution=2,
                                                    plan=TOWN7_PLAN,
-                                                   repeat_section_threshold=kwargs['repeat_section_threshold'],
+                                                   initial_checkpoint=initial_checkpoint,
+                                                   repeat_section_threshold=repeat_threshold,
                                                    use_section=True)
 
         # ego vehicle bp
