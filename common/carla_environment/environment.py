@@ -301,7 +301,7 @@ class CarlaEnv(gym.Env):
 
         # Spawn the ego vehicle
         ego_spawn_times = 0
-        spawn_transform_index, spawn_transform = self.routeplanner._get_random_spawn_point()
+        spawn_transform_index, spawn_transform = self.routeplanner.get_spawn_point()
         if spawn_transform_index not in self.z_steps:
             self.z_steps[spawn_transform_index] = 0.1
         z_step = self.z_steps[spawn_transform_index]
