@@ -1,7 +1,9 @@
 # copy from https://github.com/bitsauce/Carla-ppo/blob/master/CarlaEnv/planner.py
 import carla
-import numpy as np
+import functools
+import operator
 import random
+import numpy as np
 
 from numba.typed import List
 from agents.navigation.local_planner import RoadOption
@@ -67,6 +69,22 @@ class ManualRoutePlanner:
             self.sections_frequency = [s[2] for s in self.sections_indexes]
             self.sections_ends = [140, 141, 142, 173, 174, 175, 591]
 
+            def get_all_indexes(start, end, step):
+                indexes = []
+                idx = start
+
+                while not indexes or indexes[-1] < end:
+                    idx = max(idx + step, end)
+                    indexes.append(idx)
+
+                return indexes
+
+            self.all_spawn_indexes = functools.reduce(operator.concat,
+                                                      [get_all_indexes(*sec) for sec in self.sections_indexes])
+            self.round_spawn_idx = 0
+            self.reached_last_index = False
+            self.completed_lap = False
+
             if initial_checkpoint < self.sections_end[0]:
                 frequency = self.sections_indexes[0][2]
             elif initial_checkpoint < self.sections_end[1]:
@@ -106,6 +124,13 @@ class ManualRoutePlanner:
         # self._checkpoint_waypoint_index = (self._current_waypoint_index // self._checkpoint_frequency) * self._checkpoint_frequency
         if not self._in_random_spawn_point:
             self._update_checkpoint_by_section()
+
+        # check complete lap first time
+        if not self.reached_last_index:
+            self.reached_last_index = ((waypoint_index) % waypoint_routes_len) == self.sections_ends[-1]
+
+        if self.reached_last_index and not self.completed_lap:
+            self.completed_lap = self._checkpoint_waypoint_index == 0
 
         return _transformed_waypoint_routes[self._current_waypoint_index:]
 
@@ -323,12 +348,21 @@ class ManualRoutePlanner:
 
         return spawn_idx, spawn_transform
 
+    def _get_cycle_spawn_point(self):
+        list_idx = self.round_spawn_idx % len(self.all_spawn_indexes)
+        self.round_spawn_idx += 1
+
+        spawn_idx = self.all_spawn_indexes[list_idx]
+        spawn_transform = _route_waypoints[spawn_idx][0].transform
+
+        return spawn_idx, spawn_transform
+
     def get_spawn_point(self):
         ''' get spawn point from pre-defined strategy '''
         if not self.completed_lap:
             idx, transform = self._get_random_spawn_point()
         else:
-            pass
+            idx, transform = self._get_cycle_spawn_point()
 
         self._current_waypoint_index = idx
         self._start_waypoint_index = idx
