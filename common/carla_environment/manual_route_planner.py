@@ -25,7 +25,7 @@ def carla_to_vector(obj):
 
 class ManualRoutePlanner:
     def __init__(self, start_waypoint, end_waypoint, world, resolution=2.0, plan=None,
-                 initial_checkpoint=0, use_section=False, enable=True, debug_route_waypoint_len=None):
+                 initial_checkpoint=0, repeat_section_threshold=5, use_section=False, enable=True, debug_route_waypoint_len=None):
         ''' route_waypoint_len is purely for testing purpose '''
         global _route_waypoints, _transformed_waypoint_routes
 
@@ -42,7 +42,7 @@ class ManualRoutePlanner:
 
         self.lap_count = 0
         self._repeat_count = 0
-        self._repeat_count_threshold = 5
+        self._repeat_count_threshold = repeat_section_threshold
         self._checkpoint_frequency = 25
 
         self._checkpoint_waypoint_index = initial_checkpoint

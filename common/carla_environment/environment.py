@@ -142,8 +142,13 @@ class CarlaEnv(gym.Env):
         # route planner mode
         self.route_mode = RouteMode.MANUAL_LAP
         if self.route_mode == RouteMode.MANUAL_LAP:
-            self.routeplanner = ManualRoutePlanner(self.lap_spwan_point_wp, self.lap_spwan_point_wp, self.world,
-                                                   resolution=2, plan=TOWN7_PLAN, use_section=True)
+            self.routeplanner = ManualRoutePlanner(self.lap_spwan_point_wp,
+                                                   self.lap_spwan_point_wp,
+                                                   self.world,
+                                                   resolution=2,
+                                                   plan=TOWN7_PLAN,
+                                                   repeat_section_threshold=kwargs['repeat_section_threshold'],
+                                                   use_section=True)
 
         # ego vehicle bp
         self.ego_bp = self._create_vehicle_bluepprint('vehicle.mini.cooper_s_2021')

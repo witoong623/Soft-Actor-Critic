@@ -80,6 +80,8 @@ def get_config():
                                          help='camera FOV (default: None)')
     carla_environment_group.add_argument('--fps-mode', type=str, choices=['low', 'high'], default='high',
                                          help='set FPS of CARLA. low is 5FPS, high is 10FPS (default: high)')
+    carla_environment_group.add_argument('--repeat-section-threshold', type=int, default=5,
+                                         help='set the number of time to reach next checkpoint in order to start there (default: 5)')
     encoder_group = parser.add_argument_group('state encoder')
     encoder_group.add_argument('--encoder-arch', type=str, choices=['FC', 'RNN', 'CNN', 'VAE', 'BETAVAE', 'EFFICIENTNET', 'RESNET', 'TINY_CNN'], default='FC',
                                help='architecture of state encoder network (default: FC)')
