@@ -1,3 +1,4 @@
+import random
 import numpy as np
 import torch.multiprocessing as mp
 
@@ -140,3 +141,173 @@ class EpisodeReplayBuffer(ReplayBuffer):
     @property
     def size(self):
         return self.buffer_size.value
+
+
+def modulo_range(start, length, modulo):
+  for i in range(length):
+    yield (start + i) % modulo
+
+
+class EfficientReplayBuffer:
+    def __init__(self, capacity, batch_size, n_frames, n_step_return,
+                 initializer, gamma=0.99, Value=mp.Value, Lock=mp.Lock):
+        self.capacity = capacity
+        self.buffer = initializer()
+        self.buffer_offset = Value('L', 0)
+        self.lock = Lock()
+
+        assert n_frames > 1
+        self.batch_size = batch_size
+        self.n_frames = n_frames
+        self.n_step_return = n_step_return
+        self.gamma = gamma
+
+        self.end_episode_indexes = set()
+        self.invalid_indexes = [i for i in range(self.n_frames - 1)]
+
+    def push(self, *args):
+        items = tuple(args)
+        with self.lock:
+            if self.size < self.capacity:
+                self.buffer.append(items)
+            else:
+                self.buffer[self.offset] = items
+            self.offset = (self.offset + 1) % self.capacity
+
+    def extend(self, trajectory):
+        with self.lock:
+            # pad only obs
+            self._pad_transition((trajectory[0][0],))
+
+            # trajectory is list of tuples, and this look like wrap tuple with tuple again
+            # but this results in the same structure, don't know why use this code
+            for items in map(tuple, trajectory):
+                if self.size < self.capacity:
+                    self.buffer.append(items)
+                else:
+                    self.buffer[self.offset] = items
+
+                self.end_episode_indexes.discard(self.offset)
+                self.offset = (self.offset + 1) % self.capacity
+
+            self.end_episode_indexes.add((self.offset - 1) % self.capacity)
+
+            self.invalid_indexes = self.get_invalid_range()
+
+    def _pad_transition(self, item):
+        ''' Pad by a number of frames '''
+        for _ in range(self.n_frames - 1):
+            if self.size < self.capacity:
+                self.buffer.append(item)
+            else:
+                self.buffer[self.offset] = item
+
+        self.end_episode_indexes.discard(self.offset)
+        self.offset = (self.offset + 1) % self.capacity
+
+    def sample(self, *args):
+        idx_batch = []
+
+        attemp_count = 0
+        while len(idx_batch) < self.batch_size and attemp_count < 10:
+            random_idx = random.randint(0, len(self.buffer) - 1)
+            if self._is_valid_transition(random_idx):
+                idx_batch.append(random_idx)
+                attemp_count = 0
+            else:
+                attemp_count += 1
+        
+        if len(idx_batch) != self.batch_size:
+            raise RuntimeError('cannot sample enough valid sample')
+
+        batch = []
+        for step_idx in idx_batch:
+            transitions_indexes = slice(step_idx, step_idx+self.n_step_return)
+            # get done element from trajectories
+            transitions_dones = list(map(lambda t: t[-1], self.buffer[transitions_indexes]))
+            is_done = any(transitions_dones)
+
+            if is_done:
+                # because argmax return index not count, +1 make it count
+                transition_len = np.argmax(transitions_dones) + 1
+            else:
+                # prevent len is more than remaining trajectory, -1 to convert to base 0 index
+                transition_len = self.n_step_return
+
+            next_step_idx = step_idx + transition_len
+
+            current_trajectory = self.buffer[step_idx]
+
+            obs = self.get_stack_images(step_idx)
+            addi_obs = current_trajectory[1]
+            action = current_trajectory[2]
+            reward = self._sum_gamma_rewards([transition[3] for transition in self.buffer[step_idx:next_step_idx+1]])
+            next_obs = self.get_stack_images(next_step_idx)
+            next_addi_obs = self.buffer[next_step_idx][1]
+
+            batch.append((obs, addi_obs, action, reward, next_obs, next_addi_obs, is_done))
+
+        return tuple(map(np.stack, zip(*batch)))
+
+    def get_stack_images(self, idx, axis=0):
+        start_idx = idx - self.n_frames + 1
+        end_idx = idx + 1
+
+        if start_idx > self.n_frames - 1 and start_idx < end_idx:
+            return np.stack([transition[0] for transition in self.buffer[start_idx:end_idx]], axis=axis)
+        elif start_idx > self.n_frames:
+            pass
+        else:
+            return np.stack([self.buffer[(idx-self.n_frames+1+i)][0] for i in range(self.n_frames)],
+                             axis=axis)
+
+    def _is_valid_transition(self, idx):
+        if not self.is_full:
+            if idx < self.n_frames - 1 or \
+                idx > self.offset - self.n_step_return:
+                return False
+
+        if idx in self.invalid_indexes:
+            return False
+
+        # look ahead if it ends before n-step future
+        for timestep in modulo_range(idx, self.n_step_return, self.capacity):
+            if timestep in self.end_episode_indexes and not self.buffer[idx][-1]:
+                return False
+
+        return True
+
+    def get_invalid_range(self):
+        ''' N-step before current position isn't valid since it can't use N-step
+            n_frames after current position isn't valid since it can stack frame
+            to this position '''
+        return [(self.offset-self.n_step_return+i) % self.capacity \
+                for i in range(self.n_step_return + self.n_frames)]
+
+    def _sum_gamma_rewards(self, rewards):
+        cumulative_reward = 0
+        discount_pow = 0
+        for reward in rewards:
+            cumulative_reward += reward * self.gamma**discount_pow
+            discount_pow += 1
+
+        return cumulative_reward
+
+    def __len__(self):
+        return self.size
+
+    @property
+    def is_full(self):
+        return self.offset >= self.capacity
+
+    @property
+    def size(self):
+        return len(self.buffer)
+
+    @property
+    def offset(self):
+        return self.buffer_offset.value
+
+    @offset.setter
+    def offset(self, value):
+        self.buffer_offset.value = value
