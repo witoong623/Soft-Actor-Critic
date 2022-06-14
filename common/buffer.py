@@ -177,7 +177,7 @@ class EfficientReplayBuffer:
     def extend(self, trajectory):
         with self.lock:
             # pad only obs
-            self._pad_transition((trajectory[0][0],))
+            self._pad_transition(trajectory[0][:2])
 
             # trajectory is list of tuples, and this look like wrap tuple with tuple again
             # but this results in the same structure, don't know why use this code
@@ -191,7 +191,6 @@ class EfficientReplayBuffer:
                 self.offset = (self.offset + 1) % self.capacity
 
             self.end_episode_indexes.add((self.offset - 1) % self.capacity)
-            print(f'offset after finished adding is {self.offset}')
 
             self.invalid_indexes = self.get_invalid_range()
 
@@ -240,11 +239,11 @@ class EfficientReplayBuffer:
 
             next_state_idx = state_idx + transition_len
 
-            current_trajectory = self.buffer[state_idx]
+            current_transition = self.buffer[state_idx]
 
             obs = self.get_stack_images(state_idx)
-            addi_obs = current_trajectory[1]
-            action = current_trajectory[2]
+            addi_obs = current_transition[1]
+            action = current_transition[2]
             reward = self._sum_gamma_rewards(state_idx, next_state_idx)
             next_obs = self.get_stack_images(next_state_idx)
             next_addi_obs = self.buffer[next_state_idx][1]
@@ -278,8 +277,8 @@ class EfficientReplayBuffer:
             return False
 
         # accept end of episode, if it was terminal state
-        for timestep in modulo_range(idx, self.n_step_return, self.capacity):
-            if timestep in self.end_episode_indexes and not self.buffer[idx][-1]:
+        for t in modulo_range(idx, self.n_step_return, self.capacity):
+            if t in self.end_episode_indexes and not self.buffer[t][-1]:
                 return False
 
         return True

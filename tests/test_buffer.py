@@ -92,14 +92,15 @@ class TestReplayBuffer(unittest.TestCase):
                 trajectories.append((MockObs(ep, step), MockAddiObs(ep, step), 0.1, reward, False))
 
             # terminal transition
-            trajectories.append((MockObs(ep, n_step), MockAddiObs(ep, n_step), 0.1, reward, True))
+            trajectories.append((MockObs(ep, n_step), MockAddiObs(ep, n_step), 0.1, reward + 1, True))
 
             eps.append(trajectories)
 
         for ep in eps:
             replay_buff.extend(ep)
 
-    def assertValidObs(self, ep, step, actual_obs, is_first=False, n_frames=N_FRAMES):
+    def assertValidObs(self, ep, step, actual_obs, is_first=False, is_last=False, n_frames=N_FRAMES):
+        assert not (is_first and is_last)
         expected_obs = []
         for s in range(1, n_frames + 1):
             ep_step = step - n_frames + s
@@ -148,7 +149,7 @@ class TestReplayBuffer(unittest.TestCase):
         self.populate_buffer(replay_buff, n_ep, n_step)
 
         # assert pad transition len at the beginning
-        self.assertEqual(len(replay_buff.buffer[0]), 1)
+        self.assertEqual(len(replay_buff.buffer[0]), 2)
         self.assertEqual(replay_buff.buffer[0][0], MockObs(1, 1))
         self.assertEqual(len(replay_buff.buffer), 11)
 
@@ -168,7 +169,7 @@ class TestReplayBuffer(unittest.TestCase):
         self.populate_buffer(replay_buff, n_ep, n_step)
 
         # assert pad transition len at the beginning
-        self.assertEqual(len(replay_buff.buffer[0]), 1)
+        self.assertEqual(len(replay_buff.buffer[0]), 2)
         self.assertEqual(get_obs(replay_buff, 0), MockObs(1, 1))
         self.assertEqual(get_obs(replay_buff, 11), MockObs(2, 1))
         self.assertEqual(get_obs(replay_buff, 21), MockObs(2, 10))
@@ -184,7 +185,7 @@ class TestReplayBuffer(unittest.TestCase):
                 replay_buff.sample()
 
     def test_sample_after_add_one_ep(self):
-        ''' start at the beginning, stack should contains repaet obs '''
+        ''' sample at the beginning and end of episode '''
         n_ep = 1
         n_step = 10
         replay_buff = self.create_default_test_buffer()
@@ -196,13 +197,13 @@ class TestReplayBuffer(unittest.TestCase):
 
             # assert first transition in batch
             # obs
-            self.assertValidObs(1, 1, obs[0], is_first=True)
+            self.assertEqual(obs[0].tolist(), [MockObs(1, 1)]*2)
             # additional obs
             self.assertEqual(addi_obs[0], MockAddiObs(1, 1))
             # reward
             self.assertRewardValid(1, reward[0])
             # next obs
-            self.assertValidObs(1, 3, next_obs[0])
+            self.assertEqual(next_obs[0].tolist(), [MockObs(1, 2), MockObs(1, 3)])
             # next additional obs
             self.assertEqual(next_addi_obs[0], MockAddiObs(1, 3))
             # done
@@ -210,13 +211,13 @@ class TestReplayBuffer(unittest.TestCase):
 
             # assert second transition in batch
             # obs
-            self.assertValidObs(1, 8, obs[1])
+            self.assertEqual(obs[1].tolist(), [MockObs(1, 7), MockObs(1, 8)])
             # additional obs
             self.assertEqual(addi_obs[1], MockAddiObs(1, 8))
             # reward
             self.assertRewardValid(8, reward[1])
             # next obs
-            self.assertValidObs(1, 10, next_obs[1])
+            self.assertEqual(next_obs[1].tolist(), [MockObs(1, 9), MockObs(1, 10)])
             # next additional obs
             self.assertEqual(next_addi_obs[1], MockAddiObs(1, 10))
             # done
@@ -224,3 +225,42 @@ class TestReplayBuffer(unittest.TestCase):
             # that is just next state, the real variable that determine whether it ends
             # at the current t or not is still done of the last transition we use its reward for N-step
             self.assertFalse(done[1])
+
+    def test_sample_after_add_two_eps(self):
+        ''' sample at the beginning and end of episodes '''
+        n_ep = 2
+        n_step = 10
+        replay_buff = self.create_default_test_buffer(batch_size=4)
+        self.populate_buffer(replay_buff, n_ep, n_step)
+
+        # only 1 and 8 are valid
+        with unittest.mock.patch('random.randint', get_mock_random_func([1, 9, 12, 19])):
+            obs, addi_obs, action, reward, next_obs, next_addi_obs, done = replay_buff.sample()
+
+            # assert first transition in batch
+            # obs
+            self.assertEqual(obs[0].tolist(), [MockObs(1, 1)]*2)
+            # additional obs
+            self.assertEqual(addi_obs[0], MockAddiObs(1, 1))
+            # reward
+            self.assertRewardValid(1, reward[0])
+            # next obs
+            self.assertEqual(next_obs[0].tolist(), [MockObs(1, 2), MockObs(1, 3)])
+            # next additional obs
+            self.assertEqual(next_addi_obs[0], MockAddiObs(1, 3))
+            # done
+            self.assertFalse(done[0])
+
+            # assert second transition in batch
+            # obs
+            self.assertEqual(obs[1].tolist(), [MockObs(1, 8), MockObs(1, 9)])
+            # additional obs
+            self.assertEqual(addi_obs[1], MockAddiObs(1, 9))
+            # reward
+            self.assertRewardValid(9, reward[1])
+            # next obs
+            self.assertEqual(next_obs[1].tolist(), [MockObs(1, 10), MockObs(2, 1)])
+            # next additional obs
+            self.assertEqual(next_addi_obs[1], MockAddiObs(2, 1))
+            # done
+            self.assertTrue(done[1])
