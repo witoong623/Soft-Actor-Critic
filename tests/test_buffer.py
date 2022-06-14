@@ -220,4 +220,7 @@ class TestReplayBuffer(unittest.TestCase):
             # next additional obs
             self.assertEqual(next_addi_obs[1], MockAddiObs(1, 10))
             # done
-            self.assertTrue(done[1])
+            # THIS IS FALSE because even though we use next state idx = state idx + n-step
+            # that is just next state, the real variable that determine whether it ends
+            # at the current t or not is still done of the last transition we use its reward for N-step
+            self.assertFalse(done[1])

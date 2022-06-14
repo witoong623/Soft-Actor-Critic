@@ -191,6 +191,7 @@ class EfficientReplayBuffer:
                 self.offset = (self.offset + 1) % self.capacity
 
             self.end_episode_indexes.add((self.offset - 1) % self.capacity)
+            print(f'offset after finished adding is {self.offset}')
 
             self.invalid_indexes = self.get_invalid_range()
 
@@ -221,9 +222,11 @@ class EfficientReplayBuffer:
             raise RuntimeError('cannot sample enough valid sample')
 
         batch = []
-        for step_idx in idx_batch:
-            transitions_indexes = slice(step_idx,
-                                        step_idx + self.n_step_return)
+        for state_idx in idx_batch:
+            # this slice doesn't actually get element at step_idx + self.n_step_return
+            # which is for next obs only
+            transitions_indexes = slice(state_idx,
+                                        state_idx + self.n_step_return)
             # get done element from trajectories
             transitions_dones = list(map(lambda t: t[-1], self.buffer[transitions_indexes]))
             is_done = any(transitions_dones)
@@ -235,16 +238,16 @@ class EfficientReplayBuffer:
                 # prevent len is more than remaining trajectory, -1 to convert to base 0 index
                 transition_len = self.n_step_return
 
-            next_step_idx = step_idx + transition_len
+            next_state_idx = state_idx + transition_len
 
-            current_trajectory = self.buffer[step_idx]
+            current_trajectory = self.buffer[state_idx]
 
-            obs = self.get_stack_images(step_idx)
+            obs = self.get_stack_images(state_idx)
             addi_obs = current_trajectory[1]
             action = current_trajectory[2]
-            reward = self._sum_gamma_rewards([transition[3] for transition in self.buffer[step_idx:next_step_idx]])
-            next_obs = self.get_stack_images(next_step_idx)
-            next_addi_obs = self.buffer[next_step_idx][1]
+            reward = self._sum_gamma_rewards(state_idx, next_state_idx)
+            next_obs = self.get_stack_images(next_state_idx)
+            next_addi_obs = self.buffer[next_state_idx][1]
 
             batch.append((obs, addi_obs, action, reward, next_obs, next_addi_obs, is_done))
 
@@ -288,9 +291,11 @@ class EfficientReplayBuffer:
         return [(self.offset - self.n_step_return + i) % self.capacity \
                 for i in range(self.n_step_return + self.n_frames)]
 
-    def _sum_gamma_rewards(self, rewards):
+    def _sum_gamma_rewards(self, state_idx, next_state_idx):
+        rewards = [transition[3] for transition in self.buffer[state_idx:next_state_idx]]
         cumulative_reward = 0
         discount_pow = 0
+
         for reward in rewards:
             cumulative_reward += reward * self.gamma**discount_pow
             discount_pow += 1
