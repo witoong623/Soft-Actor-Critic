@@ -176,8 +176,13 @@ class EfficientReplayBuffer:
 
     def extend(self, trajectory):
         with self.lock:
-            # pad only obs
-            self._pad_transition(trajectory[0][:2])
+            # pad necessary
+            first_transition = trajectory[0]
+            self._pad_transition((first_transition[0],
+                                  first_transition[1],
+                                  0,
+                                  0,
+                                  first_transition[4]))
 
             # trajectory is list of tuples, and this look like wrap tuple with tuple again
             # but this results in the same structure, don't know why use this code
@@ -227,7 +232,7 @@ class EfficientReplayBuffer:
             transitions_indexes = slice(state_idx,
                                         state_idx + self.n_step_return)
             # get done element from trajectories
-            transitions_dones = list(map(lambda t: t[-1], self.buffer[transitions_indexes]))
+            transitions_dones = [t[4] for t in self.buffer[transitions_indexes]]
             is_done = any(transitions_dones)
 
             if is_done:
@@ -237,7 +242,7 @@ class EfficientReplayBuffer:
                 # prevent len is more than remaining trajectory, -1 to convert to base 0 index
                 transition_len = self.n_step_return
 
-            next_state_idx = state_idx + transition_len
+            next_state_idx = (state_idx + transition_len) % self.capacity
 
             current_transition = self.buffer[state_idx]
 
@@ -258,8 +263,6 @@ class EfficientReplayBuffer:
 
         if start_idx > self.n_frames - 1 and start_idx < end_idx:
             return np.stack([transition[0] for transition in self.buffer[start_idx:end_idx]], axis=axis)
-        elif start_idx > self.n_frames:
-            pass
         else:
             return np.stack([self.buffer[(idx-self.n_frames+1+i)][0] for i in range(self.n_frames)],
                              axis=axis)
@@ -291,7 +294,17 @@ class EfficientReplayBuffer:
                 for i in range(self.n_step_return + self.n_frames)]
 
     def _sum_gamma_rewards(self, state_idx, next_state_idx):
-        rewards = [transition[3] for transition in self.buffer[state_idx:next_state_idx]]
+        if state_idx < next_state_idx:
+            rewards = [transition[3] for transition in self.buffer[state_idx:next_state_idx]]
+        else:
+            rewards = []
+            for i in range(self.n_step_return):
+                reward_idx = (state_idx + i) % self.capacity
+                if reward_idx == next_state_idx:
+                    break
+
+                rewards.append(self.buffer[reward_idx][3])
+
         cumulative_reward = 0
         discount_pow = 0
 
@@ -306,7 +319,7 @@ class EfficientReplayBuffer:
 
     @property
     def is_full(self):
-        return self.offset >= self.capacity
+        return self.size == self.capacity
 
     @property
     def size(self):
