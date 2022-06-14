@@ -17,7 +17,16 @@ class MockObs:
             return __o.episode == self.episode and __o.timestep == self.timestep
 
     def __repr__(self) -> str:
-        return f'EP:{self.episode}--t:{self.timestep}'
+        return f'OBS ep {self.episode} step {self.timestep}'
+
+
+class MockAddiObs(MockObs):
+    def __eq__(self, __o: object) -> bool:
+        if isinstance(__o, MockAddiObs):
+            return __o.episode == self.episode and __o.timestep == self.timestep
+
+    def __repr__(self) -> str:
+        return f'Addi OBS ep {self.episode} step {self.timestep}'
 
 
 class MockValue:
@@ -80,15 +89,27 @@ class TestReplayBuffer(unittest.TestCase):
             for step in range(1, n_step):
                 reward = step
                 # obs, addition obs, action, reward, done
-                trajectories.append((MockObs(ep, step), MockObs(ep, step), 0.1, reward, False))
+                trajectories.append((MockObs(ep, step), MockAddiObs(ep, step), 0.1, reward, False))
 
             # terminal transition
-            trajectories.append((MockObs(ep, n_step), MockObs(ep, n_step), 0.1, reward, True))
+            trajectories.append((MockObs(ep, n_step), MockAddiObs(ep, n_step), 0.1, reward, True))
 
             eps.append(trajectories)
 
         for ep in eps:
             replay_buff.extend(ep)
+
+    def assertValidObs(self, ep, step, actual_obs, is_first=False, n_frames=N_FRAMES):
+        expected_obs = []
+        for s in range(1, n_frames + 1):
+            ep_step = step - n_frames + s
+            if is_first:
+                ep_step = step
+
+            expected_obs.append(MockObs(ep, ep_step))
+
+        for i in range(len(actual_obs)):
+            assert expected_obs[i] == actual_obs[i], f'{expected_obs[i]} != {actual_obs[i]}'
     
     def assertRewardValid(self, step, actual_reward, n_step_return=N_STEP):
         ''' calculate expected reward from step '''
@@ -172,12 +193,31 @@ class TestReplayBuffer(unittest.TestCase):
         # only 1 and 8 are valid
         with unittest.mock.patch('random.randint', get_mock_random_func([0, 1, 11, 10, 9, 8])):
             obs, addi_obs, action, reward, next_obs, next_addi_obs, done = replay_buff.sample()
-            # assert first obs in batch
-            self.assertEqual(obs[0, 0], MockObs(1, 1))
-            self.assertEqual(obs[0, 1], MockObs(1, 1))
-            # assert first reward in batch
-            self.assertRewardValid(1, reward[0])
 
-            # assert second obs in batch
-            self.assertEqual(obs[1][0], MockObs(1, 7))
-            self.assertEqual(obs[1][1], MockObs(1, 8))
+            # assert first transition in batch
+            # obs
+            self.assertValidObs(1, 1, obs[0], is_first=True)
+            # additional obs
+            self.assertEqual(addi_obs[0], MockAddiObs(1, 1))
+            # reward
+            self.assertRewardValid(1, reward[0])
+            # next obs
+            self.assertValidObs(1, 3, next_obs[0])
+            # next additional obs
+            self.assertEqual(next_addi_obs[0], MockAddiObs(1, 3))
+            # done
+            self.assertFalse(done[0])
+
+            # assert second transition in batch
+            # obs
+            self.assertValidObs(1, 8, obs[1])
+            # additional obs
+            self.assertEqual(addi_obs[1], MockAddiObs(1, 8))
+            # reward
+            self.assertRewardValid(8, reward[1])
+            # next obs
+            self.assertValidObs(1, 10, next_obs[1])
+            # next additional obs
+            self.assertEqual(next_addi_obs[1], MockAddiObs(1, 10))
+            # done
+            self.assertTrue(done[1])

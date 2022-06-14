@@ -222,7 +222,8 @@ class EfficientReplayBuffer:
 
         batch = []
         for step_idx in idx_batch:
-            transitions_indexes = slice(step_idx, step_idx+self.n_step_return)
+            transitions_indexes = slice(step_idx,
+                                        step_idx + self.n_step_return)
             # get done element from trajectories
             transitions_dones = list(map(lambda t: t[-1], self.buffer[transitions_indexes]))
             is_done = any(transitions_dones)
@@ -241,7 +242,7 @@ class EfficientReplayBuffer:
             obs = self.get_stack_images(step_idx)
             addi_obs = current_trajectory[1]
             action = current_trajectory[2]
-            reward = self._sum_gamma_rewards([transition[3] for transition in self.buffer[step_idx:next_step_idx+1]])
+            reward = self._sum_gamma_rewards([transition[3] for transition in self.buffer[step_idx:next_step_idx]])
             next_obs = self.get_stack_images(next_step_idx)
             next_addi_obs = self.buffer[next_step_idx][1]
 
@@ -262,6 +263,9 @@ class EfficientReplayBuffer:
                              axis=axis)
 
     def _is_valid_transition(self, idx):
+        if idx < 0 or idx >= self.capacity:
+            return False
+
         if not self.is_full:
             if idx < self.n_frames - 1 or \
                 idx > self.offset - self.n_step_return:
@@ -270,7 +274,7 @@ class EfficientReplayBuffer:
         if idx in self.invalid_indexes:
             return False
 
-        # look ahead if it ends before n-step future
+        # accept end of episode, if it was terminal state
         for timestep in modulo_range(idx, self.n_step_return, self.capacity):
             if timestep in self.end_episode_indexes and not self.buffer[idx][-1]:
                 return False
@@ -281,7 +285,7 @@ class EfficientReplayBuffer:
         ''' N-step before current position isn't valid since it can't use N-step
             n_frames after current position isn't valid since it can stack frame
             to this position '''
-        return [(self.offset-self.n_step_return+i) % self.capacity \
+        return [(self.offset - self.n_step_return + i) % self.capacity \
                 for i in range(self.n_step_return + self.n_frames)]
 
     def _sum_gamma_rewards(self, rewards):
