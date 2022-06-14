@@ -237,30 +237,34 @@ class TestReplayBuffer(unittest.TestCase):
         with unittest.mock.patch('random.randint', get_mock_random_func([1, 9, 12, 19])):
             obs, addi_obs, action, reward, next_obs, next_addi_obs, done = replay_buff.sample()
 
-            # assert first transition in batch
-            # obs
+            # assert first transition in batch - ep 1
             self.assertEqual(obs[0].tolist(), [MockObs(1, 1)]*2)
-            # additional obs
             self.assertEqual(addi_obs[0], MockAddiObs(1, 1))
-            # reward
             self.assertRewardValid(1, reward[0])
-            # next obs
             self.assertEqual(next_obs[0].tolist(), [MockObs(1, 2), MockObs(1, 3)])
-            # next additional obs
             self.assertEqual(next_addi_obs[0], MockAddiObs(1, 3))
-            # done
             self.assertFalse(done[0])
 
             # assert second transition in batch
-            # obs
             self.assertEqual(obs[1].tolist(), [MockObs(1, 8), MockObs(1, 9)])
-            # additional obs
             self.assertEqual(addi_obs[1], MockAddiObs(1, 9))
-            # reward
             self.assertRewardValid(9, reward[1])
-            # next obs
             self.assertEqual(next_obs[1].tolist(), [MockObs(1, 10), MockObs(2, 1)])
-            # next additional obs
             self.assertEqual(next_addi_obs[1], MockAddiObs(2, 1))
-            # done
             self.assertTrue(done[1])
+
+            # assert third transition in batch - ep 2
+            self.assertEqual(obs[2].tolist(), [MockObs(2, 1)]*2)
+            self.assertEqual(addi_obs[2], MockAddiObs(2, 1))
+            self.assertRewardValid(1, reward[2])
+            self.assertEqual(next_obs[2].tolist(), [MockObs(2, 2), MockObs(2, 3)])
+            self.assertEqual(next_addi_obs[2], MockAddiObs(2, 3))
+            self.assertFalse(done[2])
+
+            # assert fourth transition in batch
+            self.assertEqual(obs[3].tolist(), [MockObs(2, 7), MockObs(2, 8)])
+            self.assertEqual(addi_obs[3], MockAddiObs(2, 8))
+            self.assertRewardValid(8, reward[3])
+            self.assertEqual(next_obs[3].tolist(), [MockObs(2, 9), MockObs(2, 10)])
+            self.assertEqual(next_addi_obs[3], MockAddiObs(2, 10))
+            self.assertFalse(done[3])
