@@ -206,18 +206,7 @@ class EfficientReplayBuffer:
 
             self.end_episode_indexes.add((self.offset - 1) % self.capacity)
 
-            self.invalid_indexes = self.get_invalid_range()
-
-    def _pad_transition(self, item):
-        ''' Pad by a number of frames '''
-        for _ in range(self.n_frames - 1):
-            if self.size < self.capacity:
-                self.buffer.append(item)
-            else:
-                self.buffer[self.offset] = item
-
-        self.end_episode_indexes.discard(self.offset)
-        self.offset = (self.offset + 1) % self.capacity
+            self.invalid_indexes = self._get_invalid_range()
 
     def sample(self, *args, normalize=False):
         idx_batch = []
@@ -255,11 +244,11 @@ class EfficientReplayBuffer:
 
             current_transition = self.buffer[state_idx]
 
-            obs = self.get_stack_images(state_idx)
+            obs = self._get_obs_stack(state_idx)
             addi_obs = current_transition[1]
             action = current_transition[2]
             reward = self._sum_gamma_rewards(state_idx, next_state_idx)
-            next_obs = self.get_stack_images(next_state_idx)
+            next_obs = self._get_obs_stack(next_state_idx)
             next_addi_obs = self.buffer[next_state_idx][1]
 
             batch.append((obs, addi_obs, action, [reward], next_obs, next_addi_obs, [is_done]))
@@ -276,14 +265,24 @@ class EfficientReplayBuffer:
         else:
             return tuple(map(np.stack, zip(*batch)))
 
-    def get_stack_images(self, idx):
-        start_idx = idx - self.n_frames + 1
+    def _get_obs_stack(self, idx):
+        start_idx = (idx - self.n_frames + 1) % self.capacity
         end_idx = idx + 1
 
-        if start_idx > self.n_frames - 1 and start_idx < end_idx:
-            return self.frame_stack_func([transition[0] for transition in self.buffer[start_idx:end_idx]])
+        obses = [transition[0] for transition in self._get_transition_list(start_idx, end_idx)]
+        return self.frame_stack_func(obses)
+
+    def _get_done_list(self, idx):
+        start_idx = (idx - self.n_frames + 1) % self.capacity
+        end_idx = idx + 1
+
+        return [transition[4] for transition in self._get_transition_list(start_idx, end_idx)]
+
+    def _get_transition_list(self, start_idx, end_idx):
+        if start_idx % self.capacity < end_idx % self.capacity:
+            return [transition for transition in self.buffer[start_idx:end_idx]]
         else:
-            return self.frame_stack_func([self.buffer[(idx-self.n_frames+1+i)][0] for i in range(self.n_frames)])
+            return [self.buffer[(start_idx+i) % self.capacity] for i in range(self.n_frames)]
 
     def _is_valid_transition(self, idx):
         if idx < 0 or idx >= self.capacity:
@@ -297,6 +296,9 @@ class EfficientReplayBuffer:
         if idx in self.invalid_indexes:
             return False
 
+        if any(self._get_done_list(idx)[:-1]):
+            return False
+
         # accept end of episode, if it was terminal state
         for t in modulo_range(idx, self.n_step_return, self.capacity):
             if t in self.end_episode_indexes and not self.buffer[t][-1]:
@@ -304,7 +306,7 @@ class EfficientReplayBuffer:
 
         return True
 
-    def get_invalid_range(self):
+    def _get_invalid_range(self):
         ''' N-step before current position isn't valid since it can't use N-step
             n_frames after current position isn't valid since it can stack frame
             to this position '''
@@ -332,6 +334,17 @@ class EfficientReplayBuffer:
 
         return cumulative_reward
 
+    def _pad_transition(self, item):
+        ''' Pad by a number of stack frames '''
+        for _ in range(self.n_frames - 1):
+            if self.size < self.capacity:
+                self.buffer.append(item)
+            else:
+                self.buffer[self.offset] = item
+
+        self.end_episode_indexes.discard(self.offset)
+        self.offset = (self.offset + 1) % self.capacity
+    
     def __len__(self):
         return self.size
 

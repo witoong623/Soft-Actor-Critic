@@ -210,6 +210,19 @@ class TestReplayBuffer(unittest.TestCase):
                                      get_mock_random_func([1, 2, 3, 4], cycle=True)):
                 replay_buff.sample()
 
+    def test_sample_into_pad(self):
+        ''' this is a wraparound case '''
+        n_ep = 3
+        n_step = 10
+        replay_buff = self.create_default_test_buffer()
+
+        self.populate_buffer(replay_buff, n_ep, n_step)
+
+        with self.assertRaises(RuntimeError):
+            with unittest.mock.patch('random.randint',
+                                     get_mock_random_func([11, 22], cycle=True)):
+                replay_buff.sample()
+
     def test_sample_after_add_one_ep(self):
         ''' sample at the beginning and end of episode '''
         n_ep = 1
