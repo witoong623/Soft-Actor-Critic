@@ -66,7 +66,8 @@ def get_mock_random_func(nums_to_random, cycle=False):
 
 DEFAULT_BUFFER = functools.partial(EfficientReplayBuffer,
                                    frame_stack_mode='stack',
-                                   initializer=list,
+                                   list_initializer=list,
+                                   dict_initializer=dict,
                                    Value=MockValue,
                                    Lock=MagicMock)
 

@@ -151,10 +151,10 @@ def modulo_range(start, length, modulo):
 
 class EfficientReplayBuffer:
     def __init__(self, capacity, batch_size, n_frames, n_step_return,
-                 initializer, frame_stack_mode='concatenate', frame_stack_axis=0,
+                 list_initializer, dict_initializer, frame_stack_mode='concatenate', frame_stack_axis=0,
                  gamma=0.99, Value=mp.Value, Lock=mp.Lock):
         self.capacity = capacity
-        self.buffer = initializer()
+        self.buffer = list_initializer()
         self.buffer_offset = Value('L', 0)
         self.lock = Lock()
 
@@ -164,8 +164,9 @@ class EfficientReplayBuffer:
         self.n_step_return = n_step_return
         self.gamma = gamma
 
-        self.end_episode_indexes = set()
-        self.invalid_indexes = [i for i in range(self.n_frames - 1)]
+        self.end_episode_indexes = dict_initializer()
+        self.invalid_indexes = list_initializer()
+        self.invalid_indexes.extend([i for i in range(self.n_frames - 1)])
 
         assert frame_stack_mode in ['stack', 'concatenate']
 
@@ -201,12 +202,11 @@ class EfficientReplayBuffer:
                 else:
                     self.buffer[self.offset] = items
 
-                self.end_episode_indexes.discard(self.offset)
+                self.end_episode_indexes.pop(self.offset, None)
                 self.offset = (self.offset + 1) % self.capacity
 
-            self.end_episode_indexes.add((self.offset - 1) % self.capacity)
-
-            self.invalid_indexes = self._get_invalid_range()
+            self.end_episode_indexes[(self.offset - 1) % self.capacity] = True
+            self._update_invalid_indexes()
 
     def sample(self, *args, normalize=False):
         idx_batch = []
@@ -306,12 +306,13 @@ class EfficientReplayBuffer:
 
         return True
 
-    def _get_invalid_range(self):
+    def _update_invalid_indexes(self):
         ''' N-step before current position isn't valid since it can't use N-step
             n_frames after current position isn't valid since it can stack frame
             to this position '''
-        return [(self.offset - self.n_step_return + i) % self.capacity \
-                for i in range(self.n_step_return + self.n_frames)]
+        new_invalid_indexes = [(self.offset - self.n_step_return + i) % self.capacity \
+            for i in range(self.n_step_return + self.n_frames)]
+        self.invalid_indexes[:] = new_invalid_indexes
 
     def _sum_gamma_rewards(self, state_idx, next_state_idx):
         if state_idx < next_state_idx:
@@ -342,7 +343,7 @@ class EfficientReplayBuffer:
             else:
                 self.buffer[self.offset] = item
 
-        self.end_episode_indexes.discard(self.offset)
+        self.end_episode_indexes.pop(self.offset, None)
         self.offset = (self.offset + 1) % self.capacity
     
     def __len__(self):
