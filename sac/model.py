@@ -34,6 +34,8 @@ def build_model(config):
                                            'initial_alpha',
                                            'n_samplers',
                                            'buffer_capacity',
+                                           'batch_size',
+                                           'n_frames',
                                            'devices',
                                            'sampler_devices',
                                            'separate_encoder',
@@ -82,7 +84,7 @@ class ModelBase(object):
 
     def __init__(self, env_func, env_kwargs, state_encoder, half_training,
                  state_dim, action_dim, hidden_dims, activation, n_past_actions, n_bootstrap_step,
-                 initial_alpha, use_popart, beta, n_samplers, buffer_capacity,
+                 initial_alpha, use_popart, beta, n_samplers, buffer_capacity, batch_size, n_frames,
                  devices, sampler_devices, separate_encoder, random_seed=0):
         self.devices = itertools.cycle(devices)
         self.model_device = next(self.devices)
@@ -127,6 +129,9 @@ class ModelBase(object):
                                         n_samplers=n_samplers,
                                         n_bootstrap_step=n_bootstrap_step,
                                         buffer_capacity=buffer_capacity,
+                                        batch_size=batch_size,
+                                        n_frames=n_frames,
+                                        n_step_return=n_bootstrap_step,
                                         devices=self.sampler_devices,
                                         random_seed=random_seed)
 
@@ -176,11 +181,11 @@ class Trainer(ModelBase):
     def __init__(self, env_func, env_kwargs, state_encoder, half_training,
                  state_dim, action_dim, hidden_dims, activation, n_past_actions, n_bootstrap_step,
                  initial_alpha, critic_lr, actor_lr, alpha_lr, weight_decay, actor_update_frequency,
-                 use_popart, beta, n_samplers, buffer_capacity, devices,
+                 use_popart, beta, n_samplers, buffer_capacity, batch_size, n_frames, devices,
                  sampler_devices, separate_encoder, random_seed=0):
         super().__init__(env_func, env_kwargs, state_encoder, half_training,
                          state_dim, action_dim, hidden_dims, activation, n_past_actions, n_bootstrap_step,
-                         initial_alpha, use_popart, beta, n_samplers, buffer_capacity,
+                         initial_alpha, use_popart, beta, n_samplers, buffer_capacity, batch_size, n_frames,
                          devices, sampler_devices, separate_encoder, random_seed)
 
         self.dtype = torch.float16 if self.half_training else torch.float32
@@ -374,7 +379,7 @@ class Trainer(ModelBase):
 
     def prepare_batch(self, batch_size):
         if self.n_past_actions > 1:
-            observation, additional_state, action, reward, next_observation, next_additional_state, done = self.replay_buffer.sample(batch_size)
+            observation, additional_state, action, reward, next_observation, next_additional_state, done = self.replay_buffer.sample(batch_size, normalize=True)
 
             observation = torch.tensor(observation, dtype=self.dtype, device=self.model_device)
             additional_state = torch.tensor(additional_state, dtype=self.dtype, device=self.model_device)

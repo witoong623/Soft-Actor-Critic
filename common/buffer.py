@@ -1,3 +1,4 @@
+import functools
 import random
 import numpy as np
 import torch.multiprocessing as mp
@@ -150,7 +151,8 @@ def modulo_range(start, length, modulo):
 
 class EfficientReplayBuffer:
     def __init__(self, capacity, batch_size, n_frames, n_step_return,
-                 initializer, gamma=0.99, Value=mp.Value, Lock=mp.Lock):
+                 initializer, frame_stack_mode='concatenate', frame_stack_axis=0,
+                 gamma=0.99, Value=mp.Value, Lock=mp.Lock):
         self.capacity = capacity
         self.buffer = initializer()
         self.buffer_offset = Value('L', 0)
@@ -164,6 +166,13 @@ class EfficientReplayBuffer:
 
         self.end_episode_indexes = set()
         self.invalid_indexes = [i for i in range(self.n_frames - 1)]
+
+        assert frame_stack_mode in ['stack', 'concatenate']
+
+        if frame_stack_mode == 'stack':
+            self.frame_stack_func = functools.partial(np.stack, axis=frame_stack_axis)
+        else:
+            self.frame_stack_func = functools.partial(np.concatenate, axis=frame_stack_axis)
 
     def push(self, *args):
         items = tuple(args)
@@ -210,7 +219,7 @@ class EfficientReplayBuffer:
         self.end_episode_indexes.discard(self.offset)
         self.offset = (self.offset + 1) % self.capacity
 
-    def sample(self, *args):
+    def sample(self, *args, normalize=False):
         idx_batch = []
 
         attemp_count = 0
@@ -253,19 +262,28 @@ class EfficientReplayBuffer:
             next_obs = self.get_stack_images(next_state_idx)
             next_addi_obs = self.buffer[next_state_idx][1]
 
+            batch.append((obs, addi_obs, action, [reward], next_obs, next_addi_obs, [is_done]))
+
+        if normalize:
+            batch_samples = list(zip(*batch))
+
+            batch_samples[0] = batch_normalize_images(batch_samples[0], MEAN, STD)
+            batch_samples[4] = batch_normalize_images(batch_samples[4], MEAN, STD)
+
             batch.append((obs, addi_obs, action, reward, next_obs, next_addi_obs, is_done))
 
-        return tuple(map(np.stack, zip(*batch)))
+            return tuple(map(np.stack, batch_samples))
+        else:
+            return tuple(map(np.stack, zip(*batch)))
 
-    def get_stack_images(self, idx, axis=0):
+    def get_stack_images(self, idx):
         start_idx = idx - self.n_frames + 1
         end_idx = idx + 1
 
         if start_idx > self.n_frames - 1 and start_idx < end_idx:
-            return np.stack([transition[0] for transition in self.buffer[start_idx:end_idx]], axis=axis)
+            return self.frame_stack_func([transition[0] for transition in self.buffer[start_idx:end_idx]])
         else:
-            return np.stack([self.buffer[(idx-self.n_frames+1+i)][0] for i in range(self.n_frames)],
-                             axis=axis)
+            return self.frame_stack_func([self.buffer[(idx-self.n_frames+1+i)][0] for i in range(self.n_frames)])
 
     def _is_valid_transition(self, idx):
         if idx < 0 or idx >= self.capacity:

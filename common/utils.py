@@ -10,8 +10,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torchvision.transforms as T
-from PIL import Image
-from typing import Callable
+from collections import deque
 
 
 CHECKPOINT_FORMAT = '{prefix}epoch({epoch})-reward({reward:+.2E}){suffix}.pkl'
@@ -266,6 +265,21 @@ class CarlaBiasActionSampler:
             steer = random.gauss(0, 1)
 
         return np.array([acc, steer], dtype=np.float32)
+
+
+class ObservationStacker:
+    def __init__(self, n_frames, stack_axis=2):
+        self.n_frames = n_frames
+        self.stack_axis = stack_axis
+        self.frames_queue = deque(maxlen=self.n_frames)
+
+    def get_new_observation(self, current_observation):
+        if len(self.frames_queue) < self.n_frames:
+            self.frames_queue.append(current_observation)
+
+        self.frames_queue.append(current_observation)
+
+        return np.concatenate(self.frames_queue, axis=self.stack_axis)
 
 
 def normalize_image(image, mean, std):

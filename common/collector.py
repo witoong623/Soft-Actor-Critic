@@ -14,8 +14,9 @@ from PIL import Image, ImageDraw, ImageFont
 from setproctitle import setproctitle
 from torch.utils.tensorboard import SummaryWriter
 
-from .buffer import ReplayBuffer, EpisodeReplayBuffer
-from .utils import clone_network, sync_params, normalize_image, normalize_grayscale_image, CarlaBiasActionSampler
+from .buffer import ReplayBuffer, EpisodeReplayBuffer, EfficientReplayBuffer
+from .utils import clone_network, sync_params, normalize_image, \
+    normalize_grayscale_image, CarlaBiasActionSampler, ObservationStacker
 from .carla_environment.environment import CarlaPerfectActionSampler
 
 
@@ -117,6 +118,8 @@ class Sampler(mp.Process):
                     sync_params(src_net=self.shared_state_encoder, dst_net=self.state_encoder)
                     sync_params(src_net=self.shared_actor, dst_net=self.actor)
 
+                obs_stacker = ObservationStacker(n_frames=2, stack_axis=2)
+
                 episode_reward = 0
                 episode_steps = 0
                 self.trajectory.clear()
@@ -144,7 +147,8 @@ class Sampler(mp.Process):
                         action, done_sample = action_sampler.sample()
                     else:
                         # observation shape (H, W, C)
-                        normalized_obs = normalize_image(observation, MEAN, STD).transpose((2, 0, 1))
+                        stacked_obs = obs_stacker.get_new_observation(observation)
+                        normalized_obs = normalize_image(stacked_obs, MEAN, STD).transpose((2, 0, 1))
                         # this is for grayscale
                         # normalized_obs = normalize_grayscale_image(observation)
                         state = self.state_encoder.encode(normalized_obs, return_tensor=True, data_dtype=amp_dtype)
@@ -164,7 +168,7 @@ class Sampler(mp.Process):
                     episode_steps += 1
 
                     self.save_frame(step=episode_steps, reward=reward, episode_reward=episode_reward)
-                    self.add_transaction(observation, action, reward, next_observation, done, additional_state, next_additional_state)
+                    self.add_transaction(observation, additional_state, action, reward, done)
 
                     observation = next_observation
                     additional_state = next_additional_state
@@ -208,22 +212,11 @@ class Sampler(mp.Process):
         if self.writer is not None:
             self.writer.close()
 
-    def add_transaction(self, observation, action, reward, next_observation, done, additional_state, next_additional_state):
-        if self.n_bootstrap_step > 1:
-            # for easy calculation in bootstrapping
-            wrapped_reward = reward
-            wrapped_done = done
-        else:
-            wrapped_reward = [reward]
-            wrapped_done = [done]
-
-        self.trajectory.append((observation, additional_state, action, wrapped_reward, next_observation, next_additional_state, wrapped_done))
+    def add_transaction(self, observation, additional_state, action, reward, done):
+        self.trajectory.append((observation, additional_state, action, reward, done))
 
     def save_trajectory(self):
-        if self.n_bootstrap_step > 1:
-            self._save_bootstrapped_trajectory()
-        else:
-            self.replay_buffer.extend(self.trajectory)
+        self.replay_buffer.extend(self.trajectory)
 
     def _save_bootstrapped_trajectory(self):
         reward_array = np.array([t[3] for t in self.trajectory])
@@ -256,6 +249,8 @@ class Sampler(mp.Process):
                 reward = np.dot(reward_array[step_idx:next_step_idx], discount_vector)
 
             try:
+                # TODO: this is probably a bug because next state of n-step bootstrap
+                # should be the obs at that current step + n-step
                 next_observation = self.trajectory[next_step_idx][4]
                 next_additional_state = self.trajectory[next_step_idx][5]
             except IndexError:
@@ -343,6 +338,7 @@ class Collector(object):
 
     def __init__(self, env_func, env_kwargs, state_encoder, actor,
                  n_samplers, n_bootstrap_step, buffer_capacity,
+                 batch_size, n_frames, n_step_return,
                  devices, random_seed):
         self.manager = mp.Manager()
         self.running_event = self.manager.Event()
@@ -359,8 +355,12 @@ class Collector(object):
 
         self.n_bootstrap_step = n_bootstrap_step
         self.n_samplers = n_samplers
-        self.replay_buffer = self.REPLAY_BUFFER(capacity=buffer_capacity, initializer=self.manager.list,
-                                                Value=self.manager.Value, Lock=self.manager.Lock)
+        # self.replay_buffer = self.REPLAY_BUFFER(capacity=buffer_capacity, initializer=self.manager.list,
+        #                                         Value=self.manager.Value, Lock=self.manager.Lock)
+        self.replay_buffer = EfficientReplayBuffer(capacity=buffer_capacity, batch_size=batch_size,
+                                                   n_frames=n_frames, n_step_return=n_step_return,
+                                                   frame_stack_mode='concatenate', frame_stack_axis=2,
+                                                   initializer=self.manager.list, Value=self.manager.Value, Lock=self.manager.Lock)
 
         self.env_func = env_func
         self.env_kwargs = env_kwargs
