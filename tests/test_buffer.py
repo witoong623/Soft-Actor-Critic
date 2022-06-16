@@ -84,10 +84,10 @@ class TestReplayBuffer(unittest.TestCase):
                                    n_frames=N_FRAMES, n_step=N_STEP_RETURN):
         return DEFAULT_BUFFER(capacity, batch_size, n_frames, n_step)
 
-    def populate_buffer(self, replay_buff, n_ep=2, n_step=10):
+    def populate_buffer(self, replay_buff, n_ep=2, n_step=10, start_ep_num=1, is_done=True):
         eps = []
 
-        for ep in range(1, n_ep+1):
+        for ep in range(start_ep_num, start_ep_num + n_ep):
             trajectories = []
             for step in range(1, n_step):
                 reward = step
@@ -95,7 +95,7 @@ class TestReplayBuffer(unittest.TestCase):
                 trajectories.append((MockObs(ep, step), MockAddiObs(ep, step), 0.1 * step, reward, False))
 
             # terminal transition
-            trajectories.append((MockObs(ep, n_step), MockAddiObs(ep, n_step), 0.1 * n_step, reward + 1, True))
+            trajectories.append((MockObs(ep, n_step), MockAddiObs(ep, n_step), 0.1 * n_step, reward + 1, is_done))
 
             eps.append(trajectories)
 
@@ -154,6 +154,7 @@ class TestReplayBuffer(unittest.TestCase):
         self.assertEqual(len(replay_buff.buffer), 11)
 
         self.assertEqual(replay_buff.invalid_indexes, [9, 10, 11, 12])
+        self.assertEqual(replay_buff.pad_indexes, {0: True})
 
         with self.assertRaises(RuntimeError):
             with unittest.mock.patch('random.randint',
@@ -174,8 +175,8 @@ class TestReplayBuffer(unittest.TestCase):
         self.assertEqual(get_done(replay_buff, 21), True)
         self.assertEqual(len(replay_buff.buffer), 22)
 
-
         self.assertEqual(replay_buff.invalid_indexes, [20, 21, 22, 23])
+        self.assertDictEqual(replay_buff.pad_indexes, {0: True, 11: True})
 
         with self.assertRaises(RuntimeError):
             with unittest.mock.patch('random.randint',
@@ -205,6 +206,7 @@ class TestReplayBuffer(unittest.TestCase):
         self.assertEqual(get_done(replay_buff, 2), True)
 
         self.assertEqual(replay_buff.invalid_indexes, [1, 2, 3, 4])
+        self.assertEqual(replay_buff.pad_indexes, {11: True, 22: True})
 
         with self.assertRaises(RuntimeError):
             with unittest.mock.patch('random.randint',
@@ -212,14 +214,31 @@ class TestReplayBuffer(unittest.TestCase):
                 replay_buff.sample()
 
     def test_sample_into_pad(self):
-        ''' this is a wraparound case '''
+        ''' end of episode has done = true '''
         n_ep = 3
         n_step = 10
         replay_buff = self.create_default_test_buffer()
 
         self.populate_buffer(replay_buff, n_ep, n_step)
 
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(RuntimeError) as assert_err:
+            with unittest.mock.patch('random.randint',
+                                     get_mock_random_func([11, 22], cycle=True)):
+                replay_buff.sample()
+
+        self.assertEqual(str(assert_err.exception), 'cannot sample enough valid sample')
+
+    def test_sample_into_pad_no_terminal(self):
+        ''' end of episode has done = false '''
+        n_ep = 1
+        n_step = 10
+        replay_buff = self.create_default_test_buffer()
+
+        self.populate_buffer(replay_buff, n_ep, n_step, is_done=False)
+
+        self.populate_buffer(replay_buff, n_ep, n_step, start_ep_num=2, is_done=True)
+
+        with self.assertRaises(RuntimeError) as assert_err:
             with unittest.mock.patch('random.randint',
                                      get_mock_random_func([11, 22], cycle=True)):
                 replay_buff.sample()

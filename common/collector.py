@@ -360,7 +360,8 @@ class Collector(object):
         self.replay_buffer = EfficientReplayBuffer(capacity=buffer_capacity, batch_size=batch_size,
                                                    n_frames=n_frames, n_step_return=n_step_return,
                                                    frame_stack_mode='concatenate', frame_stack_axis=2,
-                                                   initializer=self.manager.list, Value=self.manager.Value, Lock=self.manager.Lock)
+                                                   list_initializer=self.manager.list, dict_initializer=self.manager.dict,
+                                                   Value=self.manager.Value, Lock=self.manager.Lock)
 
         self.env_func = env_func
         self.env_kwargs = env_kwargs
