@@ -218,56 +218,6 @@ class Sampler(mp.Process):
     def save_trajectory(self):
         self.replay_buffer.extend(self.trajectory)
 
-    def _save_bootstrapped_trajectory(self):
-        reward_array = np.array([t[3] for t in self.trajectory])
-        done_array = np.array([t[-1] for t in self.trajectory])
-        new_trajectory = []
-
-        for step_idx in range(len(self.trajectory)):
-            trajectory_indexes = [(step_idx + i) % len(self.trajectory) for i in range(self.n_bootstrap_step)]
-
-            trajectory_dones = done_array[trajectory_indexes]
-            is_done = trajectory_dones.any()
-
-            if is_done:
-                # because argmax return index not count, +1 make it count
-                trajectory_len = np.argmax(trajectory_dones.astype(bool), axis=0) + 1
-            else:
-                # prevent len is more than remaining trajectory, -1 to convert to base 0 index
-                trajectory_len = min(self.n_bootstrap_step, len(self.trajectory) - step_idx - 1)
-
-            next_step_idx = step_idx + trajectory_len
-
-            observation = self.trajectory[step_idx][0]
-            additional_state = self.trajectory[step_idx][1]
-            action = self.trajectory[step_idx][2]
-
-            try:
-                reward = np.dot(reward_array[step_idx:next_step_idx], self._cumulative_discount_vector)
-            except ValueError:
-                discount_vector = np.array([math.pow(0.99, n) for n in range(trajectory_len)])
-                reward = np.dot(reward_array[step_idx:next_step_idx], discount_vector)
-
-            try:
-                # TODO: this is probably a bug because next state of n-step bootstrap
-                # should be the obs at that current step + n-step
-                next_observation = self.trajectory[next_step_idx][4]
-                next_additional_state = self.trajectory[next_step_idx][5]
-            except IndexError:
-                if is_done:
-                    next_step_idx -= 1
-                    # choose last observation, this won't be used anyway if this is terminal state
-                    next_observation = self.trajectory[next_step_idx][4]
-                    next_additional_state = self.trajectory[next_step_idx][5]
-                else:
-                    raise
-
-            done = is_done
-
-            new_trajectory.append((observation, additional_state, action, [float(reward)], next_observation, next_additional_state, [done]))
-
-        self.replay_buffer.extend(new_trajectory)
-
     def close(self):
         try:
             self.env.close()
