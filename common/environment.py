@@ -94,7 +94,8 @@ def initialize_environment(config):
                                                     'encoder_type',
                                                     'video_dir',
                                                     'repeat_section_threshold',
-                                                    'initial_checkpoint'])
+                                                    'initial_checkpoint',
+                                                    'return_single_image'])
     else:
         config.env_func = build_env
         config.env_kwargs = config.build_from_keys(['vision_observation',

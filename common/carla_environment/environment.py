@@ -45,7 +45,11 @@ class CarlaEnv(gym.Env):
         self.host = 'localhost'
         self.port = 2000
 
-        self.n_images = kwargs.get('n_frames', 1)
+        if kwargs.get('return_single_image'):
+            self.n_images = 1
+        else:
+            self.n_images = kwargs.get('n_frames', 1)
+
         observation_size = kwargs.get('image_size', [256, 512])
         self.obs_width = observation_size[1]
         self.obs_height = observation_size[0]

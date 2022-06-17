@@ -84,6 +84,8 @@ def get_config():
                                          help='set the number of time to reach next checkpoint in order to start there (default: 5)')
     carla_environment_group.add_argument('--initial-checkpoint', type=int, default=0,
                                          help='set the initial checkpoint to be start in the map (default: 1)')
+    carla_environment_group.add_argument('--return-single-image', action='store_true',
+                                         help='return only one image regradless of n-frames argument')
     encoder_group = parser.add_argument_group('state encoder')
     encoder_group.add_argument('--encoder-arch', type=str, choices=['FC', 'RNN', 'CNN', 'VAE', 'BETAVAE', 'EFFICIENTNET', 'RESNET', 'TINY_CNN'], default='FC',
                                help='architecture of state encoder network (default: FC)')
