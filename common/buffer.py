@@ -170,6 +170,7 @@ class EfficientReplayBuffer:
         self.n_step_return = n_step_return
         self.gamma = gamma
 
+        self.next_episode_start = True
         self.end_episode_indexes = dict_initializer()
         self.invalid_indexes = list_initializer()
         self.invalid_indexes.extend([i for i in range(self.n_frames - 1)])
@@ -191,10 +192,11 @@ class EfficientReplayBuffer:
                 self.buffer[self.offset] = items
             self.offset = (self.offset + 1) % self.capacity
 
-    def extend(self, trajectory):
+    def extend(self, trajectory, is_end=True):
         with self.lock:
-            self.pad_indexes[self.offset] = True
-            self._pad_transition(trajectory[0])
+            if self.next_episode_start:
+                self._pad_transition(trajectory[0])
+                self.next_episode_start = False
 
             for items in trajectory:
                 if self.size < self.capacity:
@@ -206,7 +208,10 @@ class EfficientReplayBuffer:
                 self.pad_indexes.pop(self.offset, None)
                 self.offset = (self.offset + 1) % self.capacity
 
-            self.end_episode_indexes[(self.offset - 1) % self.capacity] = True
+            if is_end:
+                self.end_episode_indexes[(self.offset - 1) % self.capacity] = True
+                self.next_episode_start = True
+
             self.invalid_indexes[:] = self._get_invalid_end_indexes()
 
     def sample(self, *args, normalize=False):
@@ -345,6 +350,8 @@ class EfficientReplayBuffer:
 
     def _pad_transition(self, based_transaction):
         ''' Pad by a number of stack frames '''
+        self.pad_indexes[self.offset] = True
+
         pad_transaction = (
             based_transaction[OBSERVATION],
             based_transaction[ADDI_OBSERVATION],
@@ -352,6 +359,7 @@ class EfficientReplayBuffer:
             0,
             based_transaction[DONE]
         )
+
         for _ in range(self.n_frames - 1):
             if self.size < self.capacity:
                 self.buffer.append(pad_transaction)

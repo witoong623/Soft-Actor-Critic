@@ -84,37 +84,23 @@ class TestReplayBuffer(unittest.TestCase):
                                    n_frames=N_FRAMES, n_step=N_STEP_RETURN):
         return DEFAULT_BUFFER(capacity, batch_size, n_frames, n_step)
 
-    def populate_buffer(self, replay_buff, n_ep=2, n_step=10, start_ep_num=1, is_done=True):
+    def populate_buffer(self, replay_buff, n_ep=2, n_step=10, start_ep_num=1, start_step_num=1, is_done=True, is_end=True):
         eps = []
 
         for ep in range(start_ep_num, start_ep_num + n_ep):
-            trajectories = []
-            for step in range(1, n_step):
+            trajectories = [] 
+            for step in range(start_step_num, start_step_num + n_step - 1):
                 reward = step
                 # obs, addition obs, action, reward, done
                 trajectories.append((MockObs(ep, step), MockAddiObs(ep, step), 0.1 * step, reward, False))
 
-            # terminal transition
-            trajectories.append((MockObs(ep, n_step), MockAddiObs(ep, n_step), 0.1 * n_step, reward + 1, is_done))
+            trajectories.append((MockObs(ep, step + 1), MockAddiObs(ep, step + 1), 0.1 * (step + 1), reward + 1, is_done))
 
             eps.append(trajectories)
 
         for ep in eps:
-            replay_buff.extend(ep)
+            replay_buff.extend(ep, is_end)
 
-    def assertValidObs(self, ep, step, actual_obs, is_first=False, is_last=False, n_frames=N_FRAMES):
-        assert not (is_first and is_last)
-        expected_obs = []
-        for s in range(1, n_frames + 1):
-            ep_step = step - n_frames + s
-            if is_first:
-                ep_step = step
-
-            expected_obs.append(MockObs(ep, ep_step))
-
-        for i in range(len(actual_obs)):
-            assert expected_obs[i] == actual_obs[i], f'{expected_obs[i]} != {actual_obs[i]}'
-    
     def assertRewardValid(self, step, actual_reward, n_step_return=N_STEP_RETURN, max_step=N_MAX_STEP):
         ''' calculate expected reward from step '''
         expected_reward = 0
@@ -213,6 +199,150 @@ class TestReplayBuffer(unittest.TestCase):
                                      get_mock_random_func([1, 2, 3, 4], cycle=True)):
                 replay_buff.sample()
 
+    def test_invalid_indexes_add_one_ep_in_two_steps(self):
+        n_ep = 1
+        n_step = 5
+        replay_buff = self.create_default_test_buffer()
+        self.assertEqual(replay_buff.invalid_indexes, [0])
+
+        # first step
+        self.populate_buffer(replay_buff, n_ep, n_step, is_done=False, is_end=False)
+
+        self.assertEqual(replay_buff.invalid_indexes, [4, 5, 6, 7])
+        self.assertEqual(replay_buff.pad_indexes, {0: True})
+
+        # second step
+        self.populate_buffer(replay_buff, n_ep, n_step, start_step_num=6, is_done=True, is_end=True)
+
+        self.assertEqual(replay_buff.buffer[0][0], MockObs(1, 1))
+        self.assertEqual(len(replay_buff.buffer), 11)
+
+        self.assertEqual(replay_buff.invalid_indexes, [9, 10, 11, 12])
+        self.assertEqual(replay_buff.pad_indexes, {0: True})
+
+        with self.assertRaises(RuntimeError):
+            with unittest.mock.patch('random.randint',
+                                     get_mock_random_func([9, 10, 11, 12], cycle=True)):
+                replay_buff.sample()
+
+    def test_invalid_indexes_add_two_ep_in_two_steps(self):
+        n_ep = 1
+        n_step = 5
+        replay_buff = self.create_default_test_buffer()
+        self.assertEqual(replay_buff.invalid_indexes, [0])
+
+        # first ep
+        # first step
+        self.populate_buffer(replay_buff, n_ep, n_step, is_done=False, is_end=False)
+
+        self.assertEqual(replay_buff.invalid_indexes, [4, 5, 6, 7])
+        self.assertEqual(replay_buff.pad_indexes, {0: True})
+
+        # second step
+        self.populate_buffer(replay_buff, n_ep, n_step, start_step_num=6, is_done=False, is_end=True)
+
+        self.assertEqual(get_obs(replay_buff, 0), MockObs(1, 1))
+        self.assertEqual(len(replay_buff.buffer), 11)
+
+        self.assertEqual(replay_buff.invalid_indexes, [9, 10, 11, 12])
+        self.assertEqual(replay_buff.pad_indexes, {0: True})
+
+        with self.assertRaises(RuntimeError):
+            with unittest.mock.patch('random.randint',
+                                     get_mock_random_func([9, 10, 11, 12], cycle=True)):
+                replay_buff.sample()
+
+        # second ep
+        # first step
+        self.populate_buffer(replay_buff, n_ep, n_step, start_ep_num=2, is_done=False, is_end=False)
+
+        self.assertEqual(replay_buff.invalid_indexes, [15, 16, 17, 18])
+        self.assertEqual(replay_buff.pad_indexes, {0: True, 11: True})
+
+        # second step
+        self.populate_buffer(replay_buff, n_ep, n_step, start_ep_num=2, start_step_num=6, is_done=True, is_end=True)
+
+        self.assertEqual(get_obs(replay_buff, 11), MockObs(2, 1))
+        self.assertEqual(len(replay_buff.buffer), 22)
+
+        self.assertEqual(replay_buff.invalid_indexes, [20, 21, 22, 23])
+        self.assertEqual(replay_buff.pad_indexes, {0: True, 11: True})
+
+        with self.assertRaises(RuntimeError):
+            with unittest.mock.patch('random.randint',
+                                     get_mock_random_func([20, 21, 22, 23, 0, 11], cycle=True)):
+                replay_buff.sample()
+
+    def test_invalid_indexes_add_three_ep_in_two_steps(self):
+        ''' this is a wraparound case '''
+        n_ep = 1
+        n_step = 5
+        replay_buff = self.create_default_test_buffer()
+        self.assertEqual(replay_buff.invalid_indexes, [0])
+
+        # first ep
+        # first step
+        self.populate_buffer(replay_buff, n_ep, n_step, is_done=False, is_end=False)
+
+        self.assertEqual(replay_buff.invalid_indexes, [4, 5, 6, 7])
+        self.assertEqual(replay_buff.pad_indexes, {0: True})
+
+        # second step
+        self.populate_buffer(replay_buff, n_ep, n_step, start_step_num=6, is_done=False, is_end=True)
+
+        self.assertEqual(get_obs(replay_buff, 0), MockObs(1, 1))
+        self.assertEqual(len(replay_buff.buffer), 11)
+
+        self.assertEqual(replay_buff.invalid_indexes, [9, 10, 11, 12])
+        self.assertEqual(replay_buff.pad_indexes, {0: True})
+
+        with self.assertRaises(RuntimeError):
+            with unittest.mock.patch('random.randint',
+                                     get_mock_random_func([9, 10, 11, 12], cycle=True)):
+                replay_buff.sample()
+
+        # second ep
+        # first step
+        self.populate_buffer(replay_buff, n_ep, n_step, start_ep_num=2, is_done=False, is_end=False)
+
+        self.assertEqual(replay_buff.invalid_indexes, [15, 16, 17, 18])
+        self.assertEqual(replay_buff.pad_indexes, {0: True, 11: True})
+
+        # second step
+        self.populate_buffer(replay_buff, n_ep, n_step, start_ep_num=2, start_step_num=6, is_done=True, is_end=True)
+
+        self.assertEqual(get_obs(replay_buff, 11), MockObs(2, 1))
+        self.assertEqual(len(replay_buff.buffer), 22)
+
+        self.assertEqual(replay_buff.invalid_indexes, [20, 21, 22, 23])
+        self.assertEqual(replay_buff.pad_indexes, {0: True, 11: True})
+
+        with self.assertRaises(RuntimeError):
+            with unittest.mock.patch('random.randint',
+                                     get_mock_random_func([20, 21, 22, 23, 0, 11], cycle=True)):
+                replay_buff.sample()
+
+        # third ep
+        # first step
+        self.populate_buffer(replay_buff, n_ep, n_step, start_ep_num=3, is_done=False, is_end=False)
+
+        self.assertEqual(replay_buff.invalid_indexes, [26, 27, 28, 29])
+        self.assertEqual(replay_buff.pad_indexes, {0: True, 11: True, 22: True})
+
+        # second step
+        self.populate_buffer(replay_buff, n_ep, n_step, start_ep_num=3, start_step_num=6, is_done=True, is_end=True)
+
+        self.assertEqual(get_obs(replay_buff, 22), MockObs(3, 1))
+        self.assertEqual(len(replay_buff.buffer), 30)
+
+        self.assertEqual(replay_buff.invalid_indexes, [1, 2, 3, 4])
+        self.assertEqual(replay_buff.pad_indexes, {11: True, 22: True})
+
+        with self.assertRaises(RuntimeError):
+            with unittest.mock.patch('random.randint',
+                                     get_mock_random_func([1, 2, 3, 4, 11, 22], cycle=True)):
+                replay_buff.sample()
+
     def test_sample_into_pad(self):
         ''' end of episode has done = true '''
         n_ep = 3
@@ -283,7 +413,6 @@ class TestReplayBuffer(unittest.TestCase):
         replay_buff = self.create_default_test_buffer(batch_size=4)
         self.populate_buffer(replay_buff, n_ep, n_step)
 
-        # only 1 and 8 are valid
         with unittest.mock.patch('random.randint', get_mock_random_func([1, 9, 12, 19])):
             obs, addi_obs, action, reward, next_obs, next_addi_obs, done = replay_buff.sample()
 
@@ -329,6 +458,176 @@ class TestReplayBuffer(unittest.TestCase):
         n_step = 10
         replay_buff = self.create_default_test_buffer(batch_size=6)
         self.populate_buffer(replay_buff, n_ep, n_step)
+
+        # only 5, 20, 21, 28, 29, 0
+        with unittest.mock.patch('random.randint', get_mock_random_func([4, 5, 20, 21, 28, 29, 0])):
+            obs, addi_obs, action, reward, next_obs, next_addi_obs, done = replay_buff.sample()
+
+            # assert first transition in batch - ep 1, index 5
+            self.assertEqual(obs[0].tolist(), [MockObs(1, 4), MockObs(1, 5)])
+            self.assertEqual(addi_obs[0], MockAddiObs(1, 5))
+            self.assertEqual(action[0], 0.5)
+            self.assertRewardValid(5, reward[0])
+            self.assertEqual(next_obs[0].tolist(), [MockObs(1, 6), MockObs(1, 7)])
+            self.assertEqual(next_addi_obs[0], MockAddiObs(1, 7))
+            self.assertFalse(done[0])
+
+            # assert second transition in batch - ep 2, index 20
+            self.assertEqual(obs[1].tolist(), [MockObs(2, 8), MockObs(2, 9)])
+            self.assertEqual(addi_obs[1], MockAddiObs(2, 9))
+            self.assertEqual(action[1], 0.9)
+            self.assertRewardValid(9, reward[1])
+            self.assertEqual(next_obs[1].tolist(), [MockObs(2, 10), MockObs(3, 1)])
+            self.assertEqual(next_addi_obs[1], MockAddiObs(3, 1))
+            self.assertTrue(done[1])
+
+            # assert second transition in batch - ep 2, index 21
+            self.assertEqual(obs[2].tolist(), [MockObs(2, 9), MockObs(2, 10)])
+            self.assertEqual(addi_obs[2], MockAddiObs(2, 10))
+            self.assertEqual(action[2], 1)
+            self.assertRewardValid(10, reward[2])
+            # first element is 2-10 because next state after step 10 (and done) is 3-1
+            # it's technically incorrect but it doesn't matter
+            # because we don't use it for gredient anyway
+            self.assertEqual(next_obs[2].tolist(), [MockObs(2, 10), MockObs(3, 1)])
+            self.assertEqual(next_addi_obs[2], MockAddiObs(3, 1))
+            self.assertTrue(done[2])
+
+            # assert second transition in batch - ep 3, index 28 (step 6)
+            self.assertEqual(obs[3].tolist(), [MockObs(3, 5), MockObs(3, 6)])
+            self.assertEqual(addi_obs[3], MockAddiObs(3, 6))
+            self.assertAlmostEqual(action[3], 0.6)
+            self.assertRewardValid(6, reward[3])
+            self.assertEqual(next_obs[3].tolist(), [MockObs(3, 7), MockObs(3, 8)])
+            self.assertEqual(next_addi_obs[3], MockAddiObs(3, 8))
+            self.assertFalse(done[3])
+
+            # assert second transition in batch - ep 3, index 29 (step 7)
+            self.assertEqual(obs[4].tolist(), [MockObs(3, 6), MockObs(3, 7)])
+            self.assertEqual(addi_obs[4], MockAddiObs(3, 7))
+            self.assertAlmostEqual(action[4], 0.7)
+            self.assertRewardValid(7, reward[4])
+            self.assertEqual(next_obs[4].tolist(), [MockObs(3, 8), MockObs(3, 9)])
+            self.assertEqual(next_addi_obs[4], MockAddiObs(3, 9))
+            self.assertFalse(done[4])
+
+            # assert second transition in batch - ep 3, index 0 (step 8)
+            self.assertEqual(obs[5].tolist(), [MockObs(3, 7), MockObs(3, 8)])
+            self.assertEqual(addi_obs[5], MockAddiObs(3, 8))
+            self.assertEqual(action[5], 0.8)
+            self.assertRewardValid(8, reward[5])
+            self.assertEqual(next_obs[5].tolist(), [MockObs(3, 9), MockObs(3, 10)])
+            self.assertEqual(next_addi_obs[5], MockAddiObs(3, 10))
+            self.assertFalse(done[5])
+
+    def test_sample_after_add_one_ep_in_two_steps(self):
+        ''' sample at the beginning and end of episodes '''
+        n_ep = 1
+        n_step = 5
+        replay_buff = self.create_default_test_buffer(batch_size=3)
+
+        # first time
+        self.populate_buffer(replay_buff, n_ep, n_step, start_step_num=1, is_done=False, is_end=False)
+        # second time
+        self.populate_buffer(replay_buff, n_ep, n_step, start_step_num=6, is_done=True, is_end=True)
+
+        with unittest.mock.patch('random.randint', get_mock_random_func([1, 6, 8])):
+            obs, addi_obs, action, reward, next_obs, next_addi_obs, done = replay_buff.sample()
+
+        self.assertEqual(obs[0].tolist(), [MockObs(1, 1)]*2)
+        self.assertEqual(addi_obs[0], MockAddiObs(1, 1))
+        self.assertAlmostEqual(action[0], 0.1)
+        self.assertRewardValid(1, reward[0])
+        self.assertEqual(next_obs[0].tolist(), [MockObs(1, 2), MockObs(1, 3)])
+        self.assertEqual(next_addi_obs[0], MockAddiObs(1, 3))
+        self.assertFalse(done[0])
+
+        self.assertEqual(obs[1].tolist(), [MockObs(1, 5), MockObs(1, 6)])
+        self.assertEqual(addi_obs[1], MockAddiObs(1, 6))
+        self.assertAlmostEqual(action[1], 0.6)
+        self.assertRewardValid(6, reward[1])
+        self.assertEqual(next_obs[1].tolist(), [MockObs(1, 7), MockObs(1, 8)])
+        self.assertEqual(next_addi_obs[1], MockAddiObs(1, 8))
+        self.assertFalse(done[1])
+
+        self.assertEqual(obs[2].tolist(), [MockObs(1, 7), MockObs(1, 8)])
+        self.assertEqual(addi_obs[2], MockAddiObs(1, 8))
+        self.assertAlmostEqual(action[2], 0.8)
+        self.assertRewardValid(8, reward[2])
+        self.assertEqual(next_obs[2].tolist(), [MockObs(1, 9), MockObs(1, 10)])
+        self.assertEqual(next_addi_obs[2], MockAddiObs(1, 10))
+
+    def test_sample_after_add_two_eps_in_two_steps(self):
+        ''' sample at the beginning and end of episodes '''
+        replay_buff = self.create_default_test_buffer(batch_size=4)
+
+        self.populate_buffer(replay_buff, n_ep=1, n_step=5,
+                             start_ep_num=1, start_step_num=1, is_done=False, is_end=False)
+        self.populate_buffer(replay_buff, n_ep=1, n_step=5,
+                             start_ep_num=1, start_step_num=6, is_done=True, is_end=True)
+
+        self.populate_buffer(replay_buff, n_ep=1, n_step=5,
+                             start_ep_num=2, start_step_num=1, is_done=False, is_end=False)
+        self.populate_buffer(replay_buff, n_ep=1, n_step=5,
+                             start_ep_num=2, start_step_num=6, is_done=True, is_end=True)
+
+        with unittest.mock.patch('random.randint', get_mock_random_func([1, 9, 12, 19])):
+            obs, addi_obs, action, reward, next_obs, next_addi_obs, done = replay_buff.sample()
+
+            # assert first transition in batch - ep 1, index 1
+            self.assertEqual(obs[0].tolist(), [MockObs(1, 1)]*2)
+            self.assertEqual(addi_obs[0], MockAddiObs(1, 1))
+            self.assertEqual(action[0], 0.1)
+            self.assertRewardValid(1, reward[0])
+            self.assertEqual(next_obs[0].tolist(), [MockObs(1, 2), MockObs(1, 3)])
+            self.assertEqual(next_addi_obs[0], MockAddiObs(1, 3))
+            self.assertFalse(done[0])
+
+            # assert second transition in batch - ep 1, index 9
+            self.assertEqual(obs[1].tolist(), [MockObs(1, 8), MockObs(1, 9)])
+            self.assertEqual(addi_obs[1], MockAddiObs(1, 9))
+            self.assertEqual(action[1], 0.9)
+            self.assertRewardValid(9, reward[1])
+            self.assertEqual(next_obs[1].tolist(), [MockObs(1, 10), MockObs(2, 1)])
+            self.assertEqual(next_addi_obs[1], MockAddiObs(2, 1))
+            self.assertTrue(done[1])
+
+            # assert third transition in batch - ep 2
+            self.assertEqual(obs[2].tolist(), [MockObs(2, 1)]*2)
+            self.assertEqual(addi_obs[2], MockAddiObs(2, 1))
+            self.assertEqual(action[2], 0.1)
+            self.assertRewardValid(1, reward[2])
+            self.assertEqual(next_obs[2].tolist(), [MockObs(2, 2), MockObs(2, 3)])
+            self.assertEqual(next_addi_obs[2], MockAddiObs(2, 3))
+            self.assertFalse(done[2])
+
+            # assert fourth transition in batch
+            self.assertEqual(obs[3].tolist(), [MockObs(2, 7), MockObs(2, 8)])
+            self.assertEqual(addi_obs[3], MockAddiObs(2, 8))
+            self.assertEqual(action[3], 0.8)
+            self.assertRewardValid(8, reward[3])
+            self.assertEqual(next_obs[3].tolist(), [MockObs(2, 9), MockObs(2, 10)])
+            self.assertEqual(next_addi_obs[3], MockAddiObs(2, 10))
+            self.assertFalse(done[3])
+
+    def test_sample_after_add_three_eps_in_two_steps(self):
+        ''' sample at the beginning and end of episodes '''
+        replay_buff = self.create_default_test_buffer(batch_size=6)
+
+        self.populate_buffer(replay_buff, n_ep=1, n_step=5,
+                             start_ep_num=1, start_step_num=1, is_done=False, is_end=False)
+        self.populate_buffer(replay_buff, n_ep=1, n_step=5,
+                             start_ep_num=1, start_step_num=6, is_done=True, is_end=True)
+
+        self.populate_buffer(replay_buff, n_ep=1, n_step=5,
+                             start_ep_num=2, start_step_num=1, is_done=False, is_end=False)
+        self.populate_buffer(replay_buff, n_ep=1, n_step=5,
+                             start_ep_num=2, start_step_num=6, is_done=True, is_end=True)
+
+        self.populate_buffer(replay_buff, n_ep=1, n_step=5,
+                             start_ep_num=3, start_step_num=1, is_done=False, is_end=False)
+        self.populate_buffer(replay_buff, n_ep=1, n_step=5,
+                             start_ep_num=3, start_step_num=6, is_done=True, is_end=True)
 
         # only 5, 20, 21, 28, 29, 0
         with unittest.mock.patch('random.randint', get_mock_random_func([4, 5, 20, 21, 28, 29, 0])):
