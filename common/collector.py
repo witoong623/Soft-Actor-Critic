@@ -28,7 +28,7 @@ STD = np.tile([0.0946, 0.1767, 0.1865], 2)
 
 
 class Sampler(mp.Process):
-    def __init__(self, rank, n_samplers, lock,
+    def __init__(self, rank, n_samplers, sampler_lock,
                  running_event, event, next_sampler_event,
                  env_func, env_kwargs, state_encoder, actor,
                  eval_only, replay_buffer,
@@ -39,7 +39,7 @@ class Sampler(mp.Process):
         super().__init__(name=f'sampler_{rank}', daemon=True)
 
         self.rank = rank
-        self.lock = lock
+        self.sampler_lock = sampler_lock
         self.running_event = running_event
         self.event = event
         self.next_sampler_event = next_sampler_event
@@ -160,8 +160,9 @@ class Sampler(mp.Process):
                         action = self.actor.get_action(state, deterministic=self.deterministic)
 
                     next_observation, reward, done, info = self.env.step(action)
-                    if 'additional_state' in info:
-                        next_additional_state = info['additional_state']
+
+                    next_additional_state = info.get('additional_state', None)
+                    should_stop = info.get('should_stop', False)
 
                     episode_reward += reward
                     episode_steps += 1
@@ -172,18 +173,23 @@ class Sampler(mp.Process):
                     observation = next_observation
                     additional_state = next_additional_state
 
-                    if done or (self.random_sample and done_sample):
+                    if done or (self.random_sample and done_sample) or should_stop:
                         break
+
+                    if step > self.max_episode_steps * 0.2:
+                        # wait for signal from Collector to stop or continue
+                        self.running_event.wait()
+                        with self.sampler_lock:
+                            self.save_trajectory(is_end=False)
+                            self.trajectory.clear()
 
                 # wait for signal from Collector to stop or continue
                 self.running_event.wait()
                 # wait for previous Sampler to set
                 self.event.wait(timeout=self.timeout)
-                with self.lock:
-                    self.save_trajectory()
-                    self.n_total_steps.value += episode_steps
-                    self.episode_steps.append(episode_steps)
-                    self.episode_rewards.append(episode_reward)
+                with self.sampler_lock:
+                    self.save_trajectory(is_end=True)
+                    self.save_stat(episode_steps, episode_reward)
                 self.event.clear()
                 # set next Sampler to continue save trajectory
                 self.next_sampler_event.set()
@@ -207,8 +213,13 @@ class Sampler(mp.Process):
     def add_transaction(self, observation, additional_state, action, reward, done):
         self.trajectory.append((observation, additional_state, action, reward, done))
 
-    def save_trajectory(self):
-        self.replay_buffer.extend(self.trajectory)
+    def save_trajectory(self, is_end=True):
+        self.replay_buffer.extend(self.trajectory, is_end)
+
+    def save_stat(self, episode_steps, episode_reward):
+        self.n_total_steps.value += episode_steps
+        self.episode_steps.append(episode_steps)
+        self.episode_rewards.append(episode_reward)
 
     def close(self):
         try:
@@ -288,7 +299,7 @@ class Collector(object):
         self.total_steps = self.manager.Value('L', 0)
         self.episode_steps = self.manager.list()
         self.episode_rewards = self.manager.list()
-        self.lock = self.manager.Lock()
+        self.sampler_lock = self.manager.Lock()
 
         self.state_encoder = state_encoder
         self.actor = actor
@@ -329,7 +340,7 @@ class Collector(object):
         events[0].set()
 
         for rank in range(self.n_samplers):
-            sampler = self.SAMPLER(rank, self.n_samplers, self.lock,
+            sampler = self.SAMPLER(rank, self.n_samplers, self.sampler_lock,
                                    self.running_event, events[rank], events[(rank + 1) % self.n_samplers],
                                    self.env_func, self.env_kwargs, self.state_encoder, self.actor,
                                    self.eval_only, self.replay_buffer,

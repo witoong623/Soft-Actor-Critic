@@ -84,7 +84,6 @@ def initialize_environment(config):
                                                     'camera_fov',
                                                     'n_frames',
                                                     'fps_mode',
-                                                    'max_episode_steps',
                                                     'random_seed',
                                                     'n_repeat_actions',
                                                     'n_past_actions',

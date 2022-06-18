@@ -75,7 +75,6 @@ class CarlaEnv(gym.Env):
         self.number_of_vehicles = 0
         self.number_of_wheels = [4]
         self.max_ego_spawn_times = 100
-        self.max_time_episode = kwargs.get('max_episode_steps', 5000)
         self.max_waypt = 12
         # in m/s. 5.5 is 20KMH
         self.desired_speed = 5.5
@@ -201,6 +200,10 @@ class CarlaEnv(gym.Env):
         self.num_past_actions = kwargs.get('n_past_actions', 10)
         self.actions_queue = deque(maxlen=self.num_past_actions)
 
+        # travel distance
+        self.travel_distance_diffs = []
+        self.window_size = self.frame_per_second * 10
+
         # control history
         self.store_history = self.record_video
         if self.store_history:
@@ -324,6 +327,8 @@ class CarlaEnv(gym.Env):
                 self.z_steps[spawn_transform_index] = z_step
                 time.sleep(0.1)
 
+        self.start_location = spawn_transform.location
+
         # Add collision sensor
         self.collision_sensor = self.world.spawn_actor(self.collision_bp, carla.Transform(), attach_to=self.ego)
         self.collision_sensor.listen(lambda event: get_collision_hist(event))
@@ -390,12 +395,15 @@ class CarlaEnv(gym.Env):
         self.waypoints = self.routeplanner.run_step()
         self.current_waypoint = self.routeplanner.current_waypoint
 
+        self._update_last_travel_distance(self.ego.get_location())
+
         # Update timesteps
         self.time_step += 1
         self.total_step += 1
 
         info = {}
         info['additional_state'] = np.ravel(np.array(self.actions_queue, dtype=np.float16))
+        info['should_stop'] = self._get_should_stop()
 
         return self._get_obs(), self._get_reward(), self._get_terminal(), info
 
@@ -508,10 +516,6 @@ class CarlaEnv(gym.Env):
         if len(self.collision_hist) > 0:
             return True
 
-        # If reach maximum timestep
-        if self.time_step > self.max_time_episode:
-            return True
-
         # If at destination
         if self.dests is not None: # If at destination
             for dest in self.dests:
@@ -522,8 +526,7 @@ class CarlaEnv(gym.Env):
         if abs(self.current_lane_dis) > self.out_lane_thres:
             return True
 
-        # end of section
-        if self.routeplanner.is_end_of_section:
+        if self._does_vehicle_stop():
             return True
 
         return False
@@ -801,6 +804,24 @@ class CarlaEnv(gym.Env):
         new_transform = carla.Transform(location=new_location, rotation=spawn_point_transform.rotation)
 
         return new_transform
+
+    def _update_last_travel_distance(self, current_location):
+        travel_distance = self.start_location.distance(current_location)
+        previous_travel_distance = sum(self.travel_distance_diffs)
+        self.travel_distance_diffs.append(abs(travel_distance - previous_travel_distance))
+
+    def _does_vehicle_stop(self) -> bool:
+        ''' vehicle stop if it doesn't move 1 meter in 10 seconds window '''
+        if len(self.travel_distance_diffs) < self.window_size:
+            return False
+
+        window_start = max(0, len(self.travel_distance_diffs) - self.window_size)
+
+        return sum(self.travel_distance_diffs[window_start:]) < 1.
+
+    def _get_should_stop(self):
+        ''' when should stop episode but the agent isn't in terminal state  '''
+        return self.routeplanner.is_end_of_section
 
     def _transform_CNN_observation(self, obs):
         cropped_obs = self._crop_image(obs)
