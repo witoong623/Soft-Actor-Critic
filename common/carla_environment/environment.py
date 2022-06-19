@@ -80,11 +80,6 @@ class CarlaEnv(gym.Env):
         self.desired_speed = 5.5
         self.out_lane_thres = 2.
 
-        # random or roundabout
-        self.task_mode = 'random'
-
-        self.dests = None
-
         # action and observation spaces
         self.observation_space = spaces.Box(low=0, high=255, shape=(self.obs_height, self.obs_width, 3), dtype=np.uint8)
         # steering, accel/brake
@@ -416,7 +411,7 @@ class CarlaEnv(gym.Env):
             cv2.waitKey(1)
         elif mode == 'rgb_array':
             if self.record_video:
-                return self._retrieve_image_data(self.obs_frame_data_queue, use_semantic_mask=False)
+                return self._get_image_data(self.obs_frame_data_queue, use_semantic_mask=False)
             else:
                 return self._get_observation_image()
         elif mode == 'observation':
@@ -516,12 +511,6 @@ class CarlaEnv(gym.Env):
         if len(self.collision_hist) > 0:
             return True
 
-        # If at destination
-        if self.dests is not None: # If at destination
-            for dest in self.dests:
-                if np.sqrt((ego_x-dest[0])**2 + (ego_y-dest[1])**2) < 4:
-                    return True
-
         # If out of lane
         if abs(self.current_lane_dis) > self.out_lane_thres:
             return True
@@ -532,7 +521,7 @@ class CarlaEnv(gym.Env):
         return False
 
     def _get_obs(self):
-        self.camera_img = self._retrieve_image_data(self.frame_data_queue,
+        self.camera_img = self._get_image_data(self.frame_data_queue,
                                                     use_semantic_mask=self.use_semantic_camera)
 
         if self.n_images == 1:
@@ -880,7 +869,7 @@ class CarlaEnv(gym.Env):
         cropped_size = (384, 768)
         return center_crop(img, cropped_size, shift_H=1.2)
 
-    def _retrieve_image_data(self, queue_to_wait, use_semantic_mask=False):
+    def _get_image_data(self, queue_to_wait, use_semantic_mask=False):
         while True:
             data = queue_to_wait.get()
             queue_to_wait.task_done()
