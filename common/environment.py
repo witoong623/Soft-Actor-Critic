@@ -94,7 +94,8 @@ def initialize_environment(config):
                                                     'video_dir',
                                                     'repeat_section_threshold',
                                                     'initial_checkpoint',
-                                                    'return_single_image'])
+                                                    'return_single_image',
+                                                    'traffic_mode'])
     else:
         config.env_func = build_env
         config.env_kwargs = config.build_from_keys(['vision_observation',

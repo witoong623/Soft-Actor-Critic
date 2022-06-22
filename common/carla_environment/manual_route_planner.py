@@ -27,8 +27,9 @@ def carla_to_vector(obj):
 
 class ManualRoutePlanner:
     def __init__(self, start_waypoint, end_waypoint, world, resolution=2.0,
-                 plan=None, initial_checkpoint=0, repeat_section_threshold=5, use_section=False,
-                 enable=True, debug_route_waypoint_len=None):
+                 plan=None, initial_checkpoint=0, repeat_section_threshold=5,
+                 use_section=False, enable=True, debug_route_waypoint_len=None,
+                 traffic_mode='RHT'):
         ''' route_waypoint_len is purely for testing purpose '''
         global _route_waypoints, _transformed_waypoint_routes
 
@@ -36,6 +37,7 @@ class ManualRoutePlanner:
         self._world = world
         self._map = world.get_map()
         self.plan = plan
+        self.traffic_mode = traffic_mode
 
         self._sampling_radius = resolution
         self._min_distance = self._sampling_radius - 1 if self._sampling_radius > 1 else 1
@@ -180,7 +182,7 @@ class ManualRoutePlanner:
                 while len(wp_choice) == 1:
                     current_waypoint = wp_choice[0]
                     route.append((current_waypoint, RoadOption.LANEFOLLOW))
-                    wp_choice = current_waypoint.next(self._sampling_radius)
+                    wp_choice = self._get_next_waypoint(current_waypoint, distance=self._sampling_radius)
 
                     # Stop at destination
                     if i > 0 and current_waypoint.transform.location.distance(self.end_waypoint.transform.location) < self._sampling_radius:
@@ -193,7 +195,7 @@ class ManualRoutePlanner:
                 # from each other so we choose the correct path
                 step = self._sampling_radius
                 while len(wp_choice) > 1:
-                    wp_choice = current_waypoint.next(step)
+                    wp_choice = self._get_next_waypoint(current_waypoint, distance=step)
                     wp0, wp1 = wp_choice[:2]
                     if wp0.transform.location.distance(wp1.transform.location) < self._sampling_radius:
                         step += self._sampling_radius
@@ -236,10 +238,10 @@ class ManualRoutePlanner:
                     # Generate all waypoints within the junction
                     # along selected path
                     route.append((current_waypoint, action))
-                    current_waypoint = current_waypoint.next(self._sampling_radius)[0]
+                    current_waypoint = self._get_next_waypoint(current_waypoint, distance=self._sampling_radius)[0]
                     while current_waypoint.is_intersection:
                         route.append((current_waypoint, action))
-                        current_waypoint = current_waypoint.next(self._sampling_radius)[0]
+                        current_waypoint = self._get_next_waypoint(current_waypoint, distance=self._sampling_radius)[0]
             assert route
 
         # Change action 5 wp before intersection
@@ -263,7 +265,7 @@ class ManualRoutePlanner:
         ''' implement checkpoint logic that encourage the agent to remember more past road before trying next portion of the road '''
         idx = (self._current_waypoint_index // self._checkpoint_frequency) * self._checkpoint_frequency
 
-        if idx > self._intermediate_checkpoint_waypoint_index:
+        if idx >= self._intermediate_checkpoint_waypoint_index:
             self._repeat_count += 1
 
             if self._repeat_count >= self._repeat_count_threshold:
@@ -356,6 +358,12 @@ class ManualRoutePlanner:
         spawn_transform = _route_waypoints[spawn_idx][0].transform
 
         return spawn_idx, spawn_transform
+
+    def _get_next_waypoint(self, waypoint, distance):
+        if self.traffic_mode == 'RHT':
+            return waypoint.next(distance)
+        else:
+            return waypoint.previous(distance)
 
     def get_spawn_point(self):
         ''' get spawn point from pre-defined strategy '''

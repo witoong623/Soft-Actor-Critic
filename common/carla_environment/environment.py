@@ -142,6 +142,7 @@ class CarlaEnv(gym.Env):
         if self.route_mode == RouteMode.MANUAL_LAP:
             initial_checkpoint = kwargs.get('initial_checkpoint', 0)
             repeat_threshold = kwargs.get('repeat_section_threshold', 5)
+            self.traffic_mode = kwargs.get('traffic_mode', 'RHT')
             self.routeplanner = ManualRoutePlanner(self.lap_spwan_point_wp,
                                                    self.lap_spwan_point_wp,
                                                    self.world,
@@ -149,7 +150,7 @@ class CarlaEnv(gym.Env):
                                                    plan=TOWN7_PLAN,
                                                    initial_checkpoint=initial_checkpoint,
                                                    repeat_section_threshold=repeat_threshold,
-                                                   use_section=True)
+                                                   use_section=True, traffic_mode=self.traffic_mode)
 
         # ego vehicle bp
         self.ego_bp = self._create_vehicle_bluepprint('vehicle.mini.cooper_s_2021')
