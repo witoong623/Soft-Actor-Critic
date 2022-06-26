@@ -29,7 +29,7 @@ python main.py \
 	--encoder-activation ELU \
 	--state-dim 768 \
 	--hidden-dims 512 256 \
-	--max-episode-steps 5000 \
+	--max-episode-steps 10000 \
 	--n-epochs 1000 --n-updates 256 --batch-size 32 \
 	--n-samplers 1 \
 	--buffer-capacity 21000 \

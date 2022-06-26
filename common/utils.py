@@ -274,7 +274,7 @@ class ObservationStacker:
         self.frames_queue = deque(maxlen=self.n_frames)
 
     def get_new_observation(self, current_observation):
-        if len(self.frames_queue) < self.n_frames:
+        while len(self.frames_queue) < self.n_frames:
             self.frames_queue.append(current_observation)
 
         self.frames_queue.append(current_observation)

@@ -20,12 +20,10 @@ from queue import Queue
 from tqdm import trange
 
 from .misc import get_pos, get_lane_dis_numba, get_vehicle_angle
-from .route_planner import RoutePlanner
-from .manual_route_planner import ManualRoutePlanner, TOWN7_PLAN, TOWN7_REVERSE_PLAN
+from .manual_route_planner import ManualRoutePlanner, TOWN7_PLAN
 from ..utils import center_crop, normalize_image
 
 from agents.navigation.behavior_agent import BehaviorAgent
-from agents.navigation.global_route_planner import RoadOption
 
 
 class RouteMode(Enum):

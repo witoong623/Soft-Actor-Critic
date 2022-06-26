@@ -31,7 +31,7 @@ class Sampler(mp.Process):
     def __init__(self, rank, n_samplers, sampler_lock,
                  running_event, event, next_sampler_event,
                  env_func, env_kwargs, state_encoder, actor,
-                 eval_only, replay_buffer,
+                 eval_only, replay_buffer, n_frames,
                  n_total_steps, episode_steps, episode_rewards,
                  n_bootstrap_step, n_episodes, max_episode_steps,
                  deterministic, random_sample, render, log_episode_video,
@@ -57,12 +57,12 @@ class Sampler(mp.Process):
         self.device = device
         self.eval_only = eval_only
 
+        self.n_frames = n_frames
         self.replay_buffer = replay_buffer
         self.n_total_steps = n_total_steps
         self.episode_steps = episode_steps
         self.episode_rewards = episode_rewards
         self.n_bootstrap_step = n_bootstrap_step
-        self._cumulative_discount_vector = np.array([math.pow(0.99, n) for n in range(self.n_bootstrap_step)])
 
         if np.isinf(n_episodes):
             self.n_episodes = np.inf
@@ -117,7 +117,7 @@ class Sampler(mp.Process):
                     sync_params(src_net=self.shared_state_encoder, dst_net=self.state_encoder)
                     sync_params(src_net=self.shared_actor, dst_net=self.actor)
 
-                obs_stacker = ObservationStacker(n_frames=2, stack_axis=2)
+                obs_stacker = ObservationStacker(n_frames=self.n_frames, stack_axis=2)
 
                 episode_reward = 0
                 episode_steps = 0
@@ -305,6 +305,7 @@ class Collector(object):
         self.actor = actor
         self.eval_only = False
 
+        self.n_frames = n_frames
         self.n_bootstrap_step = n_bootstrap_step
         self.n_samplers = n_samplers
         # self.replay_buffer = self.REPLAY_BUFFER(capacity=buffer_capacity, initializer=self.manager.list,
@@ -343,7 +344,7 @@ class Collector(object):
             sampler = self.SAMPLER(rank, self.n_samplers, self.sampler_lock,
                                    self.running_event, events[rank], events[(rank + 1) % self.n_samplers],
                                    self.env_func, self.env_kwargs, self.state_encoder, self.actor,
-                                   self.eval_only, self.replay_buffer,
+                                   self.eval_only, self.replay_buffer, self.n_frames,
                                    self.total_steps, self.episode_steps, self.episode_rewards,
                                    self.n_bootstrap_step, n_episodes, max_episode_steps,
                                    deterministic, random_sample, render, log_episode_video,
