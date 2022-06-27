@@ -22,19 +22,42 @@ class TravelManager:
         self._green = carla.Color(r=0, g=255, b=0)
         self._blue = carla.Color(r=0, g=0, b=255)
         self._white = carla.Color(r=255, g=255, b=255)
-        self._waypoint_life_time = 60
+        self._waypoint_life_time = 30
 
     def call_next(self):
         self.choices = self.current_waypoint.next(self.distance)
+        self.func_call_history.append('next')
 
     def call_previous(self):
         self.choices = self.current_waypoint.previous(self.distance)
+        self.func_call_history.append('previous')
+
+    def increase_distance_when_have_choices(self):
+        ''' So that it chooses correct path at junction '''
+        previous_get_waypoint_func = self.func_call_history[-1]
+        wp_choices = self.choices
+        step = self.distance
+        while len(wp_choices) > 1:
+            if previous_get_waypoint_func == 'next':
+                wp_choices = self.current_waypoint.next(step)
+            else:
+                wp_choices = self.current_waypoint.previous(step)
+
+            wp0, wp1 = wp_choices[:2]
+            if wp0.transform.location.distance(wp1.transform.location) < self.distance:
+                step += self.distance
+            else:
+                self.choices = wp_choices
+                break
 
     def revert(self):
         pass
 
-    def have_choice(self):
+    def have_choices(self):
         return len(self.choices) > 1
+
+    def have_one_choice(self):
+        return len(self.choices) == 1
 
     def select_waypoint(self, choice_index):
         self.previous_waypoint = self.current_waypoint
@@ -68,8 +91,6 @@ class TravelManager:
                                       y=current_location.y,
                                       z=current_location.z + additional_z_axis)
 
-        print(new_location)
-
         self.debug.draw_point(new_location,
                               size=0.5,
                               life_time=self._waypoint_life_time,
@@ -94,6 +115,7 @@ def get_starting_waypoint(world):
     map = world.get_map()
 
     # TOOD: do whatever it takes to get your starting waypoint here
+    # 9 is by 7-11, 11 is at the intersection
     vehicle_spawn_points = list(map.get_spawn_points())
     reference_starting_waypoint = map.get_waypoint(vehicle_spawn_points[11].location)
 
@@ -111,7 +133,7 @@ class Controller:
         self.setup()
 
     def setup(self):
-        travel_manager.draw_current_waypoint()
+        self.travel_manager.draw_current_waypoint()
 
     def run(self):
         with self.term.cbreak():
@@ -128,8 +150,8 @@ class Controller:
                 else:
                     raise Exception(f'Unknown command {travel_key}')
 
-                choice_index = 0
-                if self.travel_manager.have_choice():
+                if self.travel_manager.have_choices():
+                    # self.travel_manager.increase_distance_when_have_choices()
                     self.travel_manager.draw_choices()
                     
                     choices_len = len(self.travel_manager.choices)
@@ -138,8 +160,15 @@ class Controller:
 
                     choice_index = self._receive_text(select_choice_propmt,
                                                       list(map(str, range(choices_len))))
+                elif self.travel_manager.have_one_choice():
+                    choice_index = 0
+                else:
+                    print('does not have choice')
+                    choice_index = None
 
-                self.travel_manager.select_waypoint(int(choice_index))
+                if choice_index is not None:
+                    self.travel_manager.select_waypoint(int(choice_index))
+
                 self.travel_manager.draw_current_waypoint()
 
     def _receive_keycode(self, prompt_text, possible_codes) -> str:
@@ -157,8 +186,8 @@ class Controller:
 
         text = None
         while text is None or text not in possible_values:
-            text = input(prompt_text)
-            print('text is', text)
+            char_key = self.term.inkey()
+            text = str(char_key)
 
         return text
 
