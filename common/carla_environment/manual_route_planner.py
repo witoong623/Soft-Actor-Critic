@@ -5,6 +5,7 @@ import operator
 import random
 import numpy as np
 
+from enum import Enum
 from numba.typed import List
 from agents.navigation.local_planner import RoadOption
 from agents.navigation.global_route_planner import GlobalRoutePlanner
@@ -23,6 +24,17 @@ def carla_to_vector(obj):
         return np.array([obj.pitch, obj.yaw, obj.roll])
     else:
         raise TypeError(f'obj must be `Location`, `Vector3D` or `Rotation`, not {type(obj)}')
+
+
+class NextFunction(Enum):
+    NEXT = 1
+    PREVIOUS = 2
+
+    def opposite(self):
+        if self.name == 'NEXT':
+            return NextFunction.PREVIOUS
+        else:
+            return NextFunction.NEXT
 
 
 class ManualRoutePlanner:
@@ -56,6 +68,7 @@ class ManualRoutePlanner:
         self._intermediate_checkpoint_waypoint_index = self._checkpoint_waypoint_index + self._checkpoint_frequency
 
         if enable:
+            self.carla_debug = self._world.debug
             _route_waypoints = self._compute_route_waypoints()
             _transformed_waypoint_routes = List(self._transform_waypoints(_route_waypoints))
 
@@ -182,7 +195,7 @@ class ManualRoutePlanner:
                 while len(wp_choice) == 1:
                     current_waypoint = wp_choice[0]
                     route.append((current_waypoint, RoadOption.LANEFOLLOW))
-                    wp_choice = self._get_next_waypoint(current_waypoint, distance=self._sampling_radius)
+                    wp_choice = current_waypoint.next(self._sampling_radius)
 
                     # Stop at destination
                     if i > 0 and current_waypoint.transform.location.distance(self.end_waypoint.transform.location) < self._sampling_radius:
@@ -195,7 +208,7 @@ class ManualRoutePlanner:
                 # from each other so we choose the correct path
                 step = self._sampling_radius
                 while len(wp_choice) > 1:
-                    wp_choice = self._get_next_waypoint(current_waypoint, distance=step)
+                    wp_choice = current_waypoint.next(step)
                     wp0, wp1 = wp_choice[:2]
                     if wp0.transform.location.distance(wp1.transform.location) < self._sampling_radius:
                         step += self._sampling_radius
@@ -238,10 +251,10 @@ class ManualRoutePlanner:
                     # Generate all waypoints within the junction
                     # along selected path
                     route.append((current_waypoint, action))
-                    current_waypoint = self._get_next_waypoint(current_waypoint, distance=self._sampling_radius)[0]
+                    current_waypoint = current_waypoint.next(self._sampling_radius)[0]
                     while current_waypoint.is_intersection:
                         route.append((current_waypoint, action))
-                        current_waypoint = self._get_next_waypoint(current_waypoint, distance=self._sampling_radius)[0]
+                        current_waypoint = current_waypoint.next(self._sampling_radius)[0]
             assert route
 
         # Change action 5 wp before intersection
@@ -359,11 +372,8 @@ class ManualRoutePlanner:
 
         return spawn_idx, spawn_transform
 
-    def _get_next_waypoint(self, waypoint, distance):
-        if self.traffic_mode == 'RHT':
-            return waypoint.next(distance)
-        else:
-            return waypoint.previous(distance)
+    def _draw_debug_waypoint(self, waypoint):
+        self.carla_debug.draw_point(waypoint.transform.location, size=0.3, life_time=60)
 
     def get_spawn_point(self):
         ''' get spawn point from pre-defined strategy '''
@@ -391,4 +401,3 @@ class ManualRoutePlanner:
 
 
 TOWN7_PLAN = [RoadOption.STRAIGHT] + [RoadOption.RIGHT] * 2 + [RoadOption.STRAIGHT] * 5
-TOWN7_REVERSE_PLAN = [RoadOption.STRAIGHT] * 4 + [RoadOption.LEFT] * 2 + [RoadOption.STRAIGHT]
