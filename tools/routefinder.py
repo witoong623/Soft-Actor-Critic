@@ -196,7 +196,7 @@ if __name__ == '__main__':
     carla_world = connect_to_carla(load_new_world=False)
 
     starting_waypoint = get_starting_waypoint(carla_world)
-    travel_manager = TravelManager(carla_world, starting_waypoint, distance=6)
+    travel_manager = TravelManager(carla_world, starting_waypoint, distance=2)
     
     controller = Controller(travel_manager)
     controller.run()

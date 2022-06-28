@@ -1,16 +1,22 @@
 import functools
 import operator
 
+from agents.navigation.local_planner import RoadOption
+
 
 class AITRoutePlanner:
     def __init__(self, world, sampling_radius) -> None:
         self.world = world
         self.map = world.get_map()
         self._sampling_radius = sampling_radius
+        self._route = None
 
         self._setup()
 
     def compute_route_waypoints(self):
+        if self._route is not None:
+            return self._route
+
         lap_route = []
 
         first_start = self._get_waypoint_opposite_of(11)
@@ -37,8 +43,10 @@ class AITRoutePlanner:
         eighth_start = self._get_waypoint_at(46)
         lap_route.append(self._get_route_until_end(eighth_start, 'next'))
 
-        return functools.reduce(operator.concat, lap_route)
+        route = list(functools.reduce(operator.concat, lap_route))
+        self._route = self._add_compatibility_support(route)
 
+        return self._route
 
     def _get_route_until_end(self, start_waypoint, next_func, choice_index=None):
         route = []
@@ -77,3 +85,7 @@ class AITRoutePlanner:
 
     def _setup(self):
         self.spawn_points = list(self.map.get_spawn_points())
+
+    def _add_compatibility_support(self, route_waypoints):
+        ''' Add arbitrary road option to route waypoints '''
+        return [(wp, RoadOption.LANEFOLLOW) for wp in route_waypoints]

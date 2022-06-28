@@ -10,6 +10,7 @@ from numba.typed import List
 from agents.navigation.local_planner import RoadOption
 from agents.navigation.global_route_planner import GlobalRoutePlanner
 from agents.tools.misc import vector
+from common.carla_environment.ait_route_planner import AITRoutePlanner
 
 # cache waypoint for entire lifecycle of application
 _route_waypoints = None
@@ -42,7 +43,7 @@ class ManualRoutePlanner:
                  plan=None, initial_checkpoint=0, repeat_section_threshold=5,
                  use_section=False, enable=True, debug_route_waypoint_len=None,
                  traffic_mode='RHT'):
-        ''' route_waypoint_len is purely for testing purpose '''
+        ''' `route_waypoint_len` is purely for testing purpose '''
         global _route_waypoints, _transformed_waypoint_routes
 
         self._vehicle = None
@@ -61,6 +62,7 @@ class ManualRoutePlanner:
         self._repeat_count = 0
         self._repeat_count_threshold = repeat_section_threshold
         self._checkpoint_frequency = 25
+        self._check_pass_waypoint_func = lambda v: v > 0.0 if traffic_mode == 'RHT' else lambda v: v < 0.0
 
         self._checkpoint_waypoint_index = initial_checkpoint
         self._start_waypoint_index = self._checkpoint_waypoint_index
@@ -69,13 +71,22 @@ class ManualRoutePlanner:
 
         if enable:
             self.carla_debug = self._world.debug
-            _route_waypoints = self._compute_route_waypoints()
+
+            if self._is_AIT_map():
+                ait_route_planner = AITRoutePlanner(self._world, resolution)
+                _route_waypoints = ait_route_planner.compute_route_waypoints()
+            else:
+                _route_waypoints = self._compute_route_waypoints()
+            
             _transformed_waypoint_routes = List(self._transform_waypoints(_route_waypoints))
 
+        self.completed_lap = False
         self._in_random_spawn_point = False
+        self._reached_last_waypoint_index = False
 
         # for section checkpoint
-        if use_section:
+        self.use_section = use_section
+        if self.use_section:
             route_waypoint_len = len(_route_waypoints) if debug_route_waypoint_len is None else debug_route_waypoint_len
             # (start, end, checkpoint frequency)
             self.sections_indexes = [(0, 140, 35), (143, 173, 30), (176, route_waypoint_len - 1, 35)]
@@ -97,8 +108,6 @@ class ManualRoutePlanner:
             self.all_spawn_indexes = functools.reduce(operator.concat,
                                                       [get_all_indexes(*sec) for sec in self.sections_indexes])
             self.round_spawn_idx = 0
-            self.reached_last_index = False
-            self.completed_lap = False
 
             if initial_checkpoint < self.sections_end[0]:
                 frequency = self.sections_indexes[0][2]
@@ -123,12 +132,10 @@ class ManualRoutePlanner:
             # check if we passed next waypoint along the route
             next_waypoint_index = waypoint_index + 1
             wp, _ = _route_waypoints[next_waypoint_index % waypoint_routes_len]
-            dot = np.dot(carla_to_vector(wp.transform.get_forward_vector())[:2],
-                         carla_to_vector(current_transform.location - wp.transform.location)[:2])
+            dot_ret = np.dot(carla_to_vector(wp.transform.get_forward_vector())[:2],
+                             carla_to_vector(current_transform.location - wp.transform.location)[:2])
 
-            # did we pass the waypoint?
-            if dot > 0.0:
-                # if passed, go to next waypoint
+            if self._check_pass_waypoint_func(dot_ret):
                 waypoint_index += 1
             else:
                 break
@@ -137,14 +144,13 @@ class ManualRoutePlanner:
 
         # update checkpoint
         # self._checkpoint_waypoint_index = (self._current_waypoint_index // self._checkpoint_frequency) * self._checkpoint_frequency
-        if not self._in_random_spawn_point:
+        if self.use_section and not self._in_random_spawn_point:
             self._update_checkpoint_by_section()
 
-        # check complete lap first time
-        if not self.reached_last_index:
-            self.reached_last_index = ((waypoint_index) % waypoint_routes_len) == self.sections_ends[-1]
+        if not self._reached_last_waypoint_index:
+            self._reached_last_waypoint_index = self._update_reached_last_waypoint_index(waypoint_index)
 
-        if self.reached_last_index and not self.completed_lap:
+        if self._reached_last_waypoint_index and not self.completed_lap:
             self.completed_lap = self._checkpoint_waypoint_index == 0
 
         return _transformed_waypoint_routes[self._current_waypoint_index:]
@@ -156,37 +162,29 @@ class ManualRoutePlanner:
     def get_transformed_route_waypoints(self):
         return _transformed_waypoint_routes
 
+    def get_spawn_point(self):
+        ''' get spawn point from pre-defined strategy '''
+        if self._is_AIT_map():
+            idx, transform = self._get_AIT_spawn_point()
+        else:
+            if not self.completed_lap:
+                idx, transform = self._get_random_spawn_point()
+            else:
+                idx, transform = self._get_cycle_spawn_point()
+
+        self._current_waypoint_index = idx
+        self._start_waypoint_index = idx
+
+        return idx, transform
+
     def _compute_route_waypoints(self):
-        """
-            Returns a list of (waypoint, RoadOption)-tuples that describes a route
-            starting at start_waypoint, ending at end_waypoint.
-
-            start_waypoint (carla.Waypoint):
-                Starting waypoint of the route
-            end_waypoint (carla.Waypoint):
-                Destination waypoint of the route
-            resolution (float):
-                Resolution, or lenght, of the steps between waypoints
-                (in meters)
-            plan (list(RoadOption) or None):
-                If plan is not None, generate a route that takes every option as provided
-                in the list for every intersections, in the given order.
-                (E.g. set plan=[RoadOption.STRAIGHT, RoadOption.LEFT, RoadOption.RIGHT]
-                to make the route go straight, then left, then right.)
-                If plan is None, we use the GlobalRoutePlanner to find a path between
-                start_waypoint and end_waypoint.
-        """
-
         if self.plan is None:
-            # Setting up global router
             grp = GlobalRoutePlanner(self._map, self._sampling_radius)
             
-            # Obtain route plan
             route = grp.trace_route(
                 self.start_waypoint.transform.location,
                 self.end_waypoint.transform.location)
         else:
-            # Compute route waypoints
             route = []
             current_waypoint = self.start_waypoint
             for i, action in enumerate(self.plan):
@@ -308,10 +306,11 @@ class ManualRoutePlanner:
             end = s3[1]
             frequency = s3[2]
 
-        # this equation find the most recent progress in term of index complete, discard any progress that doesn't reach checkpoint index
         if self._current_waypoint_index == end:
             idx = end
         else:
+            # get the most recent progress in term of index complete
+            # discard any progress that doesn't reach checkpoint index
             idx = (((self._current_waypoint_index - start) // frequency) * frequency) + start
 
         if idx >= self._intermediate_checkpoint_waypoint_index:
@@ -372,20 +371,31 @@ class ManualRoutePlanner:
 
         return spawn_idx, spawn_transform
 
+    def _get_AIT_spawn_point(self):
+        return 0, _route_waypoints[0][0].transform
+
+    def _is_AIT_map(self):
+        return self._map.name == 'ait_v4/Maps/ait_v4/ait_v4'
+
+    def _update_reached_last_waypoint_index(self, waypoint_index):
+        if self._is_AIT_map():
+            # TODO: implement this
+            return False
+        else:
+            waypoint_routes_len = len(_route_waypoints)
+            return (waypoint_index % waypoint_routes_len) == self.sections_ends[-1]
+
+    def _get_waypoint_forward_vector_np(self, waypoint):
+        forward_vector = waypoint.transform.get_forward_vector()
+        vector_np = np.array([forward_vector.x, forward_vector.y, forward_vector.z])
+
+        if self.traffic_mode == 'LHT':
+            vector_np = vector_np * -1
+
+        return vector_np
+
     def _draw_debug_waypoint(self, waypoint):
         self.carla_debug.draw_point(waypoint.transform.location, size=0.3, life_time=60)
-
-    def get_spawn_point(self):
-        ''' get spawn point from pre-defined strategy '''
-        if not self.completed_lap:
-            idx, transform = self._get_random_spawn_point()
-        else:
-            idx, transform = self._get_cycle_spawn_point()
-
-        self._current_waypoint_index = idx
-        self._start_waypoint_index = idx
-
-        return idx, transform
 
     @property
     def next_waypoint(self):
