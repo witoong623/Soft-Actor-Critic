@@ -67,7 +67,7 @@ class ManualRoutePlanner:
         self._checkpoint_waypoint_index = initial_checkpoint
         self._start_waypoint_index = self._checkpoint_waypoint_index
         self._current_waypoint_index = self._checkpoint_waypoint_index
-        self._intermediate_checkpoint_waypoint_index = self._checkpoint_waypoint_index + self._checkpoint_frequency
+        self._next_checkpoint_waypoint_index = self._checkpoint_waypoint_index + self._checkpoint_frequency
 
         if enable:
             self.carla_debug = self._world.debug
@@ -116,9 +116,9 @@ class ManualRoutePlanner:
             elif initial_checkpoint < self.sections_end[2]:
                 frequency = self.sections_indexes[2][2]
 
-            self._intermediate_checkpoint_waypoint_index = self._checkpoint_waypoint_index + frequency
-            if self._intermediate_checkpoint_waypoint_index > route_waypoint_len - 1:
-                self._intermediate_checkpoint_waypoint_index = 0
+            self._next_checkpoint_waypoint_index = self._checkpoint_waypoint_index + frequency
+            if self._next_checkpoint_waypoint_index > route_waypoint_len - 1:
+                self._next_checkpoint_waypoint_index = 0
 
     def set_vehicle(self, vehicle):
         ''' Set internal state to current vehicle, must be called in `reset` '''
@@ -276,13 +276,13 @@ class ManualRoutePlanner:
         ''' implement checkpoint logic that encourage the agent to remember more past road before trying next portion of the road '''
         idx = (self._current_waypoint_index // self._checkpoint_frequency) * self._checkpoint_frequency
 
-        if idx >= self._intermediate_checkpoint_waypoint_index:
+        if idx >= self._next_checkpoint_waypoint_index:
             self._repeat_count += 1
 
             if self._repeat_count >= self._repeat_count_threshold:
                 if self._checkpoint_waypoint_index == 0:
-                    self._checkpoint_waypoint_index = self._intermediate_checkpoint_waypoint_index
-                    self._intermediate_checkpoint_waypoint_index += self._checkpoint_frequency
+                    self._checkpoint_waypoint_index = self._next_checkpoint_waypoint_index
+                    self._next_checkpoint_waypoint_index += self._checkpoint_frequency
                 else:
                     self._checkpoint_waypoint_index = 0
 
@@ -313,19 +313,19 @@ class ManualRoutePlanner:
             # discard any progress that doesn't reach checkpoint index
             idx = (((self._current_waypoint_index - start) // frequency) * frequency) + start
 
-        if idx >= self._intermediate_checkpoint_waypoint_index:
+        if idx >= self._next_checkpoint_waypoint_index:
             self._repeat_count += 1
 
             if self._repeat_count >= self._repeat_count_threshold:
                 if self._checkpoint_waypoint_index == start:
-                    if self._intermediate_checkpoint_waypoint_index >= end:
+                    if self._next_checkpoint_waypoint_index >= end:
                         self._checkpoint_waypoint_index, frequency = self._get_next_section_start_and_frequency(end)
-                        self._intermediate_checkpoint_waypoint_index = self._checkpoint_waypoint_index + frequency
+                        self._next_checkpoint_waypoint_index = self._checkpoint_waypoint_index + frequency
                     else:
-                        self._checkpoint_waypoint_index = self._intermediate_checkpoint_waypoint_index
-                        self._intermediate_checkpoint_waypoint_index += frequency
+                        self._checkpoint_waypoint_index = self._next_checkpoint_waypoint_index
+                        self._next_checkpoint_waypoint_index += frequency
 
-                        self._intermediate_checkpoint_waypoint_index = min(self._intermediate_checkpoint_waypoint_index, end)
+                        self._next_checkpoint_waypoint_index = min(self._next_checkpoint_waypoint_index, end)
                 else:
                     self._checkpoint_waypoint_index = start
 
