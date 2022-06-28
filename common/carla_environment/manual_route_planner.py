@@ -143,7 +143,6 @@ class ManualRoutePlanner:
         self._current_waypoint_index = waypoint_index % waypoint_routes_len
 
         # update checkpoint
-        # self._checkpoint_waypoint_index = (self._current_waypoint_index // self._checkpoint_frequency) * self._checkpoint_frequency
         if self.use_section and not self._in_random_spawn_point:
             self._update_checkpoint_by_section()
 
@@ -271,22 +270,6 @@ class ManualRoutePlanner:
     def _transform_waypoints(self, waypoints):
         ''' Transform a waypoint into list of x, y and yaw '''
         return list(map(lambda wp: (wp[0].transform.location.x, wp[0].transform.location.y, wp[0].transform.rotation.yaw), waypoints))
-
-    def _update_checkpoint(self):
-        ''' implement checkpoint logic that encourage the agent to remember more past road before trying next portion of the road '''
-        idx = (self._current_waypoint_index // self._checkpoint_frequency) * self._checkpoint_frequency
-
-        if idx >= self._next_checkpoint_waypoint_index:
-            self._repeat_count += 1
-
-            if self._repeat_count >= self._repeat_count_threshold:
-                if self._checkpoint_waypoint_index == 0:
-                    self._checkpoint_waypoint_index = self._next_checkpoint_waypoint_index
-                    self._next_checkpoint_waypoint_index += self._checkpoint_frequency
-                else:
-                    self._checkpoint_waypoint_index = 0
-
-                self._repeat_count = 0
 
     def _update_checkpoint_by_section(self):
         s1, s2, s3 = self.sections_indexes
