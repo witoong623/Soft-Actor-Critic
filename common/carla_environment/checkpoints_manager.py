@@ -18,9 +18,12 @@ class MapCheckpointManager(abc.ABC):
     def update_checkpoint(self, current_waypoint_index):
         raise NotImplementedError()
 
-    @abc.abstractmethod
     def get_spawn_point_index(self):
-        raise NotImplementedError()
+        index = self._get_spawn_point_index()
+
+        self._start_index = index
+
+        return index
 
     @abc.abstractmethod
     def does_complete_lap(self, current_waypoint_index):
@@ -28,6 +31,10 @@ class MapCheckpointManager(abc.ABC):
 
     @abc.abstractmethod
     def is_end_of_section(self, current_waypoint_index):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def _get_spawn_point_index(self):
         raise NotImplementedError()
 
 
@@ -107,12 +114,6 @@ class Town7CheckpointManager(MapCheckpointManager):
 
                 self._repeat_count = 0
 
-    def get_spawn_point_index(self):
-        if self._completed_lap:
-            return self._get_cycle_spawn_point_index()
-        else:
-            return self._get_random_spawn_point_index()
-
     def does_complete_lap(self, current_waypoint_index):
         # want to know that it completes only 1 time
         if self._completed_lap:
@@ -128,6 +129,12 @@ class Town7CheckpointManager(MapCheckpointManager):
 
     def is_end_of_section(self, current_waypoint_index):
         return current_waypoint_index in self.sections_ends
+
+    def _get_spawn_point_index(self):
+        if self._completed_lap:
+            return self._get_cycle_spawn_point_index()
+        else:
+            return self._get_random_spawn_point_index()
 
     def _get_next_section_start_and_frequency(self, end_of_section):
         end_idx = self.sections_end.index(end_of_section)

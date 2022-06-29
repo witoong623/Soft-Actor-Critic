@@ -110,6 +110,8 @@ class ManualRoutePlanner:
 
     def get_spawn_point(self):
         index = self.checkpoint_manager.get_spawn_point_index()
+        self._current_waypoint_index = index
+
         transform = _route_waypoints[index][0].transform
 
         return index, transform
