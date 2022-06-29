@@ -950,11 +950,7 @@ class CarlaEnv(gym.Env):
         plt.savefig(name)
 
     def get_latest_milestone(self):
-        ''' Return index of latest checkpoint waypoint that the agent can go '''
-        if self.routeplanner._intermediate_checkpoint_waypoint_index > self.routeplanner._checkpoint_waypoint_index:
-            return self.routeplanner._checkpoint_waypoint_index
-        else:
-            return self.routeplanner._intermediate_checkpoint_waypoint_index
+        return self.routeplanner.checkpoint_manager.checkpoint_index
 
     @property
     def metadata(self):
