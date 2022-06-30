@@ -70,6 +70,9 @@ class AITRoutePlanner:
             
             route.append(current_waypoint)
 
+        if next_func == 'next':
+            route.reverse()
+
         return route
 
 

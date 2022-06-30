@@ -11,7 +11,7 @@ from agents.navigation.local_planner import RoadOption
 from agents.navigation.global_route_planner import GlobalRoutePlanner
 from agents.tools.misc import vector
 from common.carla_environment.ait_route_planner import AITRoutePlanner
-from common.carla_environment.checkpoints_manager import Town7CheckpointManager
+from common.carla_environment.checkpoints_manager import Town7CheckpointManager, AITCheckpointManager
 
 
 # cache waypoint for entire lifecycle of application
@@ -67,7 +67,9 @@ class ManualRoutePlanner:
         route_waypoint_len = len(_route_waypoints) if debug_route_waypoint_len is None else debug_route_waypoint_len
 
         if self._is_AIT_map():
-            pass
+            self.checkpoint_manager = AITCheckpointManager(route_waypoint_len,
+                                                           repeat_section_threshold,
+                                                           initial_checkpoint)
         else:
             self.checkpoint_manager = Town7CheckpointManager(route_waypoint_len,
                                                              repeat_section_threshold,
@@ -113,6 +115,8 @@ class ManualRoutePlanner:
         self._current_waypoint_index = index
 
         transform = _route_waypoints[index][0].transform
+        if self._is_AIT_map():
+            transform.rotation.yaw = 180
 
         return index, transform
 
