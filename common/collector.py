@@ -16,8 +16,8 @@ from torch.utils.tensorboard import SummaryWriter
 
 from .buffer import ReplayBuffer, EpisodeReplayBuffer, EfficientReplayBuffer
 from .utils import clone_network, sync_params, normalize_image, \
-    normalize_grayscale_image, CarlaBiasActionSampler, ObservationStacker
-from .carla_environment.environment import CarlaPerfectActionSampler
+    normalize_grayscale_image, ObservationStacker
+from .carla_environment.environment import CarlaBiasActionSampler
 
 
 __all__ = ['Collector', 'EpisodeCollector']
@@ -85,9 +85,6 @@ class Sampler(mp.Process):
 
         self.log_dir = log_dir
 
-        # for maintaining size of statistic
-        self.list_maxlen = 110
-
         self.episode = 0
         self.does_perfect_sample = False
         self.trajectory = []
@@ -134,9 +131,9 @@ class Sampler(mp.Process):
                     if random.random() > 0.97 or \
                         (self.n_episodes - self.episode == 1 and not self.does_perfect_sample):
                         self.does_perfect_sample = True
-                        action_sampler = CarlaPerfectActionSampler(self.env)
+                        action_sampler = CarlaBiasActionSampler(forward_only=True, use_brake=False, max_step=150)
                     else:
-                        action_sampler = CarlaBiasActionSampler()
+                        action_sampler = CarlaBiasActionSampler(forward_only=False, use_brake=True)
 
                 self.render()
                 self.frames.clear()

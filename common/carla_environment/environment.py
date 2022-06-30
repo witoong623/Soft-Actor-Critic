@@ -1065,3 +1065,64 @@ class CarlaPerfectActionSampler:
             acc = 0
 
         return np.array([acc, steer])
+
+
+class CarlaBiasActionSampler:
+    def __init__(self, *args, forward_only=False, use_brake=False, max_step=float('inf'), **kwargs) -> None:
+        self.previous_action = None
+        self.use_brake = use_brake
+        self.forward_only = forward_only
+        self.max_step = max_step
+
+        self.count = 0
+
+    def sample(self):
+        if self._should_use_previous_action():
+            action = self.previous_action
+        else:
+            action = self._sample_new_action()
+
+        self.previous_action = action
+
+        self.count += 1
+
+        return action, self.count > self.max_step
+
+    def _sample_new_action(self):
+        forward_threshold = 0.4
+        if not self.use_brake:
+            forward_threshold = 0.0
+
+        forward_prob = random.random()
+        if forward_prob > forward_threshold:
+            acc = self._sample_acc()
+        else:
+            acc = self._sample_brake()
+
+        lateral_threshold  = 0.5
+        if self.forward_only:
+            lateral_threshold = 1.0
+
+        lateral_prob = random.random()
+        if lateral_prob > lateral_threshold:
+            steer = self._sample_steer()
+        else:
+            steer = 0
+
+        return np.array([acc, steer], dtype=np.float32)
+
+    def _sample_acc(self):
+        return max(20, random.random())
+
+    def _sample_brake(self):
+        return -max(0.05, random.random())
+
+    def _sample_steer(self):
+        return random.gauss(0, 1)
+
+    def _should_use_previous_action(self):
+        if self.previous_action is not None and self.previous_action[0] > 0:
+            if np.random.randint(3) % 3:
+                return True
+
+        return False
