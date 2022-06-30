@@ -9,13 +9,15 @@ class AITRoutePlanner:
         self.world = world
         self.map = world.get_map()
         self._sampling_radius = sampling_radius
-        self._route = None
+
+        self._route_waypoints = None
+        self._route_transforms = None
 
         self._setup()
 
     def compute_route_waypoints(self):
-        if self._route is not None:
-            return self._route
+        if self._route_waypoints is not None:
+            return self._route_waypoints
 
         lap_route = []
 
@@ -43,10 +45,10 @@ class AITRoutePlanner:
         eighth_start = self._get_waypoint_at(46)
         lap_route.append(self._get_route_until_end(eighth_start, 'next'))
 
-        route = list(functools.reduce(operator.concat, lap_route))
-        self._route = self._add_compatibility_support(route)
+        self._route_waypoints = list(functools.reduce(operator.concat, lap_route))
+        self._route_transforms = self._get_correct_route_transforms(self._route_waypoints)
 
-        return self._route
+        return self._add_compatibility_support(self._route_transforms)
 
     def _get_route_until_end(self, start_waypoint, next_func, choice_index=None):
         route = []
@@ -89,6 +91,16 @@ class AITRoutePlanner:
     def _setup(self):
         self.spawn_points = list(self.map.get_spawn_points())
 
-    def _add_compatibility_support(self, route_waypoints):
-        ''' Add arbitrary road option to route waypoints '''
-        return [(wp, RoadOption.LANEFOLLOW) for wp in route_waypoints]
+    def _add_compatibility_support(self, route_objects):
+        ''' Add arbitrary road option to route object (Waypoint or Transform) '''
+        return [(route_obj, RoadOption.LANEFOLLOW) for route_obj in route_objects]
+
+    def _get_correct_route_transforms(self, route_waypoints):
+        new_route_transforms = []
+        for waypoint in route_waypoints:
+            trans = waypoint.transform
+            trans.rotation.yaw = trans.rotation.yaw * -1
+
+            new_route_transforms.append(trans)
+
+        return new_route_transforms

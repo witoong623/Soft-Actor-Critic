@@ -14,8 +14,8 @@ from common.carla_environment.ait_route_planner import AITRoutePlanner
 from common.carla_environment.checkpoints_manager import Town7CheckpointManager, AITCheckpointManager
 
 
-# cache waypoint for entire lifecycle of application
-_route_waypoints = None
+# cache for entire lifecycle of application
+_route_transform = None
 _transformed_waypoint_routes = None
 
 
@@ -35,7 +35,7 @@ class ManualRoutePlanner:
                  use_section=False, enable=True, debug_route_waypoint_len=None,
                  traffic_mode='RHT'):
         ''' `route_waypoint_len` is purely for testing purpose '''
-        global _route_waypoints, _transformed_waypoint_routes
+        global _route_transform, _transformed_waypoint_routes
 
         self._vehicle = None
         self._world = world
@@ -58,13 +58,13 @@ class ManualRoutePlanner:
 
             if self._is_AIT_map():
                 ait_route_planner = AITRoutePlanner(self._world, resolution)
-                _route_waypoints = ait_route_planner.compute_route_waypoints()
+                _route_transform = ait_route_planner.compute_route_waypoints()
             else:
-                _route_waypoints = self._compute_route_waypoints()
+                _route_transform = self._compute_route_waypoints()
             
-            _transformed_waypoint_routes = List(self._transform_waypoints(_route_waypoints))
+            _transformed_waypoint_routes = List(self._transform_transforms(_route_transform))
 
-        route_waypoint_len = len(_route_waypoints) if debug_route_waypoint_len is None else debug_route_waypoint_len
+        route_waypoint_len = len(_route_transform) if debug_route_waypoint_len is None else debug_route_waypoint_len
 
         if self._is_AIT_map():
             self.checkpoint_manager = AITCheckpointManager(route_waypoint_len,
@@ -80,15 +80,15 @@ class ManualRoutePlanner:
         self._vehicle = vehicle
 
     def run_step(self):
-        waypoint_routes_len = len(_route_waypoints)
+        waypoint_routes_len = len(_route_transform)
         current_transform = self._vehicle.get_transform()
         waypoint_index = self._current_waypoint_index
         for _ in range(waypoint_routes_len):
             # check if we passed next waypoint along the route
             next_waypoint_index = waypoint_index + 1
-            wp, _ = _route_waypoints[next_waypoint_index % waypoint_routes_len]
-            dot_ret = np.dot(carla_to_vector(wp.transform.get_forward_vector())[:2],
-                             carla_to_vector(current_transform.location - wp.transform.location)[:2])
+            trans, _ = _route_transform[next_waypoint_index % waypoint_routes_len]
+            dot_ret = np.dot(carla_to_vector(trans.get_forward_vector())[:2],
+                             carla_to_vector(current_transform.location - trans.location)[:2])
 
             if self._check_pass_waypoint_func(dot_ret):
                 waypoint_index += 1
@@ -105,7 +105,7 @@ class ManualRoutePlanner:
 
     def get_route_waypoints(self):
         ''' Return list of (waypoint, RoadOption) '''
-        return _route_waypoints
+        raise Exception('route waypoints are not available')
 
     def get_transformed_route_waypoints(self):
         return _transformed_waypoint_routes
@@ -114,9 +114,9 @@ class ManualRoutePlanner:
         index = self.checkpoint_manager.get_spawn_point_index()
         self._current_waypoint_index = index
 
-        transform = _route_waypoints[index][0].transform
-        if self._is_AIT_map():
-            transform.rotation.yaw = 180
+        transform = _route_transform[index][0]
+        # if self._is_AIT_map():
+        #     transform.rotation.yaw = 180
 
         return index, transform
 
@@ -211,12 +211,12 @@ class ManualRoutePlanner:
 
         return route
 
-    def _transform_waypoints(self, waypoints):
+    def _transform_transforms(self, transforms):
         ''' Transform a waypoint into list of x, y and yaw '''
-        return list(map(lambda wp: (wp[0].transform.location.x, wp[0].transform.location.y, wp[0].transform.rotation.yaw), waypoints))
+        return list(map(lambda tf: (tf[0].location.x, tf[0].location.y, tf[0].rotation.yaw), transforms))
 
     def _get_AIT_spawn_point(self):
-        return 0, _route_waypoints[0][0].transform
+        return 0, _route_transform[0][0]
 
     def _is_AIT_map(self):
         return self._map.name == 'ait_v4/Maps/ait_v4/ait_v4'
@@ -232,14 +232,6 @@ class ManualRoutePlanner:
 
     def _draw_debug_waypoint(self, waypoint):
         self.carla_debug.draw_point(waypoint.transform.location, size=0.3, life_time=60)
-
-    @property
-    def next_waypoint(self):
-        return _route_waypoints[(self._current_waypoint_index + 1) % len(_route_waypoints)][0]
-
-    @property
-    def current_waypoint(self):
-        return _route_waypoints[self._current_waypoint_index % len(_route_waypoints)][0]
 
     @property
     def is_end_of_section(self):

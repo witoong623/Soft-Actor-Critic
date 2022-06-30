@@ -387,7 +387,6 @@ class CarlaEnv(gym.Env):
         self.frame = self.world.tick()
 
         self.waypoints = self.routeplanner.run_step()
-        self.current_waypoint = self.routeplanner.current_waypoint
 
         self._update_last_travel_distance(self.ego.get_location())
 
@@ -495,6 +494,7 @@ class CarlaEnv(gym.Env):
             speed_reward = 1
 
         # angle
+        # self.current_waypoint is not available anymore
         angle_degree = get_vehicle_angle(self.ego.get_transform(), self.current_waypoint.transform)
         # allow only 4 degree until no reward
         angle_reward = max(1.0 - abs(angle_degree / 4), 0.0)
