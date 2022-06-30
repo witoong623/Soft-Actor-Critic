@@ -153,6 +153,7 @@ class MinimalMBConv(nn.Module):
     def __init__(
         self,
         cnf: MBConvConfig,
+        activation_layer=nn.SiLU,
     ) -> None:
         super().__init__()
 
@@ -162,7 +163,6 @@ class MinimalMBConv(nn.Module):
         self.use_res_connect = cnf.stride == 1 and cnf.input_channels == cnf.out_channels
 
         layers: List[nn.Module] = []
-        activation_layer = nn.SiLU
 
         # expand
         expanded_channels = cnf.adjust_channels(cnf.input_channels, cnf.expand_ratio)
@@ -331,33 +331,31 @@ class EfficientNet(nn.Module):
         return self._forward_impl(x)
 
 
-class CommaEfficientNet(NetworkBase):
+class EfficientNetEncoder(NetworkBase):
     def __init__(
         self,
-        inverted_residual_setting: List[MBConvConfig],
-        device: Optional[Union[int, device]] = None,
+        width_mult,
+        depth_mult,
+        device=None,
+        activation=nn.SiLU,
         **kwargs: Any,
     ) -> None:
-        """
-        EfficientNet inspired by Comma.ai supercombo model
-        Args:
-            inverted_residual_setting (List[MBConvConfig]): Network structure
-            dropout (float): The droupout probability
-            stochastic_depth_prob (float): The stochastic depth probability
-            num_classes (int): Number of classes
-            block (Optional[Callable[..., nn.Module]]): Module specifying inverted residual building block for mobilenet
-            norm_layer (Optional[Callable[..., nn.Module]]): Module specifying the normalization layer to use
-        """
         super().__init__()
-        # _log_api_usage_once(self)
 
-        if not inverted_residual_setting:
-            raise ValueError("The inverted_residual_setting should not be empty")
-        elif not (
-            isinstance(inverted_residual_setting, Sequence)
-            and all([isinstance(s, MBConvConfig) for s in inverted_residual_setting])
-        ):
-            raise TypeError("The inverted_residual_setting should be List[MBConvConfig]")
+        if isinstance(activation, nn.Module):
+            activation = type(activation)
+
+        bneck_conf = partial(MBConvConfig, width_mult=width_mult, depth_mult=depth_mult)
+        inverted_residual_setting = [
+            # expand, kernel, stride, in chan, out chan, num layer
+            bneck_conf(1, 3, 1, 32, 16, 1),
+            bneck_conf(6, 3, 2, 16, 24, 2),
+            bneck_conf(6, 5, 2, 24, 40, 2),
+            bneck_conf(6, 3, 2, 40, 80, 3),
+            bneck_conf(6, 5, 1, 80, 112, 3),
+            bneck_conf(6, 5, 2, 112, 192, 4),
+            bneck_conf(6, 3, 1, 192, 320, 1),
+        ]
 
         layers: List[nn.Module] = []
 
@@ -366,7 +364,7 @@ class CommaEfficientNet(NetworkBase):
         firstconv_output_channels = inverted_residual_setting[0].input_channels
         layers.append(
             ConvNormActivation(
-                input_channels, firstconv_output_channels, kernel_size=3, stride=2, activation_layer=nn.SiLU
+                input_channels, firstconv_output_channels, kernel_size=3, stride=2, activation_layer=activation
             )
         )
 
@@ -382,7 +380,7 @@ class CommaEfficientNet(NetworkBase):
                     block_cnf.input_channels = block_cnf.out_channels
                     block_cnf.stride = 1
 
-                stage.append(MinimalMBConv(block_cnf))
+                stage.append(MinimalMBConv(block_cnf, activation_layer=activation))
 
             layers.append(nn.Sequential(*stage))
 
@@ -395,18 +393,18 @@ class CommaEfficientNet(NetworkBase):
                 lastconv_input_channels,
                 kernel_size=1,
                 groups=lastconv_input_channels,
-                activation_layer=nn.SiLU,
+                activation_layer=activation,
             )
         )
 
         # project
-        lastconv_output_channels = 8
+        lastconv_output_channels = kwargs.get('projection_channels', 8)
         layers.append(
             ConvNormActivation(
                 lastconv_input_channels,
                 lastconv_output_channels,
                 kernel_size=1,
-                activation_layer=nn.SiLU,
+                activation_layer=activation,
             )
         )
 
@@ -478,29 +476,6 @@ def _efficientnet(
     return model
 
 
-def _comma_efficientnet(
-    arch: str,
-    width_mult: float,
-    depth_mult: float,
-    **kwargs: Any,
-) -> EfficientNet:
-    bneck_conf = partial(MBConvConfig, width_mult=width_mult, depth_mult=depth_mult)
-    inverted_residual_setting = [
-        # expand, kernel, stride, in chan, out chan, num layer
-        bneck_conf(1, 3, 1, 32, 16, 1),
-        bneck_conf(6, 3, 2, 16, 24, 2),
-        bneck_conf(6, 5, 2, 24, 40, 2),
-        bneck_conf(6, 3, 2, 40, 80, 3),
-        bneck_conf(6, 5, 1, 80, 112, 3),
-        bneck_conf(6, 5, 2, 112, 192, 4),
-        bneck_conf(6, 3, 1, 192, 320, 1),
-    ]
-
-    model = CommaEfficientNet(inverted_residual_setting, **kwargs)
-
-    return model
-
-
 def efficientnet_b0(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> EfficientNet:
     """
     Constructs a EfficientNet B0 architecture from
@@ -534,15 +509,14 @@ def efficientnet_b2(pretrained: bool = False, progress: bool = True, **kwargs: A
     return _efficientnet("efficientnet_b2", 1.1, 1.2, 0.3, pretrained, progress, **kwargs)
 
 
-def comma_efficientnet_b2(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> EfficientNet:
-    """
-    Constructs a EfficientNet B2 architecture from
-    `"EfficientNet: Rethinking Model Scaling for Convolutional Neural Networks" <https://arxiv.org/abs/1905.11946>`_.
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
-        progress (bool): If True, displays a progress bar of the download to stderr
-    """
-    return _comma_efficientnet("efficientnet_b2", 1.1, 1.2, **kwargs)
+class EfficientNetB2Encoder(EfficientNetEncoder):
+    def __init__(self, device: Optional[Union[int, device]] = None, **kwargs: Any) -> None:
+        super().__init__(1.1, 1.2, device, projection_channels=8, **kwargs)
+
+
+class EfficientNetB0Encoder(EfficientNetEncoder):
+    def __init__(self, device: Optional[Union[int, device]] = None, **kwargs: Any) -> None:
+        super().__init__(1.0, 1.0, device, projection_channels=8, **kwargs)
 
 
 def _make_divisible(v: float, divisor: int, min_value: Optional[int] = None) -> int:
@@ -563,7 +537,7 @@ def _make_divisible(v: float, divisor: int, min_value: Optional[int] = None) -> 
 
 if __name__ == '__main__':
     d = 'cuda:1'
-    model = comma_efficientnet_b2(pretrained=False, device=d, input_channels=6)
+    model = EfficientNetB2Encoder(device=d, input_channels=6)
     dummy = torch.randn((1, 6, 256, 512), device=d)
     out = model(dummy)
     print(out.size())
