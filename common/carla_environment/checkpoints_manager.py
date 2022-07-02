@@ -37,6 +37,18 @@ class MapCheckpointManager(abc.ABC):
     def _get_spawn_point_index(self):
         raise NotImplementedError()
 
+    def _get_all_spawn_indexes(self, start, end, step):
+        indexes = []
+        indexes.append(start)
+
+        idx = start
+
+        while not indexes or indexes[-1] + step < end:
+            idx = min(idx + step, end)
+            indexes.append(idx)
+
+        return indexes
+
 
 START = 0
 END = 1
@@ -63,18 +75,8 @@ class Town7CheckpointManager(MapCheckpointManager):
         self.sections_frequency = [s[FREQUENCY] for s in self.sections_indexes]
         self.sections_ends = [140, 141, 142, 173, 174, 175, 591]
 
-        def get_all_indexes(start, end, step):
-            indexes = []
-            idx = start
-
-            while not indexes or indexes[-1] < end:
-                idx = max(idx + step, end)
-                indexes.append(idx)
-
-            return indexes
-
         self._all_spawn_indexes = functools.reduce(operator.concat,
-                                                   [get_all_indexes(*sec) for sec in self.sections_indexes])
+                                                   [self._get_all_spawn_indexes(*sec) for sec in self.sections_indexes])
 
         if initial_checkpoint < self.sections_end[0]:
             frequency = self.sections_indexes[0][FREQUENCY]
@@ -225,18 +227,8 @@ class AITCheckpointManager(MapCheckpointManager):
         self.sections_frequency = [s[FREQUENCY] for s in self.sections_indexes]
         self.sections_ends = [102, 208, 314, 412]
 
-        def get_all_indexes(start, end, step):
-            indexes = []
-            idx = start
-
-            while not indexes or indexes[-1] < end:
-                idx = max(idx + step, end)
-                indexes.append(idx)
-
-            return indexes
-
         self._all_spawn_indexes = functools.reduce(operator.concat,
-                                                   [get_all_indexes(*sec) for sec in self.sections_indexes])
+                                                   [self._get_all_spawn_indexes(*sec) for sec in self.sections_indexes])
 
         if initial_checkpoint < self.sections_end[0]:
             frequency = self.sections_indexes[0][FREQUENCY]
