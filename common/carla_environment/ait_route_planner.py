@@ -46,7 +46,7 @@ class AITRoutePlanner:
         lap_route.append(self._get_route_until_end(eighth_start, 'next'))
 
         self._route_waypoints = list(functools.reduce(operator.concat, lap_route))
-        self._route_transforms = self._get_correct_route_transforms(self._route_waypoints)
+        self._route_transforms = [wp.transform for wp in self._route_waypoints]
 
         return self._add_compatibility_support(self._route_transforms)
 
@@ -95,12 +95,3 @@ class AITRoutePlanner:
         ''' Add arbitrary road option to route object (Waypoint or Transform) '''
         return [(route_obj, RoadOption.LANEFOLLOW) for route_obj in route_objects]
 
-    def _get_correct_route_transforms(self, route_waypoints):
-        new_route_transforms = []
-        for waypoint in route_waypoints:
-            trans = waypoint.transform
-            trans.rotation.yaw = trans.rotation.yaw * -1
-
-            new_route_transforms.append(trans)
-
-        return new_route_transforms

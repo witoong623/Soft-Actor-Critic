@@ -338,6 +338,25 @@ def is_the_same_direction(action, current_transform, waypoint_transform):
     return cross < select_criteria
 
 
+def copy_transform(src, new_location_values_dict=None, new_rotation_values_dict=None):
+    if not isinstance(src, carla.Transform):
+        raise TypeError('src must be carla.Transform')
+
+    new_location_kwargs = dict(x=src.location.x, y=src.location.y, z=src.location.z)
+    new_rotation_kwargs = dict(pitch=src.rotation.pitch, yaw=src.rotation.yaw, roll=src.rotation.roll)
+
+    if new_location_values_dict is not None:
+        new_location_kwargs.update(new_location_values_dict)
+
+    if new_rotation_values_dict is not None:
+        new_rotation_kwargs.update(new_rotation_values_dict)
+
+    new_location = carla.Location(**new_location_kwargs)
+    new_rotation = carla.Rotation(**new_rotation_kwargs)
+
+    return carla.Transform(location=new_location, rotation=new_rotation)
+
+
 # def display_to_rgb(display, obs_size):
 #   """
 #   Transform image grabbed from pygame display to an rgb image uint8 matrix

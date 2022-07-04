@@ -49,7 +49,7 @@ class ManualRoutePlanner:
         self.start_waypoint = start_waypoint
         self.end_waypoint = end_waypoint
 
-        self._check_pass_waypoint_func = lambda v: v > 0.0 if traffic_mode == 'RHT' else lambda v: v < 0.0
+        self._check_passed_waypoint = self._check_passed_waypoint_RHT if traffic_mode == 'RHT' else self._check_passed_waypoint_LHT
 
         self._current_waypoint_index = initial_checkpoint
 
@@ -90,7 +90,7 @@ class ManualRoutePlanner:
             dot_ret = np.dot(carla_to_vector(trans.get_forward_vector())[:2],
                              carla_to_vector(current_transform.location - trans.location)[:2])
 
-            if self._check_pass_waypoint_func(dot_ret):
+            if self._check_passed_waypoint(dot_ret):
                 waypoint_index += 1
             else:
                 break
@@ -110,13 +110,15 @@ class ManualRoutePlanner:
     def get_transformed_route_waypoints(self):
         return _transformed_waypoint_routes
 
-    def get_spawn_point(self):
-        index = self.checkpoint_manager.get_spawn_point_index()
+    def get_spawn_point(self, specified_index=None):
+        if specified_index is not None:
+            index = specified_index
+        else:
+            index = self.checkpoint_manager.get_spawn_point_index()
+
         self._current_waypoint_index = index
 
-        transform = _route_transform[index][0]
-        # if self._is_AIT_map():
-        #     transform.rotation.yaw = 180
+        transform = self.checkpoint_manager.get_correct_spawn_point_transform(_route_transform[index][0], index)
 
         return index, transform
 
@@ -230,8 +232,21 @@ class ManualRoutePlanner:
 
         return vector_np
 
+    def _check_passed_waypoint_RHT(self, dot_product_result):
+        return dot_product_result > 0.0
+
+    def _check_passed_waypoint_LHT(self, dot_product_result):
+        return dot_product_result < 0.0
+
     def _draw_debug_waypoint(self, waypoint):
         self.carla_debug.draw_point(waypoint.transform.location, size=0.3, life_time=60)
+
+    def _draw_forward_vector(self, transform):
+        forward_vector = transform.get_forward_vector()
+        begin = transform.location
+        end = transform.location + forward_vector
+
+        self.carla_debug.draw_arrow(begin, end, thickness=0.1, arrow_size=0.2, life_time=120)
 
     @property
     def is_end_of_section(self):

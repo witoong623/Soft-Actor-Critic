@@ -3,6 +3,8 @@ import functools
 import operator
 import random
 
+from common.carla_environment.misc import copy_transform
+
 
 class MapCheckpointManager(abc.ABC):
     def __init__(self, route_waypoint_len, repeat_section_threshold=5) -> None:
@@ -226,6 +228,7 @@ class AITCheckpointManager(MapCheckpointManager):
         self.sections_end = [s[END] for s in self.sections_indexes]
         self.sections_frequency = [s[FREQUENCY] for s in self.sections_indexes]
         self.sections_ends = [102, 208, 314, 412]
+        self.sections_spawn_point_yaw = [180, 270, 0, 90]
 
         self._all_spawn_indexes = functools.reduce(operator.concat,
                                                    [self._get_all_spawn_indexes(*sec) for sec in self.sections_indexes])
@@ -284,6 +287,13 @@ class AITCheckpointManager(MapCheckpointManager):
     def is_end_of_section(self, current_waypoint_index):
         return current_waypoint_index in self.sections_ends
 
+    def get_correct_spawn_point_transform(self, transform, index):
+        new_yaw = self.sections_spawn_point_yaw[self._get_section_index(index)]
+        if new_yaw is not None:
+            transform = copy_transform(transform, new_rotation_values_dict={'yaw': new_yaw})
+
+        return transform
+
     def _get_spawn_point_index(self):
         if self._completed_lap:
             return self._get_cycle_spawn_point_index()
@@ -297,11 +307,7 @@ class AITCheckpointManager(MapCheckpointManager):
         return next_start, next_frequency
 
     def _get_current_section_info(self):
-        for i, (start, end, _) in enumerate(self.sections_indexes):
-            if start <= self._start_index <= end:
-                return self.sections_indexes[i]
-
-        raise RuntimeError(f'start_index {self._start_index} not in any section')
+        return self.sections_indexes[self._get_section_index(self._start_index)]
 
     def _update_start_next_section(self, end_index, frequency):
         self.checkpoint_index, frequency = self._get_next_section_start_and_frequency(end_index)
@@ -350,3 +356,10 @@ class AITCheckpointManager(MapCheckpointManager):
 
     def _update_reached_last_waypoint_index(self, current_waypoint_index):
         self._reached_last_waypoint_index = current_waypoint_index == self.sections_ends[-1]
+
+    def _get_section_index(self, waypoint_index):
+        for i, (start, end, _) in enumerate(self.sections_indexes):
+            if start <= waypoint_index <= end:
+                return i
+
+        raise RuntimeError(f'waypoint_index {waypoint_index} not in any section')

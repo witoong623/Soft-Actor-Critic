@@ -147,6 +147,7 @@ except ImportError:
     raise RuntimeError('cannot import numpy, make sure numpy package is installed')
 
 from common.carla_environment.manual_route_planner import ManualRoutePlanner
+from common.carla_environment.misc import get_lane_dis_numba
 from agents.navigation.global_route_planner import RoadOption
 
 
@@ -248,9 +249,8 @@ class World(object):
             carla.MapLayer.All
         ]
 
-        self.reward = 0
-        self.waypoint_angle = 0
-        self.current_action = (0, 0, 0)
+        self.distance = 0
+        self.current_waypoint_index = 0
 
     def restart(self):
         self.player_max_speed = 1.589
@@ -292,9 +292,8 @@ class World(object):
             # spawn_points = self.map.get_spawn_points()
             # spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
             # spawn_point = spawn_points[1] if spawn_points else carla.Transform()
-            _, spawn_point_transform = self.routeplanner.get_spawn_point()
-            spawn_point_transform.location.z += 0.3
-            spawn_point_transform.rotation.yaw = 180
+            _, spawn_point_transform = self.routeplanner.get_spawn_point(0)
+            spawn_point_transform.location.z += 0.5
             self.player = self.world.spawn_actor(blueprint, spawn_point_transform)
             self.show_vehicle_telemetry = False
             self.modify_vehicle_physics(self.player)
@@ -388,18 +387,12 @@ class World(object):
 
     def calculate_reward(self):
         self.waypoints = self.routeplanner.run_step()
-        self.prev_command = self.current_command
-        self.current_waypoint, self.current_command = self.routeplanner.get_current_route_waypoint()
-        self.next_waypoint, self.next_command = self.routeplanner.get_next_route_waypoint()
 
-        wp_angle = is_the_same_direction4(self.player.get_transform(), self.current_waypoint.transform)
+        ego_trans = self.player.get_transform()
+        ego_x = ego_trans.location.x
+        ego_y = ego_trans.location.y
 
-        red_color = carla.Color(r=255)
-        green_color = carla.Color(g=255)
-        self.world.debug.draw_point(self.current_waypoint.transform.location, size=0.5, life_time=1.0, color=red_color)
-        self.world.debug.draw_point(self.next_waypoint.transform.location, size=0.5, life_time=1.0, color=green_color)
-
-        self.waypoint_angle = wp_angle
+        self.distance, _ = get_lane_dis_numba(self.waypoints, ego_x, ego_y)
 
 
 def _vector_locations(location_1, location_2):
@@ -868,8 +861,8 @@ class HUD(object):
                 self._info_text.append('% 4dm %s' % (d, vehicle_type))
 
         self._info_text += [
-            f'Next(or current) waypoint index: {world.routeplanner._current_waypoint_index}',
-            f'Distance from current waypoint: {world.waypoint_angle}'
+            f'Distance from current waypoint: {world.distance}',
+            f'Waypoint index: {world.routeplanner._current_waypoint_index}'
         ]
 
     def toggle_info(self):
@@ -1420,7 +1413,7 @@ def game_loop(args):
             if args.sync:
                 sim_world.tick()
 
-            # world.calculate_reward()
+            world.calculate_reward()
 
             clock.tick_busy_loop(60)
             if controller.parse_events(client, world, clock, args.sync):

@@ -53,7 +53,7 @@ class CarlaEnv(gym.Env):
         self.obs_height = observation_size[0]
         self.obs_dtype = np.uint8
 
-        self.map = 'Town07'
+        self.map = 'ait_v4'
         self.fps_mode = kwargs.get('fps_mode')
         if self.fps_mode == 'high':
             self.dt = 0.1
@@ -151,7 +151,7 @@ class CarlaEnv(gym.Env):
                                                    use_section=True, traffic_mode=self.traffic_mode)
 
         # ego vehicle bp
-        self.ego_bp = self._create_vehicle_bluepprint('vehicle.mini.cooper_s_2021')
+        self.ego_bp = self._create_vehicle_bluepprint('vehicle.evt.echo_4s')
         self.ego = None
 
         # Collision sensor
