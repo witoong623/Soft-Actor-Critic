@@ -9,7 +9,7 @@ class TestManualRoutePlanner(unittest.TestCase):
     repeat_threshold = 5
 
     def test_cp_not_repeat_section(self):
-        route_planner = ManualRoutePlanner(Mock(), Mock(), enable=False, debug_route_waypoint_len=592)
+        route_planner = ManualRoutePlanner(Mock(), Mock(), world=Mock(), enable=False, debug_route_waypoint_len=592)
         route_planner._checkpoint_waypoint_index = 0
         route_planner._current_waypoint_index = 24
 
@@ -18,20 +18,21 @@ class TestManualRoutePlanner(unittest.TestCase):
         self.assertEqual(route_planner._checkpoint_waypoint_index, 0)
 
     def test_cp_repeat_first_section(self):
-        route_planner = ManualRoutePlanner(Mock(), Mock(), enable=False, debug_route_waypoint_len=592)
+        route_planner = ManualRoutePlanner(Mock(), Mock(), world=Mock(), enable=False,
+                                           repeat_section_threshold=5, debug_route_waypoint_len=592)
         route_planner._checkpoint_waypoint_index = 0
         route_planner._current_waypoint_index = 25
 
         route_planner._update_checkpoint()
         self.assertEqual(route_planner._checkpoint_waypoint_index, 0)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 25)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 25)
 
-        for i in range(1, self.repeat_threshold+1):
+        for i in range(1, self.repeat_threshold + 1):
             route_planner._current_waypoint_index = 25 + i
             route_planner._update_checkpoint()
 
             if i < self.repeat_threshold:
-                self.assertEqual(route_planner._repeat_count, i)
+                self.assertEqual(route_planner._repeat_count, i + 1)
                 self.assertEqual(route_planner._checkpoint_waypoint_index, 0)
             else:
                 self.assertEqual(route_planner._checkpoint_waypoint_index, 25, f'i is {i}, count is {route_planner._repeat_count}')
@@ -39,13 +40,13 @@ class TestManualRoutePlanner(unittest.TestCase):
         self.assertEqual(route_planner._checkpoint_waypoint_index, 25)
 
     def test_cp_repeat_second_section(self):
-        route_planner = ManualRoutePlanner(Mock(), Mock(), enable=False, debug_route_waypoint_len=592)
+        route_planner = ManualRoutePlanner(Mock(), Mock(), world=Mock(), enable=False, debug_route_waypoint_len=592)
         route_planner._checkpoint_waypoint_index = 25
         route_planner._current_waypoint_index = 50
 
         route_planner._update_checkpoint()
         self.assertEqual(route_planner._checkpoint_waypoint_index, 25)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 50)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 50)
 
         # repeat same section
         for i in range(1, self.repeat_threshold+1):
@@ -79,7 +80,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
         route_planner = ManualRoutePlanner(Mock(), Mock(), world=Mock(), initial_checkpoint=0,
                                            enable=False, use_section=True, debug_route_waypoint_len=592)
         self.assertEqual(route_planner._checkpoint_waypoint_index, 0)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 35)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 35)
 
         route_planner._current_waypoint_index = 35
         route_planner._update_checkpoint_by_section()
@@ -92,7 +93,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 35)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 70)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 70)
 
         # repeat 5 times to go to 0 checkpoint (because completed repeat 70 5 times)
         for i in range(5):
@@ -100,7 +101,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 0)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 70)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 70)
 
         # repeat 5 times from the beginning to get to 70
         for i in range(5):
@@ -108,13 +109,13 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 70)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 105)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 105)
 
     def test_first_section_cross(self):
         route_planner = ManualRoutePlanner(Mock(), Mock(), world=Mock(), initial_checkpoint=105,
                                            enable=False, use_section=True, debug_route_waypoint_len=592)
         self.assertEqual(route_planner._checkpoint_waypoint_index, 105)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 140)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 140)
 
         route_planner._current_waypoint_index = 142
         route_planner._update_checkpoint_by_section()
@@ -127,7 +128,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 0)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 140)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 140)
 
         # repeat 5 times to go to 140
         for i in range(5):
@@ -135,13 +136,13 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 143)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 173)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 173)
 
     def test_second_section_cross(self):
         route_planner = ManualRoutePlanner(Mock(), Mock(), world=Mock(), initial_checkpoint=143,
                                            enable=False, use_section=True, debug_route_waypoint_len=592)
         self.assertEqual(route_planner._checkpoint_waypoint_index, 143)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 173)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 173)
 
         route_planner._current_waypoint_index = 174
         route_planner._update_checkpoint_by_section()
@@ -154,13 +155,13 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 176)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 211)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 211)
 
     def test_third_section_no_cross(self):
         route_planner = ManualRoutePlanner(Mock(), Mock(), world=Mock(), initial_checkpoint=176,
                                            enable=False, use_section=True, debug_route_waypoint_len=592)
         self.assertEqual(route_planner._checkpoint_waypoint_index, 176)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 211)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 211)
 
         route_planner._current_waypoint_index = 211
         route_planner._update_checkpoint_by_section()
@@ -173,7 +174,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 211)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 246)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 246)
 
         # ----- next section 246 -----
 
@@ -183,7 +184,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 176)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 246)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 246)
 
         # repeat 5 times from the beginning to get to 246
         for i in range(5):
@@ -191,7 +192,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 246)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 281)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 281)
 
         # ----- next section 281 -----
 
@@ -201,7 +202,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 176)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 281)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 281)
 
         # repeat 5 times from the beginning to get to 281
         for i in range(5):
@@ -209,7 +210,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 281)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 316)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 316)
 
         # ----- next section 316 -----
 
@@ -219,7 +220,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 176)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 316)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 316)
 
         # repeat 5 times from the beginning to get to 316
         for i in range(5):
@@ -227,7 +228,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 316)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 351)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 351)
 
         # ----- next section 351 -----
 
@@ -238,7 +239,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 176)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, next_wp)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, next_wp)
 
         # repeat 5 times from the beginning to get to 351
         for i in range(5):
@@ -246,7 +247,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, next_wp)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 386)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 386)
 
         # ----- next section 386 -----
 
@@ -257,7 +258,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 176)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, next_wp)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, next_wp)
 
         # repeat 5 times from the beginning to get to 386
         for i in range(5):
@@ -265,7 +266,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, next_wp)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 421)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 421)
 
         # ----- next section 421 -----
 
@@ -276,7 +277,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 176)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, next_wp)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, next_wp)
 
         # repeat 5 times from the beginning to get to 421
         for i in range(5):
@@ -284,7 +285,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, next_wp)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 456)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 456)
 
         # ----- next section 456 -----
 
@@ -295,7 +296,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 176)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, next_wp)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, next_wp)
 
         # repeat 5 times from the beginning to get to 456
         for i in range(5):
@@ -303,7 +304,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, next_wp)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 491)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 491)
 
         # ----- next section 491 -----
 
@@ -314,7 +315,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 176)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, next_wp)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, next_wp)
 
         # repeat 5 times from the beginning to get to 491
         for i in range(5):
@@ -322,7 +323,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, next_wp)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 526)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 526)
 
         # ----- next section 526 -----
 
@@ -333,7 +334,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 176)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, next_wp)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, next_wp)
 
         # repeat 5 times from the beginning to get to 526
         for i in range(5):
@@ -341,7 +342,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, next_wp)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 561)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 561)
 
         # ----- next section 561 -----
 
@@ -352,7 +353,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 176)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, next_wp)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, next_wp)
 
         # repeat 5 times from the beginning to get to 561
         for i in range(5):
@@ -361,7 +362,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, next_wp)
         # 591 is the end of route
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 591)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 591)
 
         # ----- next section 0 (cross) -----
 
@@ -372,7 +373,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 176)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, next_wp)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, next_wp)
 
         # repeat 5 times from the beginning to get to 561
         for i in range(5):
@@ -381,13 +382,13 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
 
         # cross to section 1 again
         self.assertEqual(route_planner._checkpoint_waypoint_index, 0)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 35)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 35)
 
     def test_third_section_cross(self):
         route_planner = ManualRoutePlanner(Mock(), Mock(), world=Mock(), initial_checkpoint=561,
                                            enable=False, use_section=True, debug_route_waypoint_len=592)
         self.assertEqual(route_planner._checkpoint_waypoint_index, 561)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 0)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 0)
 
         route_planner._current_waypoint_index = 591
         route_planner._update_checkpoint_by_section()
@@ -400,7 +401,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 176)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 0)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 0)
 
         # repeat 5 times to go to 0
         for i in range(5):
@@ -408,4 +409,4 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
             route_planner._update_checkpoint_by_section()
 
         self.assertEqual(route_planner._checkpoint_waypoint_index, 0)
-        self.assertEqual(route_planner._intermediate_checkpoint_waypoint_index, 35)
+        self.assertEqual(route_planner._next_checkpoint_waypoint_index, 35)
