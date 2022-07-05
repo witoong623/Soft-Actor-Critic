@@ -249,8 +249,10 @@ class World(object):
             carla.MapLayer.All
         ]
 
-        self.distance = 0
+        self.distance_from_center = 0
         self.current_waypoint_index = 0
+        self.recent_traveled_distance = 0
+        self.previous_traveled_distance = 0
 
     def restart(self):
         self.player_max_speed = 1.589
@@ -295,6 +297,8 @@ class World(object):
             _, spawn_point_transform = self.routeplanner.get_spawn_point(0)
             spawn_point_transform.location.z += 0.5
             self.player = self.world.spawn_actor(blueprint, spawn_point_transform)
+            self.start_location = spawn_point_transform.location
+            self.traveled_distance_diffs = collections.deque(maxlen=60)
             self.show_vehicle_telemetry = False
             self.modify_vehicle_physics(self.player)
 
@@ -392,7 +396,20 @@ class World(object):
         ego_x = ego_trans.location.x
         ego_y = ego_trans.location.y
 
-        self.distance, _ = get_lane_dis_numba(self.waypoints, ego_x, ego_y)
+        self.distance_from_center, _ = get_lane_dis_numba(self.waypoints, ego_x, ego_y)
+
+        traveled_distance = self.start_location.distance(ego_trans.location)
+        self.traveled_distance_diffs.append(abs(traveled_distance - self.previous_traveled_distance))
+        self.previous_traveled_distance = traveled_distance
+
+    @property
+    def does_vehicle_stop(self):
+        if len(self.traveled_distance_diffs) < self.traveled_distance_diffs.maxlen:
+            return False
+
+        self.recent_traveled_distance = sum(self.traveled_distance_diffs)
+
+        return self.recent_traveled_distance < 1.
 
 
 def _vector_locations(location_1, location_2):
@@ -861,8 +878,10 @@ class HUD(object):
                 self._info_text.append('% 4dm %s' % (d, vehicle_type))
 
         self._info_text += [
-            f'Distance from current waypoint: {world.distance}',
-            f'Waypoint index: {world.routeplanner._current_waypoint_index}'
+            f'Distance from current waypoint: {world.distance_from_center}',
+            f'Waypoint index: {world.routeplanner._current_waypoint_index}',
+            f'Does vehicle stop: {world.does_vehicle_stop}',
+            f'Recent traveled distance: {world.recent_traveled_distance}',
         ]
 
     def toggle_info(self):

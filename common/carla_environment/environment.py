@@ -195,8 +195,8 @@ class CarlaEnv(gym.Env):
         self.actions_queue = deque(maxlen=self.num_past_actions)
 
         # travel distance
-        self.travel_distance_diffs = []
-        self.window_size = self.frame_per_second * 10
+        self.traveled_distance_diffs = deque(maxlen=self.frame_per_second * 10)
+        self.previous_traveled_distance = 0
 
         # control history
         self.store_history = self.record_video
@@ -794,18 +794,16 @@ class CarlaEnv(gym.Env):
         return new_transform
 
     def _update_last_travel_distance(self, current_location):
-        travel_distance = self.start_location.distance(current_location)
-        previous_travel_distance = sum(self.travel_distance_diffs)
-        self.travel_distance_diffs.append(abs(travel_distance - previous_travel_distance))
+        traveled_distance = self.start_location.distance(current_location)
+        self.traveled_distance_diffs.append(abs(traveled_distance - self.previous_traveled_distance))
+        self.previous_traveled_distance = traveled_distance
 
     def _does_vehicle_stop(self) -> bool:
-        ''' vehicle stop if it doesn't move 1 meter in 10 seconds window '''
-        if len(self.travel_distance_diffs) < self.window_size:
+        ''' vehicle stop if it doesn't move one meter in ten seconds window '''
+        if len(self.traveled_distance_diffs) < self.traveled_distance_diffs.maxlen:
             return False
 
-        window_start = max(0, len(self.travel_distance_diffs) - self.window_size)
-
-        return sum(self.travel_distance_diffs[window_start:]) < 1.
+        return sum(self.traveled_distance_diffs) < 1.
 
     def _get_should_stop(self):
         ''' when should stop episode but the agent isn't in terminal state  '''
