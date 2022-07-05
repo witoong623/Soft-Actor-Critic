@@ -267,6 +267,7 @@ class CarlaEnv(gym.Env):
         self.current_action = None
         self.img_buff.clear()
         self.actions_queue.clear()
+        self.traveled_distance_diffs.clear()
 
         self.current_lane_dis = 0
 
@@ -291,7 +292,6 @@ class CarlaEnv(gym.Env):
         self.collision_sensor = None
         self.ego = None
 
-        # clear image
         self.camera_img = None
 
         # Disable sync mode
