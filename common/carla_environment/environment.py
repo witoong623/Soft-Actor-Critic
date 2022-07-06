@@ -3,6 +3,7 @@ import cv2
 import gym
 import random
 import time
+import queue
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -163,7 +164,7 @@ class CarlaEnv(gym.Env):
 
         # camera
         self.camera_img = None
-        self.camera_trans = carla.Transform(carla.Location(x=1.18, z=1.7))
+        self.camera_trans = carla.Transform(carla.Location(x=0.5, z=1.675))
         self.camera_sensor_type = 'sensor.camera.rgb'
         if self.use_semantic_camera:
             self.camera_sensor_type = 'sensor.camera.semantic_segmentation'
@@ -189,6 +190,7 @@ class CarlaEnv(gym.Env):
         # frame buffer
         self.img_buff = deque(maxlen=self.n_images)
         self.frame_data_queue = Queue()
+        self.collision_data_queue = Queue()
 
         # action buffer
         self.num_past_actions = kwargs.get('n_past_actions', 10)
@@ -325,12 +327,13 @@ class CarlaEnv(gym.Env):
 
         # Add collision sensor
         self.collision_sensor = self.world.spawn_actor(self.collision_bp, carla.Transform(), attach_to=self.ego)
-        self.collision_sensor.listen(lambda event: get_collision_hist(event))
-        def get_collision_hist(event):
-            impulse = event.normal_impulse
-            intensity = np.sqrt(impulse.x**2 + impulse.y**2 + impulse.z**2)
-            self.collision_hist.append(intensity)
-        self.collision_hist.clear()
+        self.collision_sensor.listen(self.collision_data_queue.put)
+        # self.collision_sensor.listen(lambda event: get_collision_hist(event))
+        # def get_collision_hist(event):
+        #     impulse = event.normal_impulse
+        #     intensity = np.sqrt(impulse.x**2 + impulse.y**2 + impulse.z**2)
+        #     self.collision_hist.append(intensity)
+        # self.collision_hist.clear()
 
         # Add camera sensor
         self.camera_sensor = self.world.spawn_actor(self.camera_bp, self.camera_trans, attach_to=self.ego)
@@ -424,7 +427,7 @@ class CarlaEnv(gym.Env):
         
         # reward for collision
         r_collision = 0
-        if len(self.collision_hist) > 0:
+        if self._does_vehicle_collide():
             r_collision = -1
 
         # reward for steering:
@@ -467,48 +470,14 @@ class CarlaEnv(gym.Env):
 
         return r
 
-    def _get_reward_ppo(self):
-        # lane distance reward
-        ego_x, ego_y = get_pos(self.ego)
-        self.current_lane_dis, w = get_lane_dis_numba(self.waypoints, ego_x, ego_y)
-        non_nan_lane_dis = np.nan_to_num(self.current_lane_dis, posinf=self.out_lane_thres + 1, neginf=-(self.out_lane_thres + 1))
-        d_norm = abs(non_nan_lane_dis) / self.out_lane_thres
-        lane_centering_reward = 1 - d_norm
-
-        # termination reward
-        if abs(non_nan_lane_dis) > self.out_lane_thres or len(self.collision_hist) > 0:
-            return -10
-
-        # speed reward
-        v = self.ego.get_velocity()
-        lspeed = np.array([v.x, v.y])
-        lspeed_lon = np.dot(lspeed, w)
-
-        min_desired_speed = 0.8 * self.desired_speed
-        max_desired_speed = 1.2 * self.desired_speed
-        if lspeed_lon < min_desired_speed:
-            speed_reward = lspeed_lon / min_desired_speed
-        elif lspeed_lon > self.desired_speed:
-            speed_reward = 1 - (lspeed_lon - self.desired_speed) / (max_desired_speed - self.desired_speed)
-        else:
-            speed_reward = 1
-
-        # angle
-        # self.current_waypoint is not available anymore
-        angle_degree = get_vehicle_angle(self.ego.get_transform(), self.current_waypoint.transform)
-        # allow only 4 degree until no reward
-        angle_reward = max(1.0 - abs(angle_degree / 4), 0.0)
-
-        return speed_reward + lane_centering_reward + angle_reward
-
     def _get_terminal(self):
         """ Calculate whether to terminate the current episode. """
         # Get ego state
         ego_x, ego_y = get_pos(self.ego)
 
-        # If collides
-        if len(self.collision_hist) > 0:
-            return True
+        # # If collides
+        # if len(self.collision_hist) > 0:
+        #     return True
 
         # If out of lane
         if abs(self.current_lane_dis) > self.out_lane_thres:
@@ -521,7 +490,7 @@ class CarlaEnv(gym.Env):
 
     def _get_obs(self):
         self.camera_img = self._get_image_data(self.frame_data_queue,
-                                                    use_semantic_mask=self.use_semantic_camera)
+                                               use_semantic_mask=self.use_semantic_camera)
 
         if self.n_images == 1:
             transformed_observation = self._transform_observation(self.camera_img)
@@ -883,6 +852,15 @@ class CarlaEnv(gym.Env):
 
         # BGR(OpenCV) > RGB
         return np.ascontiguousarray(array[:, :, ::-1])
+
+    def _does_vehicle_collide(self):
+        try:
+            while True:
+                data = self.collision_data_queue.get_nowait()
+                if data.frame == self.frame:
+                    return True
+        except queue.Empty:
+            return False
 
     def _draw_debug_waypoints(self, waypoints, size=1, color=(255,0,0)):
         ''' Draw debug point on waypoints '''
