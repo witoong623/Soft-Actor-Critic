@@ -81,7 +81,7 @@ class CarlaEnv(gym.Env):
 
         # action and observation spaces
         self.observation_space = spaces.Box(low=0, high=255, shape=(self.obs_height, self.obs_width, 3), dtype=np.uint8)
-        # steering, accel/brake
+        # accel/brake, steering
         self.action_space = spaces.Box(low=np.array([-1., -1.]), high=np.array([1., 1.]), dtype=np.float32)
 
         self.dry_run = kwargs.get('dry_run_init_env', False)
@@ -814,9 +814,6 @@ class CarlaEnv(gym.Env):
 
         return (resized_obs / 255.0).astype(np.float16)
 
-    # def _transform_observation(self, obs):
-    #     return (obs / 255.0).astype(np.float16)
-
     def _get_observation_image(self):
         ''' Return RGB image in `H` x `W` x `C` format, its size match observation size.
         
@@ -827,13 +824,10 @@ class CarlaEnv(gym.Env):
 
         return cv2.resize(cropped_img, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
 
-    # def _get_observation_image(self):
-    #     return self.camera_img
-
     def _crop_image(self, img):
-        # this size is suitable for 800x600, fov 110 camera
-        cropped_size = (384, 768)
-        return center_crop(img, cropped_size, shift_H=1.2)
+        # this size is suitable for 1280x720, fov 69
+        cropped_size = (307, 614)
+        return center_crop(img, cropped_size, shift_H=1.4)
 
     def _get_image_data(self, queue_to_wait, use_semantic_mask=False):
         while True:

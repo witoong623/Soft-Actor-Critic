@@ -21,8 +21,8 @@ python main.py \
 	--return-single-image \
     --n-past-actions 10 \
 	--image-size 256 512 \
-	--camera-size 600 800 \
-	--camera-fov 110 \
+	--camera-size 720 1280 \
+	--camera-fov 69 \
 	--fps-mode high \
 	--traffic-mode LHT \
 	--encoder-arch CNN \

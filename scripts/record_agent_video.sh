@@ -4,8 +4,8 @@
 python -m extra.record_agent_video \
 	--env "Carla-v0" \
 	--image-size 256 512 \
-	--camera-size 600 800 \
-	--camera-fov 110 \
+	--camera-size 720 1280 \
+	--camera-fov 69 \
 	--traffic-mode LHT \
 	--fps-mode high \
 	--max-episode-steps 1000 \
