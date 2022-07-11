@@ -101,7 +101,7 @@ class CarlaBiasActionSampler:
         return np.array([acc, steer], dtype=np.float32)
 
     def _sample_acc(self):
-        return max(20, random.random())
+        return max(40, random.random())
 
     def _sample_brake(self):
         return -max(0.05, random.random())
