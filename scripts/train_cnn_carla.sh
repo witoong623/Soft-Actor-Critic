@@ -18,11 +18,13 @@ python main.py \
 	--mode train --gpu 0 --sampler-gpu 1 \
 	--env "$ENV" \
 	--n-frames 2 \
+	--return-single-image \
     --n-past-actions 10 \
 	--image-size 256 512 \
 	--camera-size 600 800 \
 	--camera-fov 110 \
 	--fps-mode high \
+	--traffic-mode LHT \
 	--encoder-arch CNN \
 	--encoder-hidden-channels 64 128 256 \
 	--activation ELU \
