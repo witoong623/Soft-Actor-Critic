@@ -215,7 +215,8 @@ class PIDLateralController():
         # Get the ego's location and forward vector
         ego_loc = vehicle_transform.location
         v_vec = vehicle_transform.get_forward_vector()
-        v_vec = np.array([v_vec.x, v_vec.y, 0.0])
+        # TODO: delete * -1 if RHT
+        v_vec = np.array([v_vec.x, v_vec.y, 0.0]) * -1
 
         # Get the vector vehicle-target_wp
         if self._offset != 0:

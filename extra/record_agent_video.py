@@ -1,6 +1,6 @@
 from main import get_config
 from common.environment import initialize_environment
-from common.carla_environment.custom_agent import LongitudinalAgent
+from common.carla_environment.custom_agent import LongitudinalAgent, CarlaBasicAgent, ActionSamplerAgent
 from tqdm import tqdm
 
 
@@ -19,7 +19,9 @@ if __name__ == '__main__':
     env = create_env_func(**create_env_kwargs)
     env.reset()
 
-    agent = LongitudinalAgent(env)
+    # agent = LongitudinalAgent(env)
+    agent = CarlaBasicAgent(env)
+    # agent = ActionSamplerAgent(env)
 
     num_step = 0
     try:

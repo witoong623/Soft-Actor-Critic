@@ -57,8 +57,8 @@ class ManualRoutePlanner:
             self.carla_debug = self._world.debug
 
             if self._is_AIT_map():
-                ait_route_planner = AITRoutePlanner(self._world, resolution)
-                _route_transform = ait_route_planner.compute_route_waypoints()
+                self.ait_route_planner = AITRoutePlanner(self._world, resolution)
+                _route_transform = self.ait_route_planner.compute_route_waypoints()
             else:
                 _route_transform = self._compute_route_waypoints()
             
