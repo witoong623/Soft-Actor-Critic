@@ -180,6 +180,24 @@ def center_crop(img, desired_size, shift_H=1, shift_W=1):
     return np.ascontiguousarray(img[y:y+desired_H, x:x+desired_W])
 
 
+ROAD = (128, 64, 128)
+ROAD_LINE = (157, 234, 50)
+SIDE_WALK = (244, 35, 232)
+VEHICLE = (0, 0, 142)
+HUMAN = (220, 20, 60)
+OTHER = (55, 90, 80)
+
+
+def convert_to_simplified_cityscape(img):
+    other_elements = (img[...,] != ROAD).all(axis=2) & \
+                     (img[...,] != ROAD_LINE).all(axis=2) & \
+                     (img[...,] != SIDE_WALK).all(axis=2) & \
+                     (img[...,] != VEHICLE).all(axis=2)
+    img[other_elements] = OTHER
+
+    return img
+
+
 def sample_carracing_bias_action(prev_action):
     ''' Sample bias action for CarRacing-v0 '''
     if np.random.randint(3) % 3:

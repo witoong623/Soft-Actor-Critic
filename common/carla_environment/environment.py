@@ -22,7 +22,7 @@ from tqdm import trange
 
 from .misc import get_pos, get_lane_dis_numba, get_vehicle_angle
 from .manual_route_planner import ManualRoutePlanner, TOWN7_PLAN
-from ..utils import center_crop, normalize_image
+from ..utils import center_crop, normalize_image, convert_to_simplified_cityscape
 
 from agents.navigation.behavior_agent import BehaviorAgent
 
@@ -339,8 +339,8 @@ class CarlaEnv(gym.Env):
             bound_z = 0.5 + self.ego.bounding_box.extent.z
 
             obs_camera_trans = carla.Transform(carla.Location(x=-2.0*bound_x, y=+0.0*bound_y, z=2.0*bound_z), carla.Rotation(pitch=8.0))
-            self.obs_camera_sensor = self.world.spawn_actor(blueprint=self.obs_camera_bp, transform=obs_camera_trans,
-                                                            attach_to=self.ego, attachment_type=carla.AttachmentType.SpringArm)
+            self.obs_camera_sensor = self.world.spawn_actor(blueprint=self.obs_camera_bp, transform=self.camera_trans,
+                                                            attach_to=self.ego, attachment_type=carla.AttachmentType.Rigid)
             self.obs_camera_sensor.listen(self.obs_frame_data_queue.put)
 
         # Update timesteps
@@ -769,14 +769,12 @@ class CarlaEnv(gym.Env):
     def _transform_CNN_observation(self, obs):
         cropped_obs = self._crop_image(obs)
         resized_obs = cv2.resize(cropped_obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
-        # normalized_obs = normalize_image(resized_obs, self.mean, self.std).astype(np.float16)
 
-        return resized_obs
+        return convert_to_simplified_cityscape(resized_obs)
 
     def _transform_CNN_grayscale_observation(self, obs):
         cropped_obs = self._crop_image(obs)
         resized_obs = cv2.resize(cropped_obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
-        # gray_obs = (cv2.cvtColor(resized_obs, cv2.COLOR_RGB2GRAY) / 255.).astype(np.float16)
         gray_obs = cv2.cvtColor(resized_obs, cv2.COLOR_RGB2GRAY)
 
         return gray_obs
@@ -828,6 +826,7 @@ class CarlaEnv(gym.Env):
             data.convert(cc.CityScapesPalette)
         else:
             data.convert(cc.Raw)
+
         array = np.frombuffer(data.raw_data, dtype=np.uint8)
         array = np.reshape(array, (data.height, data.width, 4))
         array = array[:, :, :3]
