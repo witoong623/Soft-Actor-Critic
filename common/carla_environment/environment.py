@@ -328,12 +328,6 @@ class CarlaEnv(gym.Env):
         # Add collision sensor
         self.collision_sensor = self.world.spawn_actor(self.collision_bp, carla.Transform(), attach_to=self.ego)
         self.collision_sensor.listen(self.collision_data_queue.put)
-        # self.collision_sensor.listen(lambda event: get_collision_hist(event))
-        # def get_collision_hist(event):
-        #     impulse = event.normal_impulse
-        #     intensity = np.sqrt(impulse.x**2 + impulse.y**2 + impulse.z**2)
-        #     self.collision_hist.append(intensity)
-        # self.collision_hist.clear()
 
         # Add camera sensor
         self.camera_sensor = self.world.spawn_actor(self.camera_bp, self.camera_trans, attach_to=self.ego)
@@ -471,15 +465,9 @@ class CarlaEnv(gym.Env):
         return r
 
     def _get_terminal(self):
-        """ Calculate whether to terminate the current episode. """
-        # Get ego state
-        ego_x, ego_y = get_pos(self.ego)
+        if self._does_vehicle_collide():
+            return True
 
-        # # If collides
-        # if len(self.collision_hist) > 0:
-        #     return True
-
-        # If out of lane
         if abs(self.current_lane_dis) > self.out_lane_thres:
             return True
 
@@ -967,36 +955,3 @@ class CarlaEnv(gym.Env):
         completed_lap = CarlaEnv.start_wp_idx > len(self.route_waypoints)
 
         return completed_lap
-
-
-class SteerDirection(Enum):
-    RIGHT = auto()
-    LEFT = auto()
-
-
-class ManualAgent:
-    steer_right_cmds = [0.0] * 30 + [0.2] * 10 + [-0.1] * 15
-    steer_left_cmds = [0.0] * 30 + [-0.05] * 5 + [-0.1] * 5
-
-    def __init__(self, vehicle):
-        steer_direction = SteerDirection.LEFT
-
-        if steer_direction == SteerDirection.RIGHT:
-            self.steer_cmds = deepcopy(ManualAgent.steer_right_cmds)
-        elif steer_direction == SteerDirection.LEFT:
-            self.steer_cmds = deepcopy(ManualAgent.steer_left_cmds)
-        else:
-            raise TypeError('unknown steer_direction type')
-
-    def run_step(self):
-        throttle = max(0.4, random.random())
-
-        steer = 0
-        if len(self.steer_cmds) > 0:
-            steer = self.steer_cmds[0]
-            self.steer_cmds.pop(0)
-
-        return carla.VehicleControl(throttle=float(throttle), steer=float(steer), brake=0.0)
-
-    def done(self):
-        return False

@@ -30,7 +30,6 @@ if __name__ == '__main__':
             obs, reward, done, info = env.step(agent.run_step())
 
             if done:
-                print('done')
                 break
 
             pbar.update(1)
