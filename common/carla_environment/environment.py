@@ -807,8 +807,8 @@ class CarlaEnv(gym.Env):
             will normalize an image but this method keeps the image format except spatial size.
         '''
         cropped_img = self._crop_image(self.camera_img)
-
-        return cv2.resize(cropped_img, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
+        resized_img = cv2.resize(cropped_img, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
+        return convert_to_simplified_cityscape(resized_img)
 
     def _crop_image(self, img):
         # this size is suitable for 1280x720, fov 69
