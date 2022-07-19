@@ -128,10 +128,10 @@ class Sampler(mp.Process):
                     additional_state = self.env.first_additional_state
 
                 if self.random_sample:
-                    if random.random() > 0.97 or \
+                    if random.random() > 0.95 or \
                         (self.n_episodes - self.episode == 1 and not self.does_perfect_sample):
                         self.does_perfect_sample = True
-                        action_sampler = CarlaPIDLongitudinalSampler(self.env, max_step=150)
+                        action_sampler = CarlaPIDLongitudinalSampler(self.env, max_step=200)
                     else:
                         action_sampler = CarlaBiasActionSampler(forward_only=False, use_brake=True)
 
