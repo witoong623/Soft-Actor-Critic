@@ -79,10 +79,12 @@ class CarlaEnv(gym.Env):
         self.desired_speed = 5.5
         self.out_lane_thres = 2.
 
-        # action and observation spaces
         self.observation_space = spaces.Box(low=0, high=255, shape=(self.obs_height, self.obs_width, 3), dtype=np.uint8)
         # accel/brake, steering
-        self.action_space = spaces.Box(low=np.array([-1., -1.]), high=np.array([1., 1.]), dtype=np.float32)
+        if kwargs.get('no_brake'):
+            self.action_space = spaces.Box(low=np.array([0., -1.]), high=np.array([1., 1.]), dtype=np.float32)
+        else:
+            self.action_space = spaces.Box(low=np.array([-1., -1.]), high=np.array([1., 1.]), dtype=np.float32)
 
         self.dry_run = kwargs.get('dry_run_init_env', False)
         if self.dry_run:

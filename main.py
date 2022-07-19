@@ -88,6 +88,8 @@ def get_config():
                                          help='return only one image regradless of n-frames argument')
     carla_environment_group.add_argument('--traffic-mode', type=str, choices=['RHT', 'LHT'], default='RHT',
                                          help='which side of a road to drive (default: RHT)')
+    carla_environment_group.add_argument('--no-brake', action='store_true',
+                                         help='set the limit of the lowest acceleration to 0 so that no brake')
     encoder_group = parser.add_argument_group('state encoder')
     encoder_group.add_argument('--encoder-arch', type=str, choices=['FC', 'RNN', 'CNN', 'VAE', 'BETAVAE', 'EFFICIENTNET', 'RESNET', 'TINY_CNN'], default='FC',
                                help='architecture of state encoder network (default: FC)')
