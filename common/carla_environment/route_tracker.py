@@ -1,11 +1,7 @@
 # copy from https://github.com/bitsauce/Carla-ppo/blob/master/CarlaEnv/planner.py
 import carla
-import functools
-import operator
-import random
 import numpy as np
 
-from enum import Enum
 from numba.typed import List
 from agents.navigation.local_planner import RoadOption
 from agents.navigation.global_route_planner import GlobalRoutePlanner
@@ -29,7 +25,7 @@ def carla_to_vector(obj):
         raise TypeError(f'obj must be `Location`, `Vector3D` or `Rotation`, not {type(obj)}')
 
 
-class ManualRoutePlanner:
+class RouteTracker:
     def __init__(self, start_waypoint, end_waypoint, world, resolution=2.0,
                  plan=None, initial_checkpoint=0, repeat_section_threshold=5,
                  use_section=False, enable=True, debug_route_waypoint_len=None,

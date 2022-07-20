@@ -21,7 +21,7 @@ from queue import Queue
 from tqdm import trange
 
 from .misc import get_pos, get_lane_dis_numba, get_vehicle_angle
-from .manual_route_planner import ManualRoutePlanner, TOWN7_PLAN
+from .route_tracker import RouteTracker, TOWN7_PLAN
 from ..utils import center_crop, normalize_image, convert_to_simplified_cityscape
 
 from agents.navigation.behavior_agent import BehaviorAgent
@@ -144,14 +144,14 @@ class CarlaEnv(gym.Env):
             initial_checkpoint = kwargs.get('initial_checkpoint', 0)
             repeat_threshold = kwargs.get('repeat_section_threshold', 5)
             self.traffic_mode = kwargs.get('traffic_mode', 'RHT')
-            self.routeplanner = ManualRoutePlanner(self.lap_spwan_point_wp,
-                                                   self.lap_spwan_point_wp,
-                                                   self.world,
-                                                   resolution=2,
-                                                   plan=TOWN7_PLAN,
-                                                   initial_checkpoint=initial_checkpoint,
-                                                   repeat_section_threshold=repeat_threshold,
-                                                   use_section=True, traffic_mode=self.traffic_mode)
+            self.route_tracker = RouteTracker(self.lap_spwan_point_wp,
+                                              self.lap_spwan_point_wp,
+                                              self.world,
+                                              resolution=2,
+                                              plan=TOWN7_PLAN,
+                                              initial_checkpoint=initial_checkpoint,
+                                              repeat_section_threshold=repeat_threshold,
+                                              use_section=True, traffic_mode=self.traffic_mode)
 
         # ego vehicle bp
         self.ego_bp = self._create_vehicle_bluepprint('vehicle.evt.echo_4s')
@@ -306,14 +306,14 @@ class CarlaEnv(gym.Env):
 
         # Spawn the ego vehicle
         ego_spawn_times = 0
-        spawn_transform_index, spawn_transform = self.routeplanner.get_spawn_point()
+        spawn_transform_index, spawn_transform = self.route_tracker.get_spawn_point()
         if spawn_transform_index not in self.z_steps:
             self.z_steps[spawn_transform_index] = 0.1
         z_step = self.z_steps[spawn_transform_index]
 
         while True:
             if ego_spawn_times > self.max_ego_spawn_times:
-                raise Exception(f'cannot spawn at {transform}. waypoint index is {self.routeplanner._checkpoint_waypoint_index}')
+                raise Exception(f'cannot spawn at {transform}. waypoint index is {self.route_tracker._checkpoint_waypoint_index}')
 
             transform = self._make_safe_spawn_transform(spawn_transform, z_step)
 
@@ -352,8 +352,8 @@ class CarlaEnv(gym.Env):
         self.frame = self.world.tick()
 
         # get route plan
-        self.routeplanner.set_vehicle(self.ego)
-        self.waypoints = self.routeplanner.run_step()
+        self.route_tracker.set_vehicle(self.ego)
+        self.waypoints = self.route_tracker.run_step()
 
         for _ in range(self.num_past_actions):
             self.actions_queue.append(np.array([0, 0]))
@@ -385,7 +385,7 @@ class CarlaEnv(gym.Env):
 
         self.frame = self.world.tick()
 
-        self.waypoints = self.routeplanner.run_step()
+        self.waypoints = self.route_tracker.run_step()
 
         self._update_last_travel_distance(self.ego.get_location())
 
@@ -458,7 +458,7 @@ class CarlaEnv(gym.Env):
         # cost for braking
         brake_cost = self.current_action[2]
 
-        r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + r_steer*5 + 0.2*r_lat - 1 - brake_cost*2
+        r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + r_steer*5 - brake_cost*2
 
         if self.store_history:
             self.speed_hist.append(speed)
@@ -767,7 +767,7 @@ class CarlaEnv(gym.Env):
 
     def _get_should_stop(self):
         ''' when should stop episode but the agent isn't in terminal state  '''
-        return self.routeplanner.is_end_of_section
+        return self.route_tracker.is_end_of_section
 
     def _transform_CNN_observation(self, obs):
         cropped_obs = self._crop_image(obs)
@@ -910,7 +910,7 @@ class CarlaEnv(gym.Env):
         plt.savefig(name)
 
     def get_latest_milestone(self):
-        return self.routeplanner.checkpoint_manager.checkpoint_index
+        return self.route_tracker.checkpoint_manager.checkpoint_index
 
     @property
     def metadata(self):

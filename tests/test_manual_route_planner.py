@@ -2,14 +2,14 @@ import unittest
 
 from unittest.mock import Mock
 
-from common.carla_environment.manual_route_planner import ManualRoutePlanner
+from common.carla_environment.route_tracker import RouteTracker
 
 
 class TestManualRoutePlanner(unittest.TestCase):
     repeat_threshold = 5
 
     def test_cp_not_repeat_section(self):
-        route_planner = ManualRoutePlanner(Mock(), Mock(), world=Mock(), enable=False, debug_route_waypoint_len=592)
+        route_planner = RouteTracker(Mock(), Mock(), world=Mock(), enable=False, debug_route_waypoint_len=592)
         route_planner._checkpoint_waypoint_index = 0
         route_planner._current_waypoint_index = 24
 
@@ -18,7 +18,7 @@ class TestManualRoutePlanner(unittest.TestCase):
         self.assertEqual(route_planner._checkpoint_waypoint_index, 0)
 
     def test_cp_repeat_first_section(self):
-        route_planner = ManualRoutePlanner(Mock(), Mock(), world=Mock(), enable=False,
+        route_planner = RouteTracker(Mock(), Mock(), world=Mock(), enable=False,
                                            repeat_section_threshold=5, debug_route_waypoint_len=592)
         route_planner._checkpoint_waypoint_index = 0
         route_planner._current_waypoint_index = 25
@@ -40,7 +40,7 @@ class TestManualRoutePlanner(unittest.TestCase):
         self.assertEqual(route_planner._checkpoint_waypoint_index, 25)
 
     def test_cp_repeat_second_section(self):
-        route_planner = ManualRoutePlanner(Mock(), Mock(), world=Mock(), enable=False, debug_route_waypoint_len=592)
+        route_planner = RouteTracker(Mock(), Mock(), world=Mock(), enable=False, debug_route_waypoint_len=592)
         route_planner._checkpoint_waypoint_index = 25
         route_planner._current_waypoint_index = 50
 
@@ -77,7 +77,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
     repeat_threshold = 5
 
     def test_first_section_no_cross(self):
-        route_planner = ManualRoutePlanner(Mock(), Mock(), world=Mock(), initial_checkpoint=0,
+        route_planner = RouteTracker(Mock(), Mock(), world=Mock(), initial_checkpoint=0,
                                            enable=False, use_section=True, debug_route_waypoint_len=592)
         self.assertEqual(route_planner._checkpoint_waypoint_index, 0)
         self.assertEqual(route_planner._next_checkpoint_waypoint_index, 35)
@@ -112,7 +112,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
         self.assertEqual(route_planner._next_checkpoint_waypoint_index, 105)
 
     def test_first_section_cross(self):
-        route_planner = ManualRoutePlanner(Mock(), Mock(), world=Mock(), initial_checkpoint=105,
+        route_planner = RouteTracker(Mock(), Mock(), world=Mock(), initial_checkpoint=105,
                                            enable=False, use_section=True, debug_route_waypoint_len=592)
         self.assertEqual(route_planner._checkpoint_waypoint_index, 105)
         self.assertEqual(route_planner._next_checkpoint_waypoint_index, 140)
@@ -139,7 +139,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
         self.assertEqual(route_planner._next_checkpoint_waypoint_index, 173)
 
     def test_second_section_cross(self):
-        route_planner = ManualRoutePlanner(Mock(), Mock(), world=Mock(), initial_checkpoint=143,
+        route_planner = RouteTracker(Mock(), Mock(), world=Mock(), initial_checkpoint=143,
                                            enable=False, use_section=True, debug_route_waypoint_len=592)
         self.assertEqual(route_planner._checkpoint_waypoint_index, 143)
         self.assertEqual(route_planner._next_checkpoint_waypoint_index, 173)
@@ -158,7 +158,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
         self.assertEqual(route_planner._next_checkpoint_waypoint_index, 211)
 
     def test_third_section_no_cross(self):
-        route_planner = ManualRoutePlanner(Mock(), Mock(), world=Mock(), initial_checkpoint=176,
+        route_planner = RouteTracker(Mock(), Mock(), world=Mock(), initial_checkpoint=176,
                                            enable=False, use_section=True, debug_route_waypoint_len=592)
         self.assertEqual(route_planner._checkpoint_waypoint_index, 176)
         self.assertEqual(route_planner._next_checkpoint_waypoint_index, 211)
@@ -385,7 +385,7 @@ class TestSectionCheckpointUpdate(unittest.TestCase):
         self.assertEqual(route_planner._next_checkpoint_waypoint_index, 35)
 
     def test_third_section_cross(self):
-        route_planner = ManualRoutePlanner(Mock(), Mock(), world=Mock(), initial_checkpoint=561,
+        route_planner = RouteTracker(Mock(), Mock(), world=Mock(), initial_checkpoint=561,
                                            enable=False, use_section=True, debug_route_waypoint_len=592)
         self.assertEqual(route_planner._checkpoint_waypoint_index, 561)
         self.assertEqual(route_planner._next_checkpoint_waypoint_index, 0)

@@ -146,7 +146,7 @@ try:
 except ImportError:
     raise RuntimeError('cannot import numpy, make sure numpy package is installed')
 
-from common.carla_environment.manual_route_planner import ManualRoutePlanner
+from common.carla_environment.route_tracker import RouteTracker
 from common.carla_environment.misc import get_lane_dis_numba
 from agents.navigation.global_route_planner import RoadOption
 
@@ -210,7 +210,7 @@ class World(object):
             print('  Make sure it exists, has the same name of your town, and is correct.')
             sys.exit(1)
 
-        self.routeplanner = ManualRoutePlanner(None, None, world=carla_world,
+        self.route_tracker = RouteTracker(None, None, world=carla_world,
                                                resolution=2, traffic_mode='LHT')
 
         self.hud = hud
@@ -294,7 +294,7 @@ class World(object):
             # spawn_points = self.map.get_spawn_points()
             # spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
             # spawn_point = spawn_points[1] if spawn_points else carla.Transform()
-            _, spawn_point_transform = self.routeplanner.get_spawn_point(0)
+            _, spawn_point_transform = self.route_tracker.get_spawn_point(0)
             spawn_point_transform.location.z += 0.5
             self.player = self.world.spawn_actor(blueprint, spawn_point_transform)
             self.start_location = spawn_point_transform.location
@@ -318,9 +318,9 @@ class World(object):
         else:
             self.world.wait_for_tick()
 
-        self.routeplanner.set_vehicle(self.player)
-        self.waypoints = self.routeplanner.run_step()
-        # self.current_waypoint, self.current_command = self.routeplanner.get_current_route_waypoint()
+        self.route_tracker.set_vehicle(self.player)
+        self.waypoints = self.route_tracker.run_step()
+        # self.current_waypoint, self.current_command = self.route_tracker.get_current_route_waypoint()
 
     def next_weather(self, reverse=False):
         self._weather_index += -1 if reverse else 1
@@ -390,7 +390,7 @@ class World(object):
             self.player.destroy()
 
     def calculate_reward(self):
-        self.waypoints = self.routeplanner.run_step()
+        self.waypoints = self.route_tracker.run_step()
 
         ego_trans = self.player.get_transform()
         ego_x = ego_trans.location.x
@@ -879,7 +879,7 @@ class HUD(object):
 
         self._info_text += [
             f'Distance from current waypoint: {world.distance_from_center}',
-            f'Waypoint index: {world.routeplanner._current_waypoint_index}',
+            f'Waypoint index: {world.route_tracker._current_waypoint_index}',
             f'Does vehicle stop: {world.does_vehicle_stop}',
             f'Recent traveled distance: {world.recent_traveled_distance}',
         ]
