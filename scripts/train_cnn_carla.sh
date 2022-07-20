@@ -25,6 +25,7 @@ python main.py \
 	--camera-fov 69 \
 	--fps-mode high \
 	--traffic-mode LHT \
+	--no-brake \
 	--encoder-arch CNN \
 	--encoder-hidden-channels 64 128 256 \
 	--activation ELU \
@@ -34,8 +35,8 @@ python main.py \
 	--max-episode-steps 10000 \
 	--n-epochs 1000 --n-updates 256 --batch-size 32 \
 	--n-samplers 1 \
-	--buffer-capacity 21000 \
-	--update-sample-ratio 2.0 \
+	--buffer-capacity 60000 \
+	--update-sample-ratio 4.0 \
 	--critic-lr 1E-4 --actor-lr 1E-4 \
 	--alpha-lr 1E-4 --initial-alpha 1.0 \
 	--adaptive-entropy --target-entropy -3 \
@@ -43,7 +44,6 @@ python main.py \
 	--n-bootstrap-step 2 \
 	--log-dir "$LOG_DIR" \
 	--checkpoint-dir "$CHECKPOINT_DIR" \
-	--checkpoint-save-frequency 5 \
 	--log-episode-video \
 	--dry-run-init-env \
 	"$@" # script arguments (can override args above)

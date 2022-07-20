@@ -6,7 +6,7 @@ python main.py \
 	--image-size 256 512 \
 	--camera-size 600 800 \
 	--camera-fov 110 \
-	--fps-mode low \
+	--fps-mode high \
 	--n-past-actions 10 \
 	--hidden-dims 512 256 \
 	--activation ELU \
@@ -19,6 +19,6 @@ python main.py \
 	--record-video \
 	--dry-run-init-env \
 	--load-checkpoint \
-	--epoch-number 40 \
-	--checkpoint-dir "savedcheckpoints/Carla-v0/CNN_2022-06-01-16:43:30" \
-	--video-dir "carla_videos/CNN_2022-06-01-16:43:30"
+	--epoch-number 15 \
+	--checkpoint-dir "savedcheckpoints/Carla-v0/CNN_2022-06-08-09:15:27" \
+	--video-dir "carla_videos/CNN_2022-06-08-09:15:27"

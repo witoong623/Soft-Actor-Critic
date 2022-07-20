@@ -20,7 +20,6 @@ cp "$0" "$LOG_DIR"
 python main.py \
 	--mode train --gpu 0 --sampler-gpu 1 \
 	--env "$ENV" \
-	--half-training \
 	--n-frames 2 \
     --n-past-actions 10 \
 	--image-size 256 512 \
@@ -31,10 +30,10 @@ python main.py \
 	--activation LeakyReLU \
 	--state-dim 1024 \
 	--hidden-dims 512 256 \
-	--max-episode-steps 5000 \
+	--max-episode-steps 10000 \
 	--n-epochs 1000 --n-updates 256 --batch-size 32 \
 	--n-samplers 1 \
-	--buffer-capacity 12000 \
+	--buffer-capacity 60000 \
 	--update-sample-ratio 2.0 \
 	--critic-lr 3E-4 --actor-lr 3E-4 \
 	--alpha-lr 3E-4 --initial-alpha 1.0 \
