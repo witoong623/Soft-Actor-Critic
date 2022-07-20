@@ -69,7 +69,8 @@ DEFAULT_BUFFER = functools.partial(EfficientReplayBuffer,
                                    list_initializer=list,
                                    dict_initializer=dict,
                                    Value=MockValue,
-                                   Lock=MagicMock)
+                                   Lock=MagicMock,
+                                   debug=True)
 
 
 class TestReplayBuffer(unittest.TestCase):
@@ -140,7 +141,7 @@ class TestReplayBuffer(unittest.TestCase):
         self.assertEqual(obs[sample_index].tolist(), create_valid_stacked_obs(ep=episode_num, step=timestep))
         self.assertEqual(addi_obs[sample_index], MockAddiObs(episode_num, timestep))
         self.assertAlmostEqual(action[sample_index], 0.1 * timestep)
-        self.assertRewardValid(timestep, reward[sample_index])
+        self.assertRewardValid(timestep, reward[sample_index], n_step_return=n_step_return)
 
         next_obs_step = timestep + n_step_return
         if timestep == num_step and is_done:
@@ -432,9 +433,9 @@ class TestReplayBuffer(unittest.TestCase):
                                    episode_num=1, num_step=10)
 
             # assert second transition in batch
-            # DONE IS FALSE because even though we use next state idx = state idx + n-step
-            # that is just next state, the real variable that determine whether it ends
-            # at the current t or not is still done of the last transition we use its reward for N-step
+            # DONE IS FALSE even though the next state is done
+            # that is just the next state, the variable that tell whether it ends
+            # at the current t is done of the last transition we use its reward for calculate n-step
             self.assertValidSample(batch_sample, sample_index=1, timestep=8, is_done=False,
                                    episode_num=1, num_step=10)
 
@@ -607,3 +608,52 @@ class TestReplayBuffer(unittest.TestCase):
             # assert second transition in batch - ep 3, index 0 (step 8)
             self.assertValidSample(batch_sample, sample_index=5, timestep=8, is_done=False,
                                    episode_num=3, num_step=10)
+
+    def test_sample_after_add_one_ep_n3(self):
+        ''' sample at the beginning and end of episode '''
+        n_ep = 1
+        n_step = 10
+        n_param = 3
+        replay_buff = self.create_default_test_buffer(n_frames=n_param, n_step=n_param)
+        self.populate_buffer(replay_buff, n_ep, n_step)
+
+        # only 2 and 7 are valid
+        with unittest.mock.patch('random.randint', get_mock_random_func([0, 2, 11, 10, 9, 7])):
+            batch_sample = replay_buff.sample()
+
+            # assert first transition in batch
+            self.assertValidSample(batch_sample, sample_index=0, timestep=1, is_done=False,
+                                   episode_num=1, num_step=10, n_frames=n_param, n_step_return=n_param)
+
+            # assert second transition in batch
+            # DONE IS FALSE even though the next state is done
+            # that is just the next state, the variable that tell whether it ends
+            # at the current t is done of the last transition we use its reward for calculate n-step
+            self.assertValidSample(batch_sample, sample_index=1, timestep=6, is_done=False,
+                                   episode_num=1, num_step=10, n_frames=n_param, n_step_return=n_param)
+
+    def test_sample_after_add_two_eps_n3(self):
+        ''' sample at the beginning and end of episodes '''
+        n_ep = 2
+        n_step = 10
+        n_param = 3
+        replay_buff = self.create_default_test_buffer(batch_size=4, n_frames=n_param, n_step=n_param)
+        self.populate_buffer(replay_buff, n_ep, n_step)
+
+        with unittest.mock.patch('random.randint', get_mock_random_func([2, 9, 14, 20])):
+            batch_sample = replay_buff.sample()
+
+            # assert first transition in batch - ep 1, step 1
+            self.assertValidSample(batch_sample, sample_index=0, timestep=1, is_done=False,
+                                   episode_num=1, num_step=10)
+
+            self.assertValidSample(batch_sample, sample_index=1, timestep=9, is_done=True,
+                                   episode_num=1, num_step=10)
+
+            # # assert third transition in batch - ep 2
+            self.assertValidSample(batch_sample, sample_index=2, timestep=1, is_done=False,
+                                   episode_num=2, num_step=10)
+
+            # # assert fourth transition in batch
+            self.assertValidSample(batch_sample, sample_index=3, timestep=8, is_done=False,
+                                   episode_num=2, num_step=10)

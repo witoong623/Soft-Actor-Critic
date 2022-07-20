@@ -157,8 +157,9 @@ def modulo_range(start, length, modulo):
 
 class EfficientReplayBuffer:
     def __init__(self, capacity, batch_size, n_frames, n_step_return,
-                 list_initializer, dict_initializer, frame_stack_mode='concatenate', frame_stack_axis=0,
-                 gamma=0.99, Value=mp.Value, Lock=mp.Lock):
+                 list_initializer, dict_initializer,
+                 frame_stack_mode='concatenate', frame_stack_axis=0,
+                 gamma=0.99, Value=mp.Value, Lock=mp.Lock, debug=False):
         self.capacity = capacity
         self.buffer = list_initializer()
         self.buffer_offset = Value('L', 0)
@@ -182,6 +183,8 @@ class EfficientReplayBuffer:
             self.frame_stack_func = functools.partial(np.stack, axis=frame_stack_axis)
         else:
             self.frame_stack_func = functools.partial(np.concatenate, axis=frame_stack_axis)
+
+        self.max_sample_attempt = 10 if debug else 100
 
     def push(self, *args):
         items = tuple(args)
@@ -219,14 +222,14 @@ class EfficientReplayBuffer:
             idx_batch = []
 
             attemp_count = 0
-            while len(idx_batch) < self.batch_size and attemp_count < 10:
+            while len(idx_batch) < self.batch_size and attemp_count < self.max_sample_attempt:
                 random_idx = random.randint(0, len(self.buffer) - 1)
                 if self._is_valid_transition(random_idx):
                     idx_batch.append(random_idx)
                     attemp_count = 0
                 else:
                     attemp_count += 1
-            
+
             if len(idx_batch) != self.batch_size:
                 raise RuntimeError('cannot sample enough valid sample')
 
@@ -366,8 +369,8 @@ class EfficientReplayBuffer:
             else:
                 self.buffer[self.offset] = pad_transaction
 
-        self.end_episode_indexes.pop(self.offset, None)
-        self.offset = (self.offset + 1) % self.capacity
+            self.end_episode_indexes.pop(self.offset, None)
+            self.offset = (self.offset + 1) % self.capacity
 
     def _dump_range(self, start, end):
         for i, (obs, addi_obs, action, reward, done) in enumerate(self.buffer[start:end]):
