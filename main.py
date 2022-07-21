@@ -90,6 +90,8 @@ def get_config():
                                          help='which side of a road to drive (default: RHT)')
     carla_environment_group.add_argument('--no-brake', action='store_true',
                                          help='set the limit of the lowest acceleration to 0 so that no brake')
+    carla_environment_group.add_argument('--map', type=str, default='Town07', choices=['Town07', 'ait_v4'],
+                                         help='name of CARLA map (default: Town07)')
     encoder_group = parser.add_argument_group('state encoder')
     encoder_group.add_argument('--encoder-arch', type=str, choices=['FC', 'RNN', 'CNN', 'VAE', 'BETAVAE', 'EFFICIENTNET', 'RESNET', 'TINY_CNN'], default='FC',
                                help='architecture of state encoder network (default: FC)')
@@ -300,6 +302,7 @@ def initialize_hyperparameters(config):
 
 
 def copy_environment_file(config):
+    # TODO: change list of files to up to date
     shutil.copy('common/carla_environment/environment.py', config.log_dir)
     shutil.copy('common/carla_environment/manual_route_planner.py', config.log_dir)
     shutil.copy('common/network.py', config.log_dir)

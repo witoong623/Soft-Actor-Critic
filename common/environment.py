@@ -96,7 +96,8 @@ def initialize_environment(config):
                                                     'initial_checkpoint',
                                                     'return_single_image',
                                                     'traffic_mode',
-                                                    'no_brake'])
+                                                    'no_brake',
+                                                    'map'])
     else:
         config.env_func = build_env
         config.env_kwargs = config.build_from_keys(['vision_observation',

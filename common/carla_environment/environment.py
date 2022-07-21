@@ -54,7 +54,7 @@ class CarlaEnv(gym.Env):
         self.obs_height = observation_size[0]
         self.obs_dtype = np.uint8
 
-        self.map = 'ait_v4'
+        self.map = kwargs.get('map')
         self.fps_mode = kwargs.get('fps_mode')
         if self.fps_mode == 'high':
             self.dt = 0.1
@@ -458,7 +458,7 @@ class CarlaEnv(gym.Env):
         # cost for braking
         brake_cost = self.current_action[2]
 
-        r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + r_steer*5 - brake_cost*2
+        r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + r_steer*5 + 0.2*r_lat - 1 - brake_cost*2
 
         if self.store_history:
             self.speed_hist.append(speed)
