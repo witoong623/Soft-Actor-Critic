@@ -253,8 +253,8 @@ class CarlaEnv(gym.Env):
             else:
                 self._combine_observations = lambda obs_array: obs_array
 
-        self.mean = np.tile([0.4652, 0.4417, 0.3799], self.n_images)
-        self.std = np.tile([0.0946, 0.1767, 0.1865], self.n_images)
+        self.mean = np.tile([0.3171, 0.3183, 0.3779], self.n_images)
+        self.std = np.tile([0.1406, 0.0594, 0.0925], self.n_images)
 
         self.z_steps = {}
 

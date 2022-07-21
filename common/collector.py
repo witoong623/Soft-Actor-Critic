@@ -17,14 +17,14 @@ from torch.utils.tensorboard import SummaryWriter
 from .buffer import ReplayBuffer, EpisodeReplayBuffer, EfficientReplayBuffer
 from .utils import clone_network, sync_params, normalize_image, \
     normalize_grayscale_image, ObservationStacker
-from .carla_environment.action_sampler import CarlaBiasActionSampler, CarlaPIDLongitudinalSampler
+from .carla_environment.action_sampler import CarlaBiasActionSampler, CarlaPIDLongitudinalSampler, CarlaPerfectActionSampler
 
 
 __all__ = ['Collector', 'EpisodeCollector']
 
 
-MEAN = np.tile([0.4652, 0.4417, 0.3799], 2)
-STD = np.tile([0.0946, 0.1767, 0.1865], 2)
+MEAN = np.tile([0.3171, 0.3183, 0.3779], 2)
+STD = np.tile([0.1406, 0.0594, 0.0925], 2)
 
 
 class Sampler(mp.Process):

@@ -18,8 +18,8 @@ from common.utils import CHECKPOINT_FORMAT, normalize_image
 from sac.model import RenderTester
 
 
-MEAN = np.tile([0.4652, 0.4417, 0.3799], 2)
-STD = np.tile([0.0946, 0.1767, 0.1865], 2)
+MEAN = np.tile([0.3171, 0.3183, 0.3779], 2)
+STD = np.tile([0.1406, 0.0594, 0.0925], 2)
 
 
 def train_loop(model, config, update_kwargs):

@@ -6,8 +6,8 @@ import torch.multiprocessing as mp
 from .utils import batch_normalize_images, batch_normalize_grayscale_images
 
 
-MEAN = np.tile([0.4652, 0.4417, 0.3799], 2)
-STD = np.tile([0.0946, 0.1767, 0.1865], 2)
+MEAN = np.tile([0.3171, 0.3183, 0.3779], 2)
+STD = np.tile([0.1406, 0.0594, 0.0925], 2)
 
 OBSERVATION = 0
 ADDI_OBSERVATION = 1

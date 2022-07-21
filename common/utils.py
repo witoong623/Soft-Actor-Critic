@@ -189,6 +189,7 @@ OTHER = (55, 90, 80)
 
 
 def convert_to_simplified_cityscape(img):
+    ''' Only work with RGB image '''
     other_elements = (img[...,] != ROAD).all(axis=2) & \
                      (img[...,] != ROAD_LINE).all(axis=2) & \
                      (img[...,] != SIDE_WALK).all(axis=2) & \
