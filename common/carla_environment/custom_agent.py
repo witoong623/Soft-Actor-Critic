@@ -20,7 +20,7 @@ class LongitudinalAgent:
 class CarlaBasicAgent:
     def __init__(self, env):
         self.agent = BasicAgent(env.ego, target_speed=env.desired_speed * 3.6)
-        self.agent.set_global_plan(env.routeplanner.ait_route_planner.get_compatible_route_waypoint())
+        self.agent.set_global_plan(env.route_tracker.route_planner.get_compatible_route_waypoint())
         self.agent.ignore_traffic_lights(active=True)
         self.agent.ignore_stop_signs(active=True)
 

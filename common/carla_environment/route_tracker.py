@@ -4,9 +4,7 @@ import numpy as np
 
 from numba.typed import List
 from agents.navigation.local_planner import RoadOption
-from agents.navigation.global_route_planner import GlobalRoutePlanner
-from agents.tools.misc import vector
-from common.carla_environment.ait_route_planner import AITRoutePlanner
+from common.carla_environment.custom_route_planner import AITRoutePlanner, Town7RoutePlanner
 from common.carla_environment.checkpoints_manager import Town7CheckpointManager, AITCheckpointManager
 
 
@@ -37,10 +35,6 @@ class RouteTracker:
         self._world = world
         self._map = world.get_map()
         self.plan = plan
-        self.traffic_mode = traffic_mode
-
-        self._sampling_radius = resolution
-        self._min_distance = self._sampling_radius - 1 if self._sampling_radius > 1 else 1
 
         self.start_waypoint = start_waypoint
         self.end_waypoint = end_waypoint
@@ -53,11 +47,12 @@ class RouteTracker:
             self.carla_debug = self._world.debug
 
             if self._is_AIT_map():
-                self.ait_route_planner = AITRoutePlanner(self._world, resolution)
-                _route_transform = self.ait_route_planner.compute_route_waypoints()
+                self.route_planner = AITRoutePlanner(self._world, resolution)
             else:
-                _route_transform = self._compute_route_waypoints()
+                self.route_planner = Town7RoutePlanner(self._world, resolution,
+                                                       self.start_waypoint, self.end_waypoint, TOWN7_PLAN)
             
+            _route_transform = self.route_planner.compute_route()
             _transformed_waypoint_routes = List(self._transform_transforms(_route_transform))
 
         route_waypoint_len = len(_route_transform) if debug_route_waypoint_len is None else debug_route_waypoint_len
@@ -118,97 +113,6 @@ class RouteTracker:
 
         return index, transform
 
-    def _compute_route_waypoints(self):
-        if self.plan is None:
-            grp = GlobalRoutePlanner(self._map, self._sampling_radius)
-            
-            route = grp.trace_route(
-                self.start_waypoint.transform.location,
-                self.end_waypoint.transform.location)
-        else:
-            route = []
-            current_waypoint = self.start_waypoint
-            for i, action in enumerate(self.plan):
-                # Generate waypoints to next junction
-                wp_choice = [current_waypoint]
-                while len(wp_choice) == 1:
-                    current_waypoint = wp_choice[0]
-                    route.append((current_waypoint, RoadOption.LANEFOLLOW))
-                    wp_choice = current_waypoint.next(self._sampling_radius)
-
-                    # Stop at destination
-                    if i > 0 and current_waypoint.transform.location.distance(self.end_waypoint.transform.location) < self._sampling_radius:
-                        break
-
-                if action == RoadOption.VOID:
-                    break
-
-                # Make sure that next intersection waypoints are far enough
-                # from each other so we choose the correct path
-                step = self._sampling_radius
-                while len(wp_choice) > 1:
-                    wp_choice = current_waypoint.next(step)
-                    wp0, wp1 = wp_choice[:2]
-                    if wp0.transform.location.distance(wp1.transform.location) < self._sampling_radius:
-                        step += self._sampling_radius
-                    else:
-                        break
-
-                # Select appropriate path at the junction
-                if len(wp_choice) > 1:
-                    # Current heading vector
-                    current_transform = current_waypoint.transform
-                    current_location = current_transform.location
-                    projected_location = current_location + \
-                        carla.Location(
-                            x=np.cos(np.radians(current_transform.rotation.yaw)),
-                            y=np.sin(np.radians(current_transform.rotation.yaw)))
-                    v_current = vector(current_location, projected_location)
-
-                    direction = 0
-                    if action == RoadOption.LEFT:
-                        direction = 1
-                    elif action == RoadOption.RIGHT:
-                        direction = -1
-                    elif action == RoadOption.STRAIGHT:
-                        direction = 0
-                    select_criteria = float("inf")
-
-                    # Choose correct path
-                    for wp_select in wp_choice:
-                        v_select = vector(
-                            current_location, wp_select.transform.location)
-                        cross = float("inf")
-                        if direction == 0:
-                            cross = abs(np.cross(v_current, v_select)[-1])
-                        else:
-                            cross = direction * np.cross(v_current, v_select)[-1]
-                        if cross < select_criteria:
-                            select_criteria = cross
-                            current_waypoint = wp_select
-
-                    # Generate all waypoints within the junction
-                    # along selected path
-                    route.append((current_waypoint, action))
-                    current_waypoint = current_waypoint.next(self._sampling_radius)[0]
-                    while current_waypoint.is_intersection:
-                        route.append((current_waypoint, action))
-                        current_waypoint = current_waypoint.next(self._sampling_radius)[0]
-            assert route
-
-        # Change action 5 wp before intersection
-        num_wp_to_extend_actions_with = 5
-        action = route[0][1]
-        for i in range(1, len(route)):
-            next_action = route[i][1]
-            if next_action != action:
-                if next_action != RoadOption.LANEFOLLOW:
-                    for j in range(num_wp_to_extend_actions_with):
-                        route[i-j-1] = (route[i-j-1][0], route[i][1])
-            action = next_action
-
-        return route
-
     def _transform_transforms(self, transforms):
         ''' Transform a waypoint into list of x, y and yaw '''
         return list(map(lambda tf: (tf[0].location.x, tf[0].location.y, tf[0].rotation.yaw), transforms))
@@ -218,15 +122,6 @@ class RouteTracker:
 
     def _is_AIT_map(self):
         return self._map.name == 'ait_v4/Maps/ait_v4/ait_v4'
-
-    def _get_waypoint_forward_vector_np(self, waypoint):
-        forward_vector = waypoint.transform.get_forward_vector()
-        vector_np = np.array([forward_vector.x, forward_vector.y, forward_vector.z])
-
-        if self.traffic_mode == 'LHT':
-            vector_np = vector_np * -1
-
-        return vector_np
 
     def _check_passed_waypoint_RHT(self, dot_product_result):
         return dot_product_result > 0.0
