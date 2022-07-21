@@ -54,7 +54,7 @@ class CarlaEnv(gym.Env):
         self.obs_height = observation_size[0]
         self.obs_dtype = np.uint8
 
-        self.map = kwargs.get('map')
+        self.map_name = kwargs.get('map')
         self.fps_mode = kwargs.get('fps_mode')
         if self.fps_mode == 'high':
             self.dt = 0.1
@@ -97,9 +97,11 @@ class CarlaEnv(gym.Env):
         if _load_world:
             self.world = self.client.get_world()
         else:
-            self.world = self.client.load_world(self.map)
+            self.world = self.client.load_world(self.map_name)
             _load_world = True
         print('Carla server connected!')
+
+        self._map = self.world.get_map()
 
         # Set fixed simulation step for synchronous mode
         self.settings = self.world.get_settings()
@@ -113,9 +115,9 @@ class CarlaEnv(gym.Env):
         self.bp_library = self.world.get_blueprint_library()
 
         # spawn points
-        self.vehicle_spawn_points = list(self.world.get_map().get_spawn_points())
-        # top left spawn point of town4
-        self.lap_spwan_point_wp = self.world.get_map().get_waypoint(self.vehicle_spawn_points[1].location)
+        self.vehicle_spawn_points = list(self._map.get_spawn_points())
+        # For Town07 only
+        self.lap_spwan_point_wp = self._map.get_waypoint(self.vehicle_spawn_points[1].location)
 
         self.walker_spawn_points = []
         # if we can cache more than 70% of spawn points then use cache
@@ -911,6 +913,9 @@ class CarlaEnv(gym.Env):
 
     def get_latest_milestone(self):
         return self.route_tracker.checkpoint_manager.checkpoint_index
+
+    def is_AIT_map(self):
+        return self._map.name == 'ait_v4/Maps/ait_v4/ait_v4'
 
     @property
     def metadata(self):

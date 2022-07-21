@@ -109,7 +109,10 @@ class RouteTracker:
 
         self._current_waypoint_index = index
 
-        transform = self.checkpoint_manager.get_correct_spawn_point_transform(_route_transform[index][0], index)
+        if self._is_AIT_map():
+            transform = self.checkpoint_manager.get_correct_spawn_point_transform(_route_transform[index][0], index)
+        else:
+            transform = _route_transform[index][0]
 
         return index, transform
 

@@ -131,9 +131,12 @@ class Sampler(mp.Process):
                     if random.random() > 0.95 or \
                         (self.n_episodes - self.episode == 1 and not self.does_perfect_sample):
                         self.does_perfect_sample = True
-                        action_sampler = CarlaPIDLongitudinalSampler(self.env, max_step=200)
+                        if self.env.is_AIT_map():
+                            action_sampler = CarlaPIDLongitudinalSampler(self.env, max_step=200)
+                        else:
+                            action_sampler = CarlaPerfectActionSampler(self.env)
                     else:
-                        action_sampler = CarlaBiasActionSampler(forward_only=False, use_brake=True)
+                        action_sampler = CarlaBiasActionSampler(forward_only=False, use_brake=False)
 
                 self.render()
                 self.frames.clear()

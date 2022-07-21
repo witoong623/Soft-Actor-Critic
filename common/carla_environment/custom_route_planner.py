@@ -38,7 +38,7 @@ class Town7RoutePlanner(BaseRoutePlanner):
     def compute_route(self):
         route = []
         current_waypoint = self.start_waypoint
-        for i, action in enumerate(self.plan):
+        for i, action in enumerate(self._plan):
             # Generate waypoints to next junction
             wp_choice = [current_waypoint]
             while len(wp_choice) == 1:
@@ -120,7 +120,10 @@ class Town7RoutePlanner(BaseRoutePlanner):
         self._route_waypoints = route
         self._route_transforms = [(wp.transform, action) for wp, action in self._route_waypoints]
 
-        return route
+        return self._route_transforms
+
+    def get_compatible_route_waypoint(self):
+        return self._route_waypoints
 
 
 class AITRoutePlanner(BaseRoutePlanner):

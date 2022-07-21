@@ -302,10 +302,12 @@ def initialize_hyperparameters(config):
 
 
 def copy_environment_file(config):
-    # TODO: change list of files to up to date
     shutil.copy('common/carla_environment/environment.py', config.log_dir)
-    shutil.copy('common/carla_environment/manual_route_planner.py', config.log_dir)
+    shutil.copy('common/carla_environment/route_tracker.py', config.log_dir)
+    shutil.copy('common/carla_environment/custom_route_planner.py', config.log_dir)
+    shutil.copy('common/carla_environment/checkpoints_manager.py', config.log_dir)
     shutil.copy('common/network.py', config.log_dir)
+    shutil.copy('sac/network.py', config.log_dir)
 
 
 def main():
