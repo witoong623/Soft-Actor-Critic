@@ -23,7 +23,7 @@ class BaseRoutePlanner(abc.ABC):
         pass
 
     @abc.abstractclassmethod
-    def get_compatible_route_waypoint(self):
+    def get_carla_agent_compatible_route_waypoint(self):
         pass
 
 
@@ -122,7 +122,7 @@ class Town7RoutePlanner(BaseRoutePlanner):
 
         return self._route_transforms
 
-    def get_compatible_route_waypoint(self):
+    def get_carla_agent_compatible_route_waypoint(self):
         return self._route_waypoints
 
 
