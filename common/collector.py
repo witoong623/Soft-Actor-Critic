@@ -199,7 +199,6 @@ class Sampler(mp.Process):
                     self.writer.add_scalar(tag='sample/average_reward', scalar_value=average_reward, global_step=self.episode)
                     self.writer.add_scalar(tag='sample/episode_steps', scalar_value=episode_steps, global_step=self.episode)
                     self.writer.add_scalar(tag='sample/milestone', scalar_value=self.env.get_latest_milestone(), global_step=self.episode)
-                    self.writer.add_scalar(tag='sample/done_reason', scalar_value=self._get_done_reason(info), global_step=self.episode)
                     self.log_video()
                     self.writer.flush()
         except KeyboardInterrupt:
@@ -275,13 +274,6 @@ class Sampler(mp.Process):
             return SummaryWriter(log_dir=os.path.join(self.log_dir, self.name), comment=self.name)
         else:
             return None
-
-    def _get_done_reason(self, info):
-        reason = info.get('done_reason')
-        if reason is None:
-            reason = 'No reason'
-
-        return reason
 
 
 class EpisodeSampler(Sampler):
