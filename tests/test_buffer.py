@@ -144,9 +144,10 @@ class TestReplayBuffer(unittest.TestCase):
         self.assertRewardValid(timestep, reward[sample_index], n_step_return=n_step_return)
 
         next_obs_step = timestep + n_step_return
-        if timestep == num_step and is_done:
-            next_obs_step = timestep + 1
+        if timestep + n_step_return > num_step and is_done:
+            next_obs_step = num_step + 1
 
+        # print(f'next time step of {timestep}: {next_obs[sample_index].tolist()}')
         self.assertEqual(next_obs[sample_index].tolist(), create_valid_stacked_obs(ep=episode_num, step=next_obs_step))
         self.assertEqual(next_addi_obs[sample_index], create_valid_addi_obs(next_obs_step))
 
@@ -640,20 +641,20 @@ class TestReplayBuffer(unittest.TestCase):
         replay_buff = self.create_default_test_buffer(batch_size=4, n_frames=n_param, n_step=n_param)
         self.populate_buffer(replay_buff, n_ep, n_step)
 
-        with unittest.mock.patch('random.randint', get_mock_random_func([2, 9, 14, 20])):
+        with unittest.mock.patch('random.randint', get_mock_random_func([2, 10, 14, 20])):
             batch_sample = replay_buff.sample()
 
             # assert first transition in batch - ep 1, step 1
             self.assertValidSample(batch_sample, sample_index=0, timestep=1, is_done=False,
-                                   episode_num=1, num_step=10)
+                                   episode_num=1, num_step=10, n_frames=n_param, n_step_return=n_param)
 
             self.assertValidSample(batch_sample, sample_index=1, timestep=9, is_done=True,
-                                   episode_num=1, num_step=10)
+                                   episode_num=1, num_step=10, n_frames=n_param, n_step_return=n_param)
 
             # # assert third transition in batch - ep 2
             self.assertValidSample(batch_sample, sample_index=2, timestep=1, is_done=False,
-                                   episode_num=2, num_step=10)
+                                   episode_num=2, num_step=10, n_frames=n_param, n_step_return=n_param)
 
             # # assert fourth transition in batch
-            self.assertValidSample(batch_sample, sample_index=3, timestep=8, is_done=False,
-                                   episode_num=2, num_step=10)
+            self.assertValidSample(batch_sample, sample_index=3, timestep=7, is_done=False,
+                                   episode_num=2, num_step=10, n_frames=n_param, n_step_return=n_param)
