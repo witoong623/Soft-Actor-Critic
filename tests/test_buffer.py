@@ -658,3 +658,42 @@ class TestReplayBuffer(unittest.TestCase):
             # # assert fourth transition in batch
             self.assertValidSample(batch_sample, sample_index=3, timestep=7, is_done=False,
                                    episode_num=2, num_step=10, n_frames=n_param, n_step_return=n_param)
+
+    def test_sample_after_add_three_eps_n3(self):
+        ''' sample at the beginning and end of episodes '''
+        n_ep = 3
+        n_step = 10
+        n_param = 3
+        replay_buff = self.create_default_test_buffer(batch_size=6, n_frames=n_param, n_step=n_param)
+        self.populate_buffer(replay_buff, n_ep, n_step)
+
+        # only 5, 20, 21, 28, 29, 0
+        with unittest.mock.patch('random.randint', get_mock_random_func([4, 5, 21, 21, 28, 29, 0])):
+            batch_sample = replay_buff.sample()
+
+            # assert first transition in batch - ep 1, index 5
+            self.assertValidSample(batch_sample, sample_index=0, timestep=5, is_done=False,
+                                   episode_num=1, num_step=10, n_frames=n_param, n_step=n_param)
+
+            # assert second transition in batch - ep 2, index 20
+            self.assertValidSample(batch_sample, sample_index=1, timestep=9, is_done=True,
+                                   episode_num=2, num_step=10, n_frames=n_param, n_step=n_param)
+
+            # assert second transition in batch - ep 2, index 21
+            # first element is 2-10 because next state after step 10 (and done) is 3-1
+            # it's technically incorrect but it doesn't matter
+            # because we don't use it for gredient anyway
+            self.assertValidSample(batch_sample, sample_index=2, timestep=10, is_done=True,
+                                   episode_num=2, num_step=10, n_frames=n_param, n_step=n_param)
+
+            # assert second transition in batch - ep 3, index 28 (step 6)
+            self.assertValidSample(batch_sample, sample_index=3, timestep=6, is_done=False,
+                                   episode_num=3, num_step=10, n_frames=n_param, n_step=n_param)
+
+            # assert second transition in batch - ep 3, index 29 (step 7)
+            self.assertValidSample(batch_sample, sample_index=4, timestep=7, is_done=False,
+                                   episode_num=3, num_step=10, n_frames=n_param, n_step=n_param)
+
+            # assert second transition in batch - ep 3, index 0 (step 8)
+            self.assertValidSample(batch_sample, sample_index=5, timestep=8, is_done=False,
+                                   episode_num=3, num_step=10, n_frames=n_param, n_step=n_param)
