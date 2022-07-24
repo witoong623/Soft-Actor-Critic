@@ -379,17 +379,8 @@ class Trainer(ModelBase):
 
     def prepare_batch(self, batch_size):
         if self.n_past_actions > 1:
-            observation, additional_state, action, reward, next_observation, next_additional_state, done = self.replay_buffer.sample(batch_size, normalize=True)
-
-            observation = torch.tensor(observation, dtype=self.dtype, device=self.model_device)
-            additional_state = torch.tensor(additional_state, dtype=self.dtype, device=self.model_device)
-            next_observation = torch.tensor(next_observation, dtype=self.dtype, device=self.model_device)
-            next_additional_state = torch.tensor(next_additional_state, dtype=self.dtype, device=self.model_device)
-
-            action = torch.tensor(action, dtype=self.dtype, device=self.model_device)
-
-            reward = torch.tensor(reward, dtype=self.dtype, device=self.model_device)
-            done = torch.tensor(done, dtype=self.dtype, device=self.model_device)
+            observation, additional_state, action, reward, next_observation, next_additional_state, done \
+                = self.replay_buffer.sample(batch_size, normalize=True, device=self.model_device)
         else:
             observation, action, reward, next_observation, done = self.replay_buffer.sample(batch_size)
 

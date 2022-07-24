@@ -1,5 +1,6 @@
 import functools
 import random
+import torch
 import numpy as np
 import torch.multiprocessing as mp
 
@@ -217,7 +218,7 @@ class EfficientReplayBuffer:
 
             self.invalid_indexes[:] = self._get_invalid_end_indexes()
 
-    def sample(self, *args, normalize=False):
+    def sample(self, *args, normalize=False, device=None):
         with self.lock:
             idx_batch = []
 
@@ -262,11 +263,32 @@ class EfficientReplayBuffer:
 
             if normalize:
                 batch_samples = list(zip(*batch))
+                observation, additional_state, action, reward, next_observation, next_additional_state, done = tuple(map(np.stack, batch_samples))
 
-                batch_samples[0] = batch_normalize_images(batch_samples[0], MEAN, STD)
-                batch_samples[4] = batch_normalize_images(batch_samples[4], MEAN, STD)
+                if device is None:
+                    device = 'cpu'
 
-                return tuple(map(np.stack, batch_samples))
+                observation = torch.tensor(observation, dtype=torch.float32, device=device, requires_grad=False)
+                additional_state = torch.tensor(additional_state, dtype=torch.float32, device=device)
+                next_observation = torch.tensor(next_observation, dtype=torch.float32, device=device, requires_grad=False)
+                next_additional_state = torch.tensor(next_additional_state, dtype=torch.float32, device=device)
+
+                action = torch.tensor(action, dtype=torch.float32, device=device)
+
+                reward = torch.tensor(reward, dtype=torch.float32, device=device)
+                done = torch.tensor(done, dtype=torch.float32, device=device)
+
+                if not hasattr(self, 'mean_tensor'):
+                    self.mean_tensor = torch.tensor(MEAN, dtype=torch.float32, device=device, requires_grad=False)
+                    self.std_tensor = torch.tensor(STD, dtype=torch.float32, device=device, requires_grad=False)
+
+                observation = observation.div_(255.).subtract_(self.mean_tensor).divide_(self.std_tensor).permute((0, 3, 1, 2))
+                next_observation = next_observation.div_(255.).subtract_(self.mean_tensor).divide_(self.std_tensor).permute((0, 3, 1, 2))
+
+                observation.requires_grad_()
+                next_observation.requires_grad_()
+
+                return observation, additional_state, action, reward, next_observation, next_additional_state, done
             else:
                 return tuple(map(np.stack, zip(*batch)))
 
