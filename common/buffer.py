@@ -4,7 +4,7 @@ import torch
 import numpy as np
 import torch.multiprocessing as mp
 
-from .utils import batch_normalize_images, batch_normalize_grayscale_images
+from .utils import batch_normalize_images, batch_normalize_grayscale_images, convert_to_CHW_tensor
 
 
 MEAN = np.tile([0.3171, 0.3183, 0.3779], 2)
@@ -218,7 +218,7 @@ class EfficientReplayBuffer:
 
             self.invalid_indexes[:] = self._get_invalid_end_indexes()
 
-    def sample(self, *args, normalize=False, device=None):
+    def sample(self, *args, normalize=False, device='cpu'):
         with self.lock:
             idx_batch = []
 
@@ -262,28 +262,14 @@ class EfficientReplayBuffer:
                 batch.append((obs, addi_obs, action, [reward], next_obs, next_addi_obs, [is_done]))
 
             if normalize:
-                batch_samples = list(zip(*batch))
-                observation, additional_state, action, reward, next_observation, next_additional_state, done = tuple(map(np.stack, batch_samples))
+                batch_samples = tuple(map(np.stack, zip(*batch)))
+                observation, additional_state, action, reward, next_observation, next_additional_state, done = self._create_sample_tensors(batch_samples, device)
 
-                if device is None:
-                    device = 'cpu'
+                self._create_normalization_params_tensor(MEAN, STD, device)
 
-                observation = torch.tensor(observation, dtype=torch.float32, device=device, requires_grad=False)
-                additional_state = torch.tensor(additional_state, dtype=torch.float32, device=device)
-                next_observation = torch.tensor(next_observation, dtype=torch.float32, device=device, requires_grad=False)
-                next_additional_state = torch.tensor(next_additional_state, dtype=torch.float32, device=device)
-
-                action = torch.tensor(action, dtype=torch.float32, device=device)
-
-                reward = torch.tensor(reward, dtype=torch.float32, device=device)
-                done = torch.tensor(done, dtype=torch.float32, device=device)
-
-                if not hasattr(self, 'mean_tensor'):
-                    self.mean_tensor = torch.tensor(MEAN, dtype=torch.float32, device=device, requires_grad=False)
-                    self.std_tensor = torch.tensor(STD, dtype=torch.float32, device=device, requires_grad=False)
-
-                observation = observation.div_(255.).subtract_(self.mean_tensor).divide_(self.std_tensor).permute((0, 3, 1, 2))
-                next_observation = next_observation.div_(255.).subtract_(self.mean_tensor).divide_(self.std_tensor).permute((0, 3, 1, 2))
+                observation, next_observation = self._normalize_observations(observation, next_observation)
+                observation = convert_to_CHW_tensor(observation)
+                next_observation = convert_to_CHW_tensor(next_observation)
 
                 observation.requires_grad_()
                 next_observation.requires_grad_()
@@ -400,6 +386,20 @@ class EfficientReplayBuffer:
     
     def __len__(self):
         return self.size
+
+    def _create_sample_tensors(self, np_samples, device):
+        return tuple(torch.tensor(sample_item, dtype=torch.float32, device=device) for sample_item in np_samples)
+
+    def _create_normalization_params_tensor(self, mean, std, device):
+        if not hasattr(self, 'mean_tensor'):
+            self.mean_tensor = torch.tensor(mean, dtype=torch.float32, device=device, requires_grad=False)
+            self.std_tensor = torch.tensor(std, dtype=torch.float32, device=device, requires_grad=False)
+
+    def _normalize_observations(self, observation, next_observation):
+        observation = observation.div_(255.).subtract_(self.mean_tensor).divide_(self.std_tensor)
+        next_observation = next_observation.div_(255.).subtract_(self.mean_tensor).divide_(self.std_tensor)
+
+        return observation, next_observation
 
     @property
     def is_full(self):

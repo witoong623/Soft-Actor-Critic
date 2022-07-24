@@ -292,6 +292,15 @@ def _transform_tensor(img_tensors, normalize=True):
     return new_img_tensors
 
 
+def convert_to_CHW_tensor(tensor: torch.Tensor):
+    if tensor.ndim == 4:
+        return tensor.permute((0, 3, 1, 2))
+    elif tensor.ndim == 3:
+        return tensor.permute((2, 0, 1))
+    else:
+        raise ValueError(f'Only support image tensor of 3 or 4 dimensions. Received {tensor.ndim} tensor')
+
+
 def encode_vae_observation(observation, encoder, normalize=True, device='cpu', output_device='cpu'):
     ''' transforms ``Tensor`` or numpy's ``ndarray`` to state vector.
 
