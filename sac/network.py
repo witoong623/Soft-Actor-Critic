@@ -10,7 +10,6 @@ from torch.distributions import Normal
 from common.network import MultilayerPerceptron, VAEBase, BottleneckNeuralNetwork
 from common.networkbase import Container
 from common.utils import encode_vae_observation, clone_network
-from common.stable_distributions import SquashedNormal
 
 
 __all__ = [
@@ -296,45 +295,6 @@ class PolicyNetwork(MultilayerPerceptron):
         # if action.dtype is not torch.float16:
         #     action = action.half()
         action = action.numpy()[0]
-        return action
-
-
-class StablePolicyNetwork(PolicyNetwork):
-    def __init__(self, state_dim, action_dim, hidden_dims, activation=nn.ReLU(inplace=True), device=None, log_std_min=-5, log_std_max=2):
-        super().__init__(state_dim, action_dim, hidden_dims, activation, device, log_std_min, log_std_max)
-
-    def forward(self, state):
-        mean, log_std = super().forward(state).chunk(chunks=2, dim=-1)
-        log_std = torch.tanh(log_std)
-        log_std = self.log_std_min + 0.5 * (self.log_std_max - self.log_std_min) * (log_std +  1)
-        std = torch.exp(log_std)
-        return mean, std
-
-    def evaluate(self, state):
-        mean, std = self(state)
-
-        dist = SquashedNormal(mean, std, stable=True, threshold=10)
-        action = dist.rsample()
-        log_prob = dist.log_prob(action)
-        log_prob = log_prob.sum(dim=-1, keepdim=True)
-
-        return action, log_prob, dist
-
-    @torch.no_grad()
-    def get_action(self, state, deterministic=False):
-        if isinstance(state, np.ndarray):
-            state = torch.tensor(state, dtype=torch.float16, device=self.device).unsqueeze(0)
-        else:
-            # Tensor
-            state = state.unsqueeze(dim=0).to(self.device)
-        mean, std = self(state)
-
-        if deterministic:
-            action = torch.tanh(mean)
-        else:
-            dist = SquashedNormal(mean, std, stable=True, threshold=10)
-            action = dist.sample()
-
         return action
 
 
