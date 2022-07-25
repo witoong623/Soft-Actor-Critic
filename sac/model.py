@@ -58,6 +58,8 @@ def build_model(config):
         model_kwargs.pop('n_bootstrap_step', None)
         model_kwargs.pop('separate_encoder', None)
         model_kwargs.pop('half_training', None)
+        model_kwargs.pop('batch_size', None)
+        model_kwargs.pop('n_frames', None)
     else:
         if not config.RNN_encoder:
             Model = Tester
@@ -485,11 +487,7 @@ class RenderTester(object):
         self.sampler_devices = sampler_devices
 
         self.n_past_actions = n_past_actions
-        if n_past_actions > 1:
-            # add past actions to state dim
-            self.state_dim = state_dim + (action_dim * n_past_actions)
-        else:
-            self.state_dim = state_dim
+        self.state_dim = state_dim
         self.action_dim = action_dim
 
         self.training = True

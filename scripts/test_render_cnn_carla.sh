@@ -4,8 +4,8 @@ python main.py \
 	--env Carla-v0 \
 	--n-frames 2 \
 	--image-size 256 512 \
-	--camera-size 600 800 \
-	--camera-fov 110 \
+	--camera-size 720 1280 \
+	--camera-fov 69 \
 	--fps-mode high \
 	--n-past-actions 10 \
 	--hidden-dims 512 256 \
@@ -13,12 +13,12 @@ python main.py \
 	--encoder-activation ELU \
 	--encoder-arch CNN \
 	--encoder-hidden-channels 64 128 256 \
-	--state-dim 768 \
+	--state-dim 1024 \
 	--max-episode-steps 5000 \
 	--random-seed 69 \
 	--record-video \
 	--dry-run-init-env \
 	--load-checkpoint \
-	--epoch-number 15 \
-	--checkpoint-dir "savedcheckpoints/Carla-v0/CNN_2022-06-08-09:15:27" \
-	--video-dir "carla_videos/CNN_2022-06-08-09:15:27"
+	--epoch-number 18 \
+	--checkpoint-dir "savedcheckpoints/Carla-v0/CNN_pretrained" \
+	--video-dir "carla_videos/CNN_2022-07-24-22:26:30"
