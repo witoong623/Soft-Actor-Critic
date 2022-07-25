@@ -57,17 +57,25 @@ class CarlaPIDLongitudinalSampler:
 
 
 class CarlaBiasActionSampler:
-    def __init__(self, *args, forward_only=False, use_brake=False, max_step=float('inf'), **kwargs) -> None:
+    def __init__(self, *args, forward_only=False, use_brake=False, 
+                 max_step=float('inf'), try_correction=False, **kwargs) -> None:
         self.previous_action = None
         self.use_brake = use_brake
         self.forward_only = forward_only
         self.max_step = max_step
+        self.try_collection = try_correction
 
         self.count = 0
 
     def sample(self):
         if self._should_use_previous_action():
-            action = self.previous_action
+            if self.try_collection:
+                if self.previous_action[1] != 0:
+                    action = np.array([self.previous_action[0], self.previous_action[1] * -1], dtype=np.float32)
+                else:
+                    action = self.previous_action
+            else:
+                action = self.previous_action
         else:
             action = self._sample_new_action()
 

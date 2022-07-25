@@ -38,7 +38,7 @@ class CarlaBasicAgent:
 
 class ActionSamplerAgent:
     def __init__(self, env):
-        self.sampler = CarlaBiasActionSampler(forward_only=False, use_brake=True)
+        self.sampler = CarlaBiasActionSampler(forward_only=False, use_brake=True, try_correction=True)
 
     def run_step(self):
         actions, _ = self.sampler.sample()

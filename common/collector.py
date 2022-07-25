@@ -136,7 +136,7 @@ class Sampler(mp.Process):
                         else:
                             action_sampler = CarlaPerfectActionSampler(self.env)
                     else:
-                        action_sampler = CarlaBiasActionSampler(forward_only=False, use_brake=False)
+                        action_sampler = CarlaBiasActionSampler(forward_only=False, use_brake=True, try_correction=True)
 
                 self.render()
                 self.frames.clear()
