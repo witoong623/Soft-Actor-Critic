@@ -17,7 +17,7 @@ from functools import partial
 from common.config import Config
 from common.environment import initialize_environment
 from common.network import build_encoder
-from common.utils import check_devices, check_logging
+from common.utils import check_devices, check_logging, check_pretrained_checkpoint
 from sac import build_model, train, test, test_render
 
 
@@ -200,6 +200,8 @@ def get_config():
                         help='how often to save checkpoint(default: 10)')
     parser.add_argument('--load-checkpoint', action='store_true',
                         help='load latest checkpoint in checkpoint dir')
+    parser.add_argument('--pretrained-dir', type=str, default=None,
+                        help='folder to contain pretrained checkpoint')
     parser.add_argument('--epoch-number', type=int, default=None,
                         help='number of epoch to load')
     parser.add_argument('--record-video', action='store_true',
@@ -226,6 +228,7 @@ def initialize(config):
     build_encoder(config)
     check_devices(config)
     check_logging(config)
+    check_pretrained_checkpoint(config)
     copy_environment_file(config)
 
 

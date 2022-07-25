@@ -68,8 +68,18 @@ def build_model(config):
         with open(file=os.path.join(directory, 'info.txt'), mode='w') as file:
             model.print_info(file=file)
 
+    if config.pretrained_checkpoint is not None:
+        print(f'load pretrained checkpoint from {config.pretrained_checkpoint}')
+        model.load_model(path=config.pretrained_checkpoint,
+                         strict=True,
+                         load_weight_only=True)
+
     if config.initial_checkpoint is not None:
-        load_ret = model.load_model(path=config.initial_checkpoint, strict=config.mode != 'test_render')
+        print(f'load checkpoint from {config.initial_checkpoint}')
+        load_ret = model.load_model(path=config.initial_checkpoint,
+                                    strict=config.mode != 'test_render',
+                                    load_weight_only=False)
+
         print(f'Missing keys: {load_ret.missing_keys}')
         print(f'Unexpected keys: {load_ret.unexpected_keys}')
 
@@ -370,16 +380,16 @@ class Trainer(ModelBase):
 
         self.modules.save_model(path, optimizer=optimizer)
 
-    def load_model(self, path, strict=True):
+    def load_model(self, path, strict=True, load_weight_only=False):
         load_result = super().load_model(path=path, strict=strict)
         self.target_critic.load_state_dict(self.critic.state_dict())
         self.target_critic.eval().requires_grad_(False)
 
         state_dict = torch.load(path, map_location=self.model_device)
-        if 'optimizer' in state_dict:
+        if 'optimizer' in state_dict and not load_weight_only:
             self.optimizer.load_state_dict(state_dict['optimizer'])
 
-        if 'alpha_optimizer' in state_dict:
+        if 'alpha_optimizer' in state_dict and not load_weight_only:
             self.alpha_optimizer.load_state_dict(state_dict['alpha_optimizer'])
 
         return load_result

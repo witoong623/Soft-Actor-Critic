@@ -136,9 +136,15 @@ def check_logging(config):
     else:
         initial_epoch = 0
 
-    print(f'load checkpoint from {initial_checkpoint}')
     config.initial_checkpoint = initial_checkpoint
     config.initial_epoch = initial_epoch
+
+
+def check_pretrained_checkpoint(config):
+    if config.initial_checkpoint is None and config.pretrained_dir:
+        config.pretrained_checkpoint = get_checkpoint(config.pretrained_dir, by='epoch', specified_epoch=config.epoch_number)
+    else:
+        config.pretrained_checkpoint = None
 
 
 def center_crop(img, desired_size, shift_H=1, shift_W=1):
