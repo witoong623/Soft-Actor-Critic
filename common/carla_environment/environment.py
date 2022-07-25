@@ -398,9 +398,8 @@ class CarlaEnv(gym.Env):
         info = {}
         info['additional_state'] = np.ravel(np.array(self.actions_queue, dtype=np.float16))
         info['should_stop'] = self._get_should_stop()
-        done, info['done_reason'] = self._get_terminal()
 
-        return self._get_obs(), self._get_reward(), done, info
+        return self._get_obs(), self._get_reward(), self._get_terminal(), info
 
     def render(self, mode='human'):
         if mode == 'human':
@@ -471,15 +470,15 @@ class CarlaEnv(gym.Env):
 
     def _get_terminal(self):
         if self._does_vehicle_collide():
-            return True, 'Collision'
+            return True
 
         if abs(self.current_lane_dis) > self.out_lane_thres:
-            return True, 'Out of lane'
+            return True
 
         if self._does_vehicle_stop():
-            return True, 'Stop'
+            return True
 
-        return False, None
+        return False
 
     def _get_obs(self):
         self.camera_img = self._get_image_data(self.frame_data_queue,
