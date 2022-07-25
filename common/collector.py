@@ -148,14 +148,8 @@ class Sampler(mp.Process):
                         # observation shape (H, W, C)
                         stacked_obs = obs_stacker.get_new_observation(observation)
                         normalized_obs = normalize_image(stacked_obs, MEAN, STD).transpose((2, 0, 1))
-                        # this is for grayscale
-                        # normalized_obs = normalize_grayscale_image(observation)
-                        state = self.state_encoder.encode(normalized_obs, return_tensor=True, data_dtype=amp_dtype)
-
-                        if additional_state is not None:
-                            # use amp_dtype for additional state to match state dtype
-                            additional_state_tensor = torch.tensor(additional_state, dtype=amp_dtype, device=self.device)
-                            state = torch.cat((state, additional_state_tensor))
+                        additional_state_tensor = torch.tensor(additional_state, dtype=amp_dtype, device=self.device)
+                        state = self.state_encoder.encode(normalized_obs, additional_state_tensor, return_tensor=True, data_dtype=amp_dtype)
 
                         action = self.actor.get_action(state, deterministic=self.deterministic)
 

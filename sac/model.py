@@ -92,11 +92,7 @@ class ModelBase(object):
         self.half_training = half_training
 
         self.n_past_actions = n_past_actions
-        if n_past_actions > 1:
-            # add past actions to state dim
-            self.state_dim = state_dim + (action_dim * n_past_actions)
-        else:
-            self.state_dim = state_dim
+        self.state_dim = state_dim
         self.action_dim = action_dim
 
         self.training = True
@@ -412,9 +408,9 @@ class Trainer(ModelBase):
                 with torch.no_grad():
                     actor_next_state, critic_next_state = self.state_encoder(next_observation)
             else:
-                state = self.state_encoder(observation)
+                state = self.state_encoder(observation, additional_state.view(batch_size, -1))
                 with torch.no_grad():
-                    next_state = self.state_encoder(next_observation)
+                    next_state = self.state_encoder(next_observation, next_additional_state.view(batch_size, -1))
 
         if self.n_past_actions > 1:
             if self.separate_encoder:
@@ -423,9 +419,7 @@ class Trainer(ModelBase):
                 actor_next_state = torch.cat((actor_next_state, next_additional_state.view(batch_size, -1)), dim=1)
                 critic_next_state = torch.cat((critic_next_state, next_additional_state.view(batch_size, -1)), dim=1)
             else:
-                state = torch.cat((state, additional_state.view(batch_size, -1)), dim=1)
-                next_state = torch.cat((next_state, next_additional_state.view(batch_size, -1)), dim=1)
-
+                pass
         if not self.separate_encoder:
             actor_state = critic_state = state
             actor_next_state = critic_next_state = next_state

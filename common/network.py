@@ -464,14 +464,14 @@ class CarlaCNN(NetworkBase):
                  output_dim, activation=nn.ReLU(inplace=True), device=None):
         super().__init__()
 
-        activation = activation if activation is not None else nn.ReLU(inplace=True)
+        self.activation = activation if activation is not None else nn.ReLU(inplace=True)
 
         conv_layers = []
         first_out_channel = 32
         conv_layers.append(nn.Sequential(
             nn.Conv2d(input_channels, first_out_channel, 3, stride=2, bias=False),
             nn.BatchNorm2d(first_out_channel),
-            activation
+            self.activation
         ))
 
         n_hidden_channels = [first_out_channel, *n_hidden_channels]
@@ -480,10 +480,10 @@ class CarlaCNN(NetworkBase):
             return nn.Sequential(
                 nn.Conv2d(n_in, n_out, kernel_size=3, stride=2, bias=False),
                 nn.BatchNorm2d(n_out),
-                activation,
+                self.activation,
                 nn.Conv2d(n_out, n_out, kernel_size=3, stride=2, bias=False),
                 nn.BatchNorm2d(n_out),
-                activation,
+                self.activation,
             )
 
         for i in range(len(n_hidden_channels) - 1):
@@ -493,14 +493,16 @@ class CarlaCNN(NetworkBase):
             conv_layers.append(conv_layer)
 
         self.conv_layers = nn.Sequential(*conv_layers)
-
+        self.linear = nn.Linear(788, output_dim)
         self.to(device)
 
-    def forward(self, x):
+    def forward(self, x, extra_x):
         x = self.conv_layers(x)
         x = x.flatten(1)
 
-        return x
+        cat_x = torch.cat((x, extra_x), dim=1)
+
+        return self.activation(self.linear(cat_x))
 
 
 class VAEBase:
@@ -775,9 +777,10 @@ BETAVAE = ConvBetaVAE
 
 if __name__ == '__main__':
     image_size = (256, 512)
-    model = CarlaCNN(image_size, 6, [32, 64, 128], 384)
+    model = CarlaCNN(image_size, 6, [64, 128, 256], 1024)
     dummy = torch.zeros((1, 6, *image_size))
-    output = model(dummy)
+    extra_dummy = torch.ones(1, 20)
+    output = model(dummy, extra_dummy)
 
     print(f'output size {output.size()}')
 
