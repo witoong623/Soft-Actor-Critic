@@ -270,7 +270,6 @@ class CarlaEnv(gym.Env):
             self.lspeed_lon_hist.clear()
             self.original_dis.clear()
 
-        self.current_action = None
         self.img_buff.clear()
         self.actions_queue.clear()
         self.traveled_distance_diffs.clear()
@@ -358,9 +357,9 @@ class CarlaEnv(gym.Env):
         self.waypoints = self.route_tracker.run_step()
 
         for _ in range(self.num_past_actions):
-            self.actions_queue.append(np.array([0, 0]))
+            self.actions_queue.append(np.array([0, 0], dtype=np.float32))
 
-        self.first_additional_state = np.ravel(np.array(self.actions_queue, dtype=np.float16))
+        self.first_additional_state = np.ravel(np.array(self.actions_queue, dtype=np.float32))
 
         return self._get_obs()
 
@@ -382,7 +381,6 @@ class CarlaEnv(gym.Env):
             self.brakes_hist.append(float(brake))
             self.steers_hist.append(float(steer))
 
-        self.current_action = (throttle, steer, brake)
         self.actions_queue.append(action)
 
         self.frame = self.world.tick()
@@ -429,7 +427,8 @@ class CarlaEnv(gym.Env):
             r_collision = -1
 
         # reward for steering:
-        r_steer = -self.ego.get_control().steer**2
+        carla_control = self.ego.get_control()
+        r_steer = -carla_control.steer**2
 
         # reward for out of lane
         ego_x, ego_y = get_pos(self.ego)
@@ -454,12 +453,12 @@ class CarlaEnv(gym.Env):
         # r_fast *= lspeed_lon
 
         # cost for lateral acceleration
-        r_lat = - abs(self.ego.get_control().steer) * lspeed_lon**2
+        r_lat = - abs(carla_control.steer) * lspeed_lon**2
 
         # cost for braking
-        brake_cost = self.current_action[2]
+        brake_cost = carla_control.brake * 2
 
-        r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + r_steer*5 + 0.2*r_lat - 1 - brake_cost*2
+        r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + r_steer*5 + 0.2*r_lat - 1 - brake_cost
 
         if self.store_history:
             self.speed_hist.append(speed)
