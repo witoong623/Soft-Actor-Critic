@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-# This is for Town 7
-
 ENV="Carla-v0"
 DATETIME="$(date +"%Y-%m-%d-%T")"
 LOG_DIR="logs/$ENV/CNN/$DATETIME"
@@ -26,6 +24,8 @@ python main.py \
 	--camera-size 720 1280 \
 	--camera-fov 69 \
 	--fps-mode high \
+	--map ait_v4 \
+	--traffic-mode LHT \
 	--encoder-arch CNN \
 	--encoder-hidden-channels 64 128 256 \
 	--activation ELU \
@@ -44,6 +44,8 @@ python main.py \
 	--n-bootstrap-step 2 \
 	--log-dir "$LOG_DIR" \
 	--checkpoint-dir "$CHECKPOINT_DIR" \
+	--pretrained-dir "savedcheckpoints/Carla-v0/CNN_pretrained" \
+	--epoch-number 18 \
 	--log-episode-video \
 	--dry-run-init-env \
 	"$@" # script arguments (can override args above)

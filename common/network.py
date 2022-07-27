@@ -778,10 +778,12 @@ BETAVAE = ConvBetaVAE
 if __name__ == '__main__':
     image_size = (256, 512)
     model = CarlaCNN(image_size, 6, [64, 128, 256], 1024)
+
     dummy = torch.zeros((1, 6, *image_size))
     extra_dummy = torch.ones(1, 20)
+
     output = model(dummy, extra_dummy)
 
     print(f'output size {output.size()}')
 
-    summary(model, input_size=(1, 6, *image_size))
+    summary(model, input_data=[dummy, extra_dummy])
