@@ -156,7 +156,7 @@ class CarlaEnv(gym.Env):
                                               use_section=True, traffic_mode=self.traffic_mode)
 
         # ego vehicle bp
-        self.ego_bp = self._create_vehicle_bluepprint('vehicle.evt.echo_4s')
+        self.ego_bp = self._create_vehicle_bluepprint('vehicle.evt.echo_4s3')
         self.ego = None
 
         # Collision sensor
@@ -168,7 +168,7 @@ class CarlaEnv(gym.Env):
 
         # camera
         self.camera_img = None
-        self.camera_trans = carla.Transform(carla.Location(x=0.5, z=1.675))
+        self.camera_trans = carla.Transform(carla.Location(x=0.88, z=1.675))
         self.camera_sensor_type = 'sensor.camera.rgb'
         if self.use_semantic_camera:
             self.camera_sensor_type = 'sensor.camera.semantic_segmentation'
