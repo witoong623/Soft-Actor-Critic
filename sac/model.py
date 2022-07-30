@@ -458,5 +458,5 @@ class RenderTester(object):
     def save_model(self, path):
         self.modules.save_model(path)
 
-    def load_model(self, path, strict=True):
+    def load_model(self, path, strict=True, **kwargs):
         return self.modules.load_model(path, strict=strict)
