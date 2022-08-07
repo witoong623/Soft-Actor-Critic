@@ -63,6 +63,18 @@ def clip_grad_norm(optimizer, max_norm=None, norm_type=2):
                                                norm_type=norm_type)
 
 
+def remove_policy_weight(state_dict):
+    keys_to_delete = []
+    for k in state_dict.keys():
+        if not k.startswith('state_encoder'):
+            keys_to_delete.append(k)
+
+    for k in keys_to_delete:
+        del state_dict[k]
+
+    return state_dict
+
+
 def check_devices(config):
     if config.gpu is not None and torch.cuda.is_available():
         if len(config.gpu) == 0:
