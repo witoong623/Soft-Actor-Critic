@@ -35,7 +35,7 @@ python main.py \
 	--max-episode-steps 10000 \
 	--n-epochs 1000 --n-updates 256 --batch-size 32 \
 	--n-samplers 1 \
-	--buffer-capacity 60000 \
+	--buffer-capacity 80000 \
 	--update-sample-ratio 4.0 \
 	--critic-lr 1E-4 --actor-lr 1E-4 \
 	--alpha-lr 1E-4 --initial-alpha 1.0 \
@@ -45,7 +45,7 @@ python main.py \
 	--log-dir "$LOG_DIR" \
 	--checkpoint-dir "$CHECKPOINT_DIR" \
 	--pretrained-dir "savedcheckpoints/Carla-v0/CNN_pretrained" \
-	--epoch-number 18 \
+	--epoch-number 12 \
 	--log-episode-video \
 	--dry-run-init-env \
 	"$@" # script arguments (can override args above)
