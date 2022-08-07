@@ -463,7 +463,7 @@ class CarlaEnv(gym.Env):
         if self._does_vehicle_stop():
             r_stop = -1
 
-        r = 200*r_stop + 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + r_steer*5 + 0.2*r_lat - 1 - brake_cost
+        r = 200*r_stop + 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + r_steer*5 + 0.2*r_lat - 0.1 - brake_cost
 
         if self.store_history:
             self.speed_hist.append(speed)
