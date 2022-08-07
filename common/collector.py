@@ -82,11 +82,11 @@ class Sampler(mp.Process):
         self.random_sample = random_sample
         self.render_env = (render and rank == 0)
         self.log_episode_video = (log_episode_video and rank == 0)
+        self.log_episode_video_frequency = 50
 
         self.log_dir = log_dir
 
         self.episode = 0
-        self.does_perfect_sample = False
         self.trajectory = []
         self.frames = []
         self.image_font = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoMono-Regular.ttf", 16)
@@ -128,15 +128,10 @@ class Sampler(mp.Process):
                     additional_state = self.env.first_additional_state
 
                 if self.random_sample:
-                    if random.random() > 0.95 or \
-                        (self.n_episodes - self.episode == 1 and not self.does_perfect_sample):
-                        self.does_perfect_sample = True
-                        if self.env.is_AIT_map():
-                            action_sampler = CarlaPIDLongitudinalSampler(self.env, max_step=200)
-                        else:
-                            action_sampler = CarlaPerfectActionSampler(self.env)
+                    if self.env.is_AIT_map():
+                        action_sampler = self._create_ait_action_sampler()
                     else:
-                        action_sampler = CarlaBiasActionSampler(forward_only=False, use_brake=True, try_correction=True)
+                        action_sampler = self._create_town7_action_sampler()
 
                 self.render()
                 self.frames.clear()
@@ -237,7 +232,7 @@ class Sampler(mp.Process):
                 pass
 
     def save_frame(self, step, reward, episode_reward):
-        if not self.random_sample and self.log_episode_video and self.episode % 50 == 0:
+        if not self.random_sample and self.log_episode_video and self.episode % self.log_episode_video_frequency == 0:
             try:
                 img = self.env.render(mode='rgb_array')
             except Exception:
@@ -253,7 +248,7 @@ class Sampler(mp.Process):
                 self.frames.append(img)
 
     def log_video(self):
-        if self.writer is not None and self.log_episode_video and self.episode % 50 == 0:
+        if self.writer is not None and self.log_episode_video and self.episode % self.log_episode_video_frequency == 0:
             try:
                 video = np.stack(self.frames).transpose((0, 3, 1, 2))
                 video = np.expand_dims(video, axis=0)
@@ -269,6 +264,22 @@ class Sampler(mp.Process):
         else:
             return None
 
+    def _create_ait_action_sampler(self):
+        action_sampler = CarlaBiasActionSampler(forward_only=False, use_brake=True, try_correction=True)
+        return action_sampler
+
+    def _create_town7_action_sampler(self):
+        if not hasattr(self, 'does_perfect_sample'):
+            self.does_perfect_sample = False
+
+        if random.random() > 1 or \
+            (self.n_episodes - self.episode == 1 and not self.does_perfect_sample):
+            self.does_perfect_sample = True
+            action_sampler = CarlaPerfectActionSampler(self.env)
+        else:
+            action_sampler = CarlaBiasActionSampler(forward_only=False, use_brake=True, try_correction=True)
+
+        return action_sampler
 
 class EpisodeSampler(Sampler):
     def add_transaction(self, observation, action, reward, next_observation, done):
