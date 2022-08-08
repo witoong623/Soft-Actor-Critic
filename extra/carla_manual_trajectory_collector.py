@@ -1,5 +1,6 @@
 import carla
 import cv2
+import pickle
 import numpy as np
 
 from carla import ColorConverter as cc
@@ -19,39 +20,47 @@ class CarlaManualTrajectoryCollector:
         if not self.enable:
             return
 
+        self.bp_library = self.carla_world.get_blueprint_library()
+
         self.obs_camera = None
         self.camera_trans = carla.Transform(carla.Location(x=0.88, z=1.675))
+        self.camera_bp = self.bp_library.find('sensor.camera.semantic_segmentation')
+        self.camera_bp.set_attribute('image_size_x', '1280')
+        self.camera_bp.set_attribute('image_size_y', '720')
+        self.camera_bp.set_attribute('fov', '69')
         self.frame_data_queue = Queue()
 
         self.n_past_actions = 10
         self.action_queue = deque(maxlen=self.n_past_actions)
 
+        self.traveled_distance_diffs = deque(maxlen=100)
+        self.previous_traveled_distance = 0
+
+        self.desired_speed = 5.5
         self.out_lane_thres = 2.
 
         # For one step deley of this state.
         self.extra_state_queue = deque(maxlen=2)
 
-        self.obs_trans = []
-        self.extra_state_trans = []
-        self.action_trans = []
-        self.reward_trans = []
-        self.done_trans = []
-        self.should_stop_trans = []
+        self.stored_transitions = []
 
     def setup_camera(self, vehicle):
         if not self.enable:
             return
 
-        self.vehicle = vehicle
+        self._reset()
 
-        camera_sensor_type = 'sensor.camera.semantic_segmentation'
-        camera_bp = self.bp_library.find(camera_sensor_type)
-        self.obs_camera = self.carla_world.spawn_actor(camera_bp, self.camera_trans, attach_to=self.vehicle)
+        self.vehicle = vehicle
+        self.obs_camera = self.carla_world.spawn_actor(self.camera_bp, self.camera_trans, attach_to=self.vehicle)
         self.obs_camera.listen(self.frame_data_queue.put)
+
+        self.start_location = self.vehicle.get_location()
 
     def collect_transition(self, frame_number):
         if not self.enable:
             return
+
+        self._update_last_travel_distance(self.vehicle.get_location())
 
         obs = self._get_observation(frame_number)
         extra_stete = self._get_extra_state()
@@ -61,16 +70,24 @@ class CarlaManualTrajectoryCollector:
 
         should_stop = self._get_should_stop()
 
-        self.action_queue.append(action)
+        self._save_transition(obs, extra_stete, action, reward, done, should_stop)
 
-    def _save_transition(self, obs):
-        pass
+        return done, should_stop
+
+    def save_trajectory(self, file_path):
+        with open(file_path, mode='wb') as f:
+            pickle.dump(self.stored_transitions, f)
+
+    def _save_transition(self, obs, extra_state, action, reward, done, should_stop):
+        self.stored_transitions.append((obs, extra_state, action, reward, done, should_stop))
 
     def _reset(self):
         self.action_queue.clear()
+        self.stored_transitions.clear()
+        self.traveled_distance_diffs.clear()
 
         for _ in range(self.n_past_actions):
-            self.actions_queue.append(np.array([0, 0], dtype=np.float32))
+            self.action_queue.append(np.array([0, 0], dtype=np.float32))
 
         self.extra_state_queue.append(np.ravel(np.array(self.action_queue, dtype=np.float32)))
 
@@ -128,12 +145,12 @@ class CarlaManualTrajectoryCollector:
             r_collision = -1
 
         # reward for steering:
-        carla_control = self.ego.get_control()
+        carla_control = self.vehicle.get_control()
         r_steer = -carla_control.steer**2
 
         # reward for out of lane
         ego_x, ego_y = get_pos(self.vehicle)
-        self.current_lane_dis, w = get_lane_dis_numba(self.waypoints, ego_x, ego_y)
+        self.current_lane_dis, w = get_lane_dis_numba(self.world.waypoints, ego_x, ego_y)
         r_out = 0
         if abs(self.current_lane_dis) > self.out_lane_thres:
             r_out = -100
@@ -189,3 +206,15 @@ class CarlaManualTrajectoryCollector:
 
     def _get_should_stop(self):
         return self.world.route_tracker.is_end_of_section
+
+    def _does_vehicle_stop(self) -> bool:
+        ''' vehicle stop if it doesn't move one meter in ten seconds window '''
+        if len(self.traveled_distance_diffs) < self.traveled_distance_diffs.maxlen:
+            return False
+
+        return sum(self.traveled_distance_diffs) < 1.
+
+    def _update_last_travel_distance(self, current_location):
+        traveled_distance = self.start_location.distance(current_location)
+        self.traveled_distance_diffs.append(abs(traveled_distance - self.previous_traveled_distance))
+        self.previous_traveled_distance = traveled_distance

@@ -199,7 +199,7 @@ def get_actor_blueprints(world, filter, generation):
 
 
 class World(object):
-    def __init__(self, carla_world, hud, args, saving_queue=None):
+    def __init__(self, carla_world, hud, args):
         self.world = carla_world
         self.sync = args.sync
         self.actor_role_name = args.rolename
@@ -227,7 +227,6 @@ class World(object):
         self._actor_filter = args.filter
         self._actor_generation = args.generation
         self._gamma = args.gamma
-        self._saving_queue = saving_queue
         self.trajectory_collector = CarlaManualTrajectoryCollector(self, carla_world, enable=True)
         self.restart()
         self.world.on_tick(hud.on_world_tick)
@@ -309,7 +308,7 @@ class World(object):
         self.lane_invasion_sensor = LaneInvasionSensor(self.player, self.hud)
         self.gnss_sensor = GnssSensor(self.player)
         self.imu_sensor = IMUSensor(self.player)
-        self.camera_manager = CameraManager(self.player, self.hud, self._gamma, self._saving_queue)
+        self.camera_manager = CameraManager(self.player, self.hud, self._gamma)
         self.camera_manager.transform_index = cam_pos_index
         self.camera_manager.set_sensor(cam_index, notify=False)
         actor_type = get_actor_display_name(self.player)
@@ -1205,13 +1204,12 @@ class RadarSensor(object):
 
 
 class CameraManager(object):
-    def __init__(self, parent_actor, hud, gamma_correction, saving_queue):
+    def __init__(self, parent_actor, hud, gamma_correction):
         self.sensor = None
         self.surface = None
         self._parent = parent_actor
         self.hud = hud
         self.recording = False
-        self._saving_queue = saving_queue
         bound_x = 0.5 + self._parent.bounding_box.extent.x
         bound_y = 0.5 + self._parent.bounding_box.extent.y
         bound_z = 0.5 + self._parent.bounding_box.extent.z
@@ -1356,31 +1354,12 @@ class CameraManager(object):
             array = array[:, :, ::-1]
             self.surface = pygame.surfarray.make_surface(array.swapaxes(0, 1))
             if self.recording:
-                # image.save_to_disk('/home/witoon/thesis/datasets/outskirts_manual_collect/%08d' % image.frame)
-                # self.saving_queue.put((Image.fromarray(array), image.frame))
                 pass
 
 
 # ==============================================================================
 # -- game_loop() ---------------------------------------------------------------
 # ==============================================================================
-
-
-def record_image_to_disk(q: multiprocessing.Queue, event: multiprocessing.Event):
-    q.task_done()
-    return
-    while not event.is_set():
-        try:
-            img, frame_num = q.get(block=True, timeout=1.0)
-
-            frame_num += 16506
-
-            img.save('/home/witoon/thesis/datasets/carla-town7/outskirts_manual_collect_eval2/%08d.jpeg' % frame_num)
-            q.task_done()
-        except queue.Empty:
-            pass
-        except:
-            raise
 
 
 def game_loop(args):
@@ -1416,11 +1395,6 @@ def game_loop(args):
         display.fill((0,0,0))
         pygame.display.flip()
 
-        # manager = multiprocessing.Manager()
-        # image_saving_queue = manager.Queue()
-        # save_complete_event = manager.Event()
-        # image_saver = multiprocessing.Process(target=record_image_to_disk, args=(image_saving_queue, save_complete_event))
-
         assert args.sync
         hud = HUD(args.width, args.height)
         world = World(sim_world, hud, args)
@@ -1431,22 +1405,23 @@ def game_loop(args):
         else:
             sim_world.wait_for_tick()
 
-        # image_saver.start()
         clock = pygame.time.Clock()
         while True:
             if controller.parse_events(client, world, clock, args.sync):
-                # save_complete_event.set()
-                # image_saver.join()
-
                 return
 
             if args.sync:
                 new_frame_num = sim_world.tick()
-                # world.trajectory_collector.collect_transition(frame_num)
+
+                world.calculate_reward()
+
+                sim_done, should_stop_sim = world.trajectory_collector.collect_transition(frame_num)
+
+                if sim_done or should_stop_sim:
+                    world.trajectory_collector.save_trajectory('./test_trajectory.pkl')
+                    break
 
                 frame_num = new_frame_num
-
-            world.calculate_reward()
 
             clock.tick_busy_loop(10)
 
