@@ -79,6 +79,8 @@ class CarlaEnv(gym.Env):
         self.desired_speed = 5.5
         self.out_lane_thres = 2.
 
+        self.n_repeat_action = kwargs.get('n_repeat_actions', 1)
+
         self.observation_space = spaces.Box(low=0, high=255, shape=(self.obs_height, self.obs_width, 3), dtype=np.uint8)
         # accel/brake, steering
         if kwargs.get('no_brake'):
@@ -342,7 +344,7 @@ class CarlaEnv(gym.Env):
             bound_z = 0.5 + self.ego.bounding_box.extent.z
 
             obs_camera_trans = carla.Transform(carla.Location(x=-2.0*bound_x, y=+0.0*bound_y, z=2.0*bound_z), carla.Rotation(pitch=8.0))
-            self.obs_camera_sensor = self.world.spawn_actor(blueprint=self.obs_camera_bp, transform=self.camera_trans,
+            self.obs_camera_sensor = self.world.spawn_actor(blueprint=self.obs_camera_bp, transform=obs_camera_trans,
                                                             attach_to=self.ego, attachment_type=carla.AttachmentType.Rigid)
             self.obs_camera_sensor.listen(self.obs_frame_data_queue.put)
 
@@ -364,6 +366,24 @@ class CarlaEnv(gym.Env):
         return self._get_obs()
 
     def step(self, action):
+        total_reward = 0
+
+        for _ in range(self.n_repeat_action):
+            reward, done, info = self._step(action)
+            total_reward += reward
+
+            if done or info['should_stop']:
+                break
+
+        self.time_step += 1
+        self.total_step += 1
+
+        self.actions_queue.append(action)
+        info['additional_state'] = np.ravel(np.array(self.actions_queue, dtype=np.float16))
+
+        return self._get_obs(), total_reward, done, info
+
+    def _step(self, action):
         acc = action[0]
         steer = action[1]
 
@@ -381,23 +401,16 @@ class CarlaEnv(gym.Env):
             self.brakes_hist.append(float(brake))
             self.steers_hist.append(float(steer))
 
-        self.actions_queue.append(action)
-
         self.frame = self.world.tick()
 
         self.waypoints = self.route_tracker.run_step()
 
         self._update_last_travel_distance(self.ego.get_location())
 
-        # Update timesteps
-        self.time_step += 1
-        self.total_step += 1
-
         info = {}
-        info['additional_state'] = np.ravel(np.array(self.actions_queue, dtype=np.float16))
         info['should_stop'] = self._get_should_stop()
 
-        return self._get_obs(), self._get_reward(), self._get_terminal(), info
+        return self._get_reward(), self._get_terminal(), info
 
     def render(self, mode='human'):
         if mode == 'human':
