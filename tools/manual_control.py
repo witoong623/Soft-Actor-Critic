@@ -149,6 +149,7 @@ except ImportError:
 from common.carla_environment.route_tracker import RouteTracker
 from common.carla_environment.misc import get_lane_dis_numba
 from agents.navigation.global_route_planner import RoadOption
+from extra.carla_manual_trajectory_collector import CarlaManualTrajectoryCollector
 
 
 # ==============================================================================
@@ -227,6 +228,7 @@ class World(object):
         self._actor_generation = args.generation
         self._gamma = args.gamma
         self._saving_queue = saving_queue
+        self.trajectory_collector = CarlaManualTrajectoryCollector(self, carla_world, enable=True)
         self.restart()
         self.world.on_tick(hud.on_world_tick)
         self.recording_enabled = False
@@ -312,6 +314,8 @@ class World(object):
         self.camera_manager.set_sensor(cam_index, notify=False)
         actor_type = get_actor_display_name(self.player)
         self.hud.notification(actor_type)
+
+        self.trajectory_collector.setup_camera(self.player)
 
         if self.sync:
             self.world.tick()
@@ -1207,7 +1211,7 @@ class CameraManager(object):
         self._parent = parent_actor
         self.hud = hud
         self.recording = False
-        self.saving_queue = saving_queue
+        self._saving_queue = saving_queue
         bound_x = 0.5 + self._parent.bounding_box.extent.x
         bound_y = 0.5 + self._parent.bounding_box.extent.y
         bound_z = 0.5 + self._parent.bounding_box.extent.z
@@ -1221,7 +1225,7 @@ class CameraManager(object):
                 (carla.Transform(carla.Location(x=-2.8*bound_x, y=+0.0*bound_y, z=4.6*bound_z), carla.Rotation(pitch=6.0)), Attachment.SpringArm),
                 (carla.Transform(carla.Location(x=-1.0, y=-1.0*bound_y, z=0.4*bound_z)), Attachment.Rigid),
                 # TODO: add dashcam camera transform from environment
-                (carla.Transform(carla.Location(x=0.5, z=1.675)), Attachment.Rigid)]
+                (carla.Transform(carla.Location(x=0.88, z=1.675)), Attachment.Rigid)]
         else:
             self._camera_transforms = [
                 (carla.Transform(carla.Location(x=-2.5, z=0.0), carla.Rotation(pitch=-8.0)), Attachment.SpringArm),
@@ -1257,7 +1261,7 @@ class CameraManager(object):
                 bp.set_attribute('image_size_x', str(hud.dim[0]))
                 bp.set_attribute('image_size_y', str(hud.dim[1]))
                 # TODO: change camera fov and sensor tick to 0.1
-                bp.set_attribute('fov', '110')
+                # bp.set_attribute('fov', '69')
                 bp.set_attribute('sensor_tick', '0.1')
                 if bp.has_attribute('gamma'):
                     bp.set_attribute('gamma', str(gamma_correction))
@@ -1396,7 +1400,7 @@ def game_loop(args):
             settings = sim_world.get_settings()
             if not settings.synchronous_mode:
                 settings.synchronous_mode = True
-                settings.fixed_delta_seconds = 0.05
+                settings.fixed_delta_seconds = 0.1
             sim_world.apply_settings(settings)
 
             traffic_manager = client.get_trafficmanager()
@@ -1417,29 +1421,35 @@ def game_loop(args):
         # save_complete_event = manager.Event()
         # image_saver = multiprocessing.Process(target=record_image_to_disk, args=(image_saving_queue, save_complete_event))
 
+        assert args.sync
         hud = HUD(args.width, args.height)
         world = World(sim_world, hud, args)
         controller = KeyboardControl(world, args.autopilot)
 
         if args.sync:
-            sim_world.tick()
+            frame_num = sim_world.tick()
         else:
             sim_world.wait_for_tick()
 
         # image_saver.start()
         clock = pygame.time.Clock()
         while True:
-            if args.sync:
-                sim_world.tick()
-
-            world.calculate_reward()
-
-            clock.tick_busy_loop(60)
             if controller.parse_events(client, world, clock, args.sync):
                 # save_complete_event.set()
                 # image_saver.join()
 
                 return
+
+            if args.sync:
+                new_frame_num = sim_world.tick()
+                # world.trajectory_collector.collect_transition(frame_num)
+
+                frame_num = new_frame_num
+
+            world.calculate_reward()
+
+            clock.tick_busy_loop(10)
+
             world.tick(clock)
             world.render(display)
             pygame.display.flip()
