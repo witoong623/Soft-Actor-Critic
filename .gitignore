@@ -248,3 +248,5 @@ vae/visualize observation reconstruction
 vae/visualize results
 vae/eval-images
 vae/visualize-result
+
+*.ipynb
