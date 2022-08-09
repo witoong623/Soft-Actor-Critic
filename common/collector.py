@@ -14,11 +14,11 @@ from PIL import Image, ImageDraw, ImageFont
 from setproctitle import setproctitle
 from torch.utils.tensorboard import SummaryWriter
 
-from .buffer import ReplayBuffer, EpisodeReplayBuffer, EfficientReplayBuffer
-from .utils import clone_network, sync_params, normalize_image, \
+from common.buffer import ReplayBuffer, EpisodeReplayBuffer, EfficientReplayBuffer
+from common.utils import clone_network, sync_params, normalize_image, \
     normalize_grayscale_image, ObservationStacker
-from .carla_environment.action_sampler import CarlaBiasActionSampler, CarlaPIDLongitudinalSampler, CarlaPerfectActionSampler
-from ..extra.user_episode_loader import load_episode_to_buffer
+from common.carla_environment.action_sampler import CarlaBiasActionSampler, CarlaPIDLongitudinalSampler, CarlaPerfectActionSampler
+from extra.user_episode_loader import load_episode_to_buffer
 
 
 __all__ = ['Collector', 'EpisodeCollector']
