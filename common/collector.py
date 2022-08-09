@@ -18,6 +18,7 @@ from .buffer import ReplayBuffer, EpisodeReplayBuffer, EfficientReplayBuffer
 from .utils import clone_network, sync_params, normalize_image, \
     normalize_grayscale_image, ObservationStacker
 from .carla_environment.action_sampler import CarlaBiasActionSampler, CarlaPIDLongitudinalSampler, CarlaPerfectActionSampler
+from ..extra.user_episode_loader import load_episode_to_buffer
 
 
 __all__ = ['Collector', 'EpisodeCollector']
@@ -190,6 +191,8 @@ class Sampler(mp.Process):
                     self.writer.add_scalar(tag='sample/milestone', scalar_value=self.env.get_latest_milestone(), global_step=self.episode)
                     self.log_video()
                     self.writer.flush()
+            if self.random_sample and self.env.is_AIT_map():
+                self._load_user_episode_to_buffer()
         except KeyboardInterrupt:
             self.close()
             return
@@ -272,7 +275,7 @@ class Sampler(mp.Process):
         if not hasattr(self, 'does_perfect_sample'):
             self.does_perfect_sample = False
 
-        if random.random() > 1 or \
+        if random.random() > 0.95 or \
             (self.n_episodes - self.episode == 1 and not self.does_perfect_sample):
             self.does_perfect_sample = True
             action_sampler = CarlaPerfectActionSampler(self.env)
@@ -280,6 +283,12 @@ class Sampler(mp.Process):
             action_sampler = CarlaBiasActionSampler(forward_only=False, use_brake=True, try_correction=True)
 
         return action_sampler
+
+    def _load_user_episode_to_buffer(self):
+        episode_step, episode_reward = load_episode_to_buffer(self.replay_buffer)
+
+        self.save_stat(episode_step, episode_reward)
+
 
 class EpisodeSampler(Sampler):
     def add_transaction(self, observation, action, reward, next_observation, done):
