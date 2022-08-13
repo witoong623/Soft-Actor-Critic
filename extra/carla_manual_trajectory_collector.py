@@ -1,8 +1,10 @@
 import carla
 import cv2
 import pickle
+import matplotlib.pyplot as plt
 import numpy as np
 
+from collections import defaultdict
 from carla import ColorConverter as cc
 from collections import deque
 from queue import Queue
@@ -44,6 +46,8 @@ class CarlaManualTrajectoryCollector:
 
         self.stored_transitions = []
 
+        self.rewards_log = defaultdict(list)
+
     def setup_camera(self, vehicle):
         if not self.enable:
             return
@@ -77,6 +81,13 @@ class CarlaManualTrajectoryCollector:
     def save_trajectory(self, file_path):
         with open(file_path, mode='wb') as f:
             pickle.dump(self.stored_transitions, f)
+
+    def plot_reward_terms(self):
+        for term, rewards in self.rewards_log.items():
+            plt.plot(rewards)
+            plt.title(term)
+            plt.savefig(f'{term}-plot.jpeg')
+            plt.clf()
 
     def _save_transition(self, obs, extra_state, action, reward, done, should_stop):
         self.stored_transitions.append((obs, extra_state, action, reward, done, should_stop))
@@ -150,7 +161,9 @@ class CarlaManualTrajectoryCollector:
 
         # reward for out of lane
         ego_x, ego_y = get_pos(self.vehicle)
-        self.current_lane_dis, w = get_lane_dis_numba(self.world.waypoints, ego_x, ego_y)
+        self.current_lane_dis, w = get_lane_dis_numba(self.world.waypoints,
+                                                      ego_x, ego_y,
+                                                      direction_correction_multiplier=-1)
         r_out = 0
         if abs(self.current_lane_dis) > self.out_lane_thres:
             r_out = -100
@@ -182,6 +195,15 @@ class CarlaManualTrajectoryCollector:
             r_stop = -1
 
         r = r_stop*200 + 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + r_steer*5 + 0.2*r_lat - 0.1 - brake_cost
+
+        self._log_reward_by_term({
+            'speed': lspeed_lon,
+            'too_fast': 10*r_fast,
+            'out_of_lane': 1*r_out,
+            'steer': r_steer*5,
+            'lat_acc': 0.2*r_lat,
+            'brake': brake_cost
+        })
 
         return r
 
@@ -218,3 +240,7 @@ class CarlaManualTrajectoryCollector:
         traveled_distance = self.start_location.distance(current_location)
         self.traveled_distance_diffs.append(abs(traveled_distance - self.previous_traveled_distance))
         self.previous_traveled_distance = traveled_distance
+
+    def _log_reward_by_term(self, reward_terms):
+        for term, reward in reward_terms.items():
+            self.rewards_log[term].append(reward)

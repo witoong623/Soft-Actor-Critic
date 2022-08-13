@@ -212,7 +212,7 @@ class World(object):
             sys.exit(1)
 
         self.route_tracker = RouteTracker(None, None, world=carla_world,
-                                               resolution=2, traffic_mode='LHT')
+                                          resolution=2, traffic_mode='LHT')
 
         self.hud = hud
         self.player = None
@@ -227,7 +227,7 @@ class World(object):
         self._actor_filter = args.filter
         self._actor_generation = args.generation
         self._gamma = args.gamma
-        self.trajectory_collector = CarlaManualTrajectoryCollector(self, carla_world, enable=True)
+        self.trajectory_collector = CarlaManualTrajectoryCollector(self, carla_world, enable=args.collect_trajectory)
         self.restart()
         self.world.on_tick(hud.on_world_tick)
         self.recording_enabled = False
@@ -399,7 +399,7 @@ class World(object):
         ego_x = ego_trans.location.x
         ego_y = ego_trans.location.y
 
-        self.distance_from_center, _ = get_lane_dis_numba(self.waypoints, ego_x, ego_y)
+        self.distance_from_center, _ = get_lane_dis_numba(self.waypoints, ego_x, ego_y, -1)
 
         traveled_distance = self.start_location.distance(ego_trans.location)
         self.traveled_distance_diffs.append(abs(traveled_distance - self.previous_traveled_distance))
@@ -1384,6 +1384,8 @@ def game_loop(args):
 
             traffic_manager = client.get_trafficmanager()
             traffic_manager.set_synchronous_mode(True)
+        else:
+            args.collect_trajectory = False
 
         if args.autopilot and not sim_world.get_settings().synchronous_mode:
             print("WARNING: You are currently in asynchronous mode and could "
@@ -1415,11 +1417,13 @@ def game_loop(args):
 
                 world.calculate_reward()
 
-                sim_done, should_stop_sim = world.trajectory_collector.collect_transition(frame_num)
+                if args.collect_trajectory:
+                    sim_done, should_stop_sim = world.trajectory_collector.collect_transition(frame_num)
 
-                if sim_done or should_stop_sim:
-                    world.trajectory_collector.save_trajectory('./test_trajectory.pkl')
-                    break
+                    if sim_done or should_stop_sim:
+                        world.trajectory_collector.plot_reward_terms()
+                        world.trajectory_collector.save_trajectory('./test_trajectory2.pkl')
+                        break
 
                 frame_num = new_frame_num
 
@@ -1500,6 +1504,11 @@ def main():
         '--sync',
         action='store_true',
         help='Activate synchronous mode execution')
+    argparser.add_argument(
+        '--collect-trajectory',
+        action='store_true',
+        default=False,
+        help='Collecting episode and write to a file')
     args = argparser.parse_args()
 
     args.width, args.height = [int(x) for x in args.res.split('x')]

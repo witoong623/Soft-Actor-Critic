@@ -157,6 +157,10 @@ class CarlaEnv(gym.Env):
                                               repeat_section_threshold=repeat_threshold,
                                               use_section=True, traffic_mode=self.traffic_mode)
 
+        self.direction_correction_factor = 1
+        if self.is_AIT_map():
+            self.direction_correction_factor = -1
+
         # ego vehicle bp
         self.ego_bp = self._create_vehicle_bluepprint('vehicle.evt.echo_4s3')
         self.ego = None
@@ -445,7 +449,7 @@ class CarlaEnv(gym.Env):
 
         # reward for out of lane
         ego_x, ego_y = get_pos(self.ego)
-        self.current_lane_dis, w = get_lane_dis_numba(self.waypoints, ego_x, ego_y)
+        self.current_lane_dis, w = get_lane_dis_numba(self.waypoints, ego_x, ego_y, self.direction_correction_factor)
         r_out = 0
         if abs(self.current_lane_dis) > self.out_lane_thres:
             r_out = -100

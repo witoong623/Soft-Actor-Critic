@@ -152,14 +152,7 @@ def get_lane_dis(waypoints, x, y):
 
 
 @nb.jit(nopython=True, cache=True)
-def get_lane_dis_numba(waypoints, x, y):
-    """
-    Calculate distance from (x, y) to waypoints.
-    :param waypoints: a list of list storing waypoints like [[x0, y0], [x1, y1], ...]
-    :param x: x position of vehicle
-    :param y: y position of vehicle
-    :return: a tuple of the distance and the closest waypoint orientation
-    """
+def get_lane_dis_numba(waypoints, x, y, direction_correction_multiplier):
     dis_min = 1000
     waypt = waypoints[0]
     for pt in waypoints:
@@ -172,7 +165,7 @@ def get_lane_dis_numba(waypoints, x, y):
     vec = np.array((x - waypt[0], y - waypt[1]), dtype=np.float32)
     lv = np.linalg.norm(vec)
     # convert yaw degree to radians, use cos and sin to get rotation around Z axis
-    w = np.array([np.cos(waypt[2] * np.pi / 180), np.sin(waypt[2] * np.pi / 180)])
+    w = np.array([np.cos(waypt[2] * np.pi / 180), np.sin(waypt[2] * np.pi / 180)]) * direction_correction_multiplier
     # vec/lv is vector/norm give unit vector
     cross = cross2d(w, vec/lv)
     dis = - lv * cross

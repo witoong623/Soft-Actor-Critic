@@ -168,6 +168,9 @@ class AITRoutePlanner(BaseRoutePlanner):
         return self._add_compatibility_support(self._route_transforms)
 
     def get_carla_agent_compatible_route_waypoint(self):
+        if self._route_waypoints is None:
+            self.compute_route()
+
         return [(waypoint, RoadOption.LANEFOLLOW) for waypoint in self._route_waypoints]
 
     def _get_route_until_end(self, start_waypoint, next_func, choice_index=None):
