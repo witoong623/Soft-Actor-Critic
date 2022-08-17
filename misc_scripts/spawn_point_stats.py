@@ -4,8 +4,6 @@ sys.path.append('/home/witoon/thesis/code/Soft-Actor-Critic')
 import carla
 import matplotlib.pyplot as plt
 
-from common.carla_environment.manual_route_planner import ManualRoutePlanner, TOWN7_PLAN
-
 
 
 host = 'localhost'
