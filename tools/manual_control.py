@@ -254,6 +254,7 @@ class World(object):
         self.current_waypoint_index = 0
         self.recent_traveled_distance = 0
         self.previous_traveled_distance = 0
+        self.orientation = 0
 
     def restart(self):
         self.player_max_speed = 1.589
@@ -413,117 +414,6 @@ class World(object):
         self.recent_traveled_distance = sum(self.traveled_distance_diffs)
 
         return self.recent_traveled_distance < 1.
-
-
-def _vector_locations(location_1, location_2):
-    """
-    Returns the unit vector from location_1 to location_2
-
-        :param location_1, location_2: carla.Location objects
-    """
-    x = location_2.x - location_1.x
-    y = location_2.y - location_1.y
-    z = location_2.z - location_1.z
-    norm = np.linalg.norm([x, y, z]) + np.finfo(float).eps
-
-    return [x / norm, y / norm, z / norm]
-
-
-def is_the_same_direction(action, current_transform, waypoint_transform):
-    waypoint_transform = waypoint_transform
-    current_location = current_transform.location
-    projected_location = current_location + \
-        carla.Location(
-            x=np.cos(np.radians(current_transform.rotation.yaw)),
-            y=np.sin(np.radians(current_transform.rotation.yaw)))
-    v_current = _vector_locations(current_location, projected_location)
-
-    direction = 0
-    if action == RoadOption.LEFT:
-        direction = 1
-    elif action == RoadOption.RIGHT:
-        direction = -1
-    elif action == RoadOption.STRAIGHT:
-        direction = 0
-    select_criteria = float("inf")
-
-    v_select = _vector_locations(
-        current_location, waypoint_transform.location)
-    cross = float("inf")
-    if direction == 0:
-        cross = abs(np.cross(v_current, v_select)[-1])
-    else:
-        cross = direction * np.cross(v_current, v_select)[-1]
-
-    return cross < select_criteria
-
-
-def is_the_same_direction2(current_transform, waypoint_transform, debug=None):
-    ''' This is the one that work for straight case '''
-    vehicle_forward = current_transform.get_forward_vector()
-    # vehicle_direction = waypoint_transform.location - current_transform.location
-    waypoint_forward = waypoint_transform.get_forward_vector()
-
-    # projection_vehicle = current_transform.location + (vehicle_forward * 5)
-    # debug.draw_arrow(current_transform.location, projection_vehicle, life_time=1.0, thickness=0.1)
-    
-    # align = vehicle_direction.make_unit_vector().dot(vehicle_forward)
-    align = vehicle_forward.dot(waypoint_forward)
-    angle = np.degrees(np.arccos(align))
-    return angle
-
-def is_the_same_direction3(current_transform, current_waypoint_transform, next_waypoint_transform, debug):
-    current_transform.rotation.pitch = 0.
-    current_transform.rotation.roll = 0.
-    vehicle_forward = current_transform.get_forward_vector()
-    vehicle_direction = next_waypoint_transform.location - current_transform.location
-
-    projection_vehicle = current_transform.location + (vehicle_forward * 5)
-    debug.draw_arrow(current_transform.location, projection_vehicle, life_time=1.0, thickness=0.1)
-
-    blue_color = carla.Color(b=255)
-    green_color = carla.Color(g=255)
-    current_waypoint_transform.rotation.pitch = 0.
-    current_waypoint_transform.rotation.roll = 0.
-    projection_waypoint = current_waypoint_transform.location + (current_waypoint_transform.get_forward_vector() * 5)
-    debug.draw_arrow(current_waypoint_transform.location, projection_waypoint, life_time=1.0, thickness=0.1, color=blue_color)
-
-    next_waypoint_transform.rotation.pitch = 0.
-    next_waypoint_transform.rotation.roll = 0.
-    projection_next_waypoint = next_waypoint_transform.location + (next_waypoint_transform.get_forward_vector() * 5)
-    debug.draw_arrow(next_waypoint_transform.location, projection_next_waypoint, life_time=1.0, thickness=0.1, color=green_color)
-    
-    align = vehicle_direction.make_unit_vector().dot(vehicle_forward.make_unit_vector())
-    angle = np.degrees(np.arccos(align))
-    return angle
-
-
-def is_the_same_direction4(waypoint_transform, current_transform):
-    # doesn't work
-    wp_yaw = waypoint_transform.rotation.yaw
-    wp_rotation = np.array([np.cos(wp_yaw * np.pi / 180), np.sin(wp_yaw * np.pi / 180)])
-    wp_vector = np.array([waypoint_transform.location.x, waypoint_transform.location.y])
-    wp_vector_unit = wp_vector / np.linalg.norm(wp_vector)
-    wp_forward = wp_vector_unit + wp_rotation
-    wp_forward_unit = wp_forward / np.linalg.norm(wp_forward)
-
-    curr_yaw = current_transform.rotation.yaw
-    curr_rotation = np.array([np.cos(curr_yaw * np.pi / 180), np.sin(curr_yaw * np.pi / 180)])
-    curr_vector = np.array([current_transform.location.x, current_transform.location.y])
-    curr_vector_unit = curr_vector / np.linalg.norm(curr_vector)
-    curr_forward = curr_vector_unit + curr_rotation
-    curr_forward_unit = curr_forward / np.linalg.norm(curr_forward)
-
-    radian = np.arccos(np.dot(wp_forward_unit, curr_forward_unit))
-    return np.degrees(radian)
-
-def angle_diff(v0, v1):
-    """ Calculates the signed angle difference (-pi, pi] between 2D vector v0 and v1 """
-    angle = np.arctan2(v1[1], v1[0]) - np.arctan2(v0[1], v0[0])
-    if angle > np.pi: angle -= 2 * np.pi
-    elif angle <= -np.pi: angle += 2 * np.pi
-    return np.degrees(angle)
-
 
 
 # ==============================================================================
@@ -885,6 +775,7 @@ class HUD(object):
             f'Waypoint index: {world.route_tracker._current_waypoint_index}',
             f'Does vehicle stop: {world.does_vehicle_stop}',
             f'Recent traveled distance: {world.recent_traveled_distance}',
+            f'Orientation: {world.orientation}'
         ]
 
     def toggle_info(self):
