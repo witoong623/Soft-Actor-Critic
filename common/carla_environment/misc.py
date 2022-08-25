@@ -35,7 +35,7 @@ def get_pos(vehicle):
     """
     Get the position of a vehicle
     :param vehicle: the vehicle whose position is to get
-    :return: speed as a float in Kmh
+    :return: location of a vehicle in x, y
     """
     trans = vehicle.get_transform()
     x = trans.location.x

@@ -47,6 +47,7 @@ class CarlaManualTrajectoryCollector:
         self.stored_transitions = []
 
         self.rewards_log = defaultdict(list)
+        self.frame_number = 0
 
     def setup_camera(self, vehicle):
         if not self.enable:
@@ -63,6 +64,8 @@ class CarlaManualTrajectoryCollector:
     def collect_transition(self, frame_number):
         if not self.enable:
             return
+
+        self.frame_number = frame_number
 
         self._update_last_travel_distance(self.vehicle.get_location())
 
@@ -166,7 +169,9 @@ class CarlaManualTrajectoryCollector:
                                                       direction_correction_multiplier=-1)
         r_out = 0
         if abs(self.current_lane_dis) > self.out_lane_thres:
-            r_out = -100
+            in_junction = self.world.route_tracker.is_in_junction()
+            if not in_junction or not self.world.route_tracker.is_correct_direction(self.frame_number):
+                r_out = -100
         else:
             r_out = -abs(np.nan_to_num(self.current_lane_dis, posinf=self.out_lane_thres + 1, neginf=-(self.out_lane_thres + 1)))
 
@@ -212,7 +217,10 @@ class CarlaManualTrajectoryCollector:
             return True
 
         if abs(self.current_lane_dis) > self.out_lane_thres:
-            return True
+            in_junction = self.world.route_tracker.is_in_junction()
+            if not in_junction or not self.world.route_tracker.is_correct_direction(self.frame_number):
+                print(f'out of lane at {self.current_lane_dis}. in junction {in_junction}')
+                return True
 
         return False
 

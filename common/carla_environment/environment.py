@@ -35,7 +35,7 @@ class RouteMode(Enum):
 _walker_spawn_points_cache = []
 _load_world = False
 
-
+# Modified from https://github.com/cjy1992/gym-carla/blob/master/gym_carla/envs/carla_env.py
 class CarlaEnv(gym.Env):
     start_wp_idx = 0
 

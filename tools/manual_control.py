@@ -255,6 +255,7 @@ class World(object):
         self.recent_traveled_distance = 0
         self.previous_traveled_distance = 0
         self.orientation = 0
+        self.is_in_junction = False
 
     def restart(self):
         self.player_max_speed = 1.589
@@ -405,6 +406,9 @@ class World(object):
         traveled_distance = self.start_location.distance(ego_trans.location)
         self.traveled_distance_diffs.append(abs(traveled_distance - self.previous_traveled_distance))
         self.previous_traveled_distance = traveled_distance
+
+        self.orientation = self.route_tracker.get_angle_to_next_section_waypoint()
+        self.is_in_junction = self.route_tracker.is_in_junction()
 
     @property
     def does_vehicle_stop(self):
@@ -771,11 +775,12 @@ class HUD(object):
                 self._info_text.append('% 4dm %s' % (d, vehicle_type))
 
         self._info_text += [
-            f'Distance from current waypoint: {world.distance_from_center}',
+            f'Distance from center: {world.distance_from_center:.2f}',
             f'Waypoint index: {world.route_tracker._current_waypoint_index}',
             f'Does vehicle stop: {world.does_vehicle_stop}',
-            f'Recent traveled distance: {world.recent_traveled_distance}',
-            f'Orientation: {world.orientation}'
+            f'Recent traveled distance: {world.recent_traveled_distance:.2f}',
+            f'Orientation: {world.orientation:.2f}',
+            f'In junction: {world.is_in_junction}',
         ]
 
     def toggle_info(self):
@@ -1318,7 +1323,7 @@ def game_loop(args):
 
                 frame_num = new_frame_num
 
-            clock.tick_busy_loop(10)
+            clock.tick_busy_loop(args.fps)
 
             world.tick(clock)
             world.render(display)
@@ -1400,6 +1405,12 @@ def main():
         action='store_true',
         default=False,
         help='Collecting episode and write to a file')
+    argparser.add_argument(
+        '--fps',
+        type=int,
+        default=30,
+        help='client FPS. If using synchronous, this value is also the server FPS'
+    )
     args = argparser.parse_args()
 
     args.width, args.height = [int(x) for x in args.res.split('x')]

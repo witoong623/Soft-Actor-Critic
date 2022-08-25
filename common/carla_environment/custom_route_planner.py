@@ -132,6 +132,8 @@ class AITRoutePlanner(BaseRoutePlanner):
 
         self._setup()
 
+        self.junction_waypoint_indexes = list(range(102, 108)) + list(range(209, 214)) + list(range(316, 322))
+
     def compute_route(self):
         if self._route_waypoints is not None:
             return self._route_waypoints
@@ -172,6 +174,21 @@ class AITRoutePlanner(BaseRoutePlanner):
             self.compute_route()
 
         return [(waypoint, RoadOption.LANEFOLLOW) for waypoint in self._route_waypoints]
+
+    def is_junction_waypoint(self, current_waypoint_index):
+        return current_waypoint_index in self.junction_waypoint_indexes
+
+    def get_first_next_section_transform(self, current_waypoint_index):
+        if current_waypoint_index < 108:
+            idx = 108
+        elif current_waypoint_index < 214:
+            idx = 214
+        elif current_waypoint_index < 322:
+            idx = 322
+        else:
+            idx = 0
+
+        return self._route_transforms[idx]
 
     def _get_route_until_end(self, start_waypoint, next_func, choice_index=None):
         route = []

@@ -3,9 +3,11 @@ import carla
 import numpy as np
 
 from numba.typed import List
+from collections import deque
 from agents.navigation.local_planner import RoadOption
 from common.carla_environment.custom_route_planner import AITRoutePlanner, Town7RoutePlanner
 from common.carla_environment.checkpoints_manager import Town7CheckpointManager, AITCheckpointManager
+from common.carla_environment.misc import get_pos
 
 
 # cache for entire lifecycle of application
@@ -66,9 +68,16 @@ class RouteTracker:
                                                              repeat_section_threshold,
                                                              initial_checkpoint)
 
+        self.in_junction = False
+        self.angle_entering_junction = 0
+        self.turning_window_len = 10
+        self.turning_window = deque(maxlen=self.turning_window_len)
+        self.is_correct_direction_cache = {}
+
     def set_vehicle(self, vehicle):
         ''' Set internal state to current vehicle, must be called in `reset` '''
         self._vehicle = vehicle
+        self.is_correct_direction_cache.clear()
 
     def run_step(self):
         waypoint_routes_len = len(_route_transform)
@@ -116,6 +125,82 @@ class RouteTracker:
 
         return index, transform
 
+    def get_angle_to_next_section_waypoint(self):
+        x, y = get_pos(self._vehicle)
+        next_transform = self.route_planner.get_first_next_section_transform(self._current_waypoint_index)
+        next_x, next_y = next_transform.location.x, next_transform.location.y
+        corr_dirrection_vec = np.array([next_x - x, next_y - y])
+        corr_norm = np.linalg.norm(corr_dirrection_vec)
+        corr_dirrection_vec /= corr_norm
+
+        carla_forward_vector = self._vehicle.get_transform().get_forward_vector().make_unit_vector()
+        forward_vector = np.array([carla_forward_vector.x, carla_forward_vector.y])
+        angle_radian = np.arctan2(np.cross(corr_dirrection_vec, forward_vector), np.dot(corr_dirrection_vec, forward_vector))
+
+        if angle_radian > np.pi:
+            angle_radian -= 2 * np.pi
+        elif angle_radian <= -np.pi:
+            angle_radian += 2 * np.pi
+
+        return np.rad2deg(angle_radian)
+
+    LEFT_ANGLE_LIMIT = -25
+    RIGHT_ANGLE_LIMIT = 23
+
+    def is_correct_direction(self, frame_number):
+        if frame_number in self.is_correct_direction_cache:
+            return self.is_correct_direction_cache[frame_number]
+
+        is_correct_direction = self._is_correct_direction()
+
+        self.is_correct_direction_cache[frame_number] = is_correct_direction
+
+        return is_correct_direction
+
+    def is_in_junction(self):
+        is_in_junction = self.route_planner.is_junction_waypoint(self._current_waypoint_index)
+
+        if is_in_junction:
+            if not self.in_junction:
+                self.in_junction = True
+                self.angle_entering_junction = self.get_angle_to_next_section_waypoint()
+        else:
+            if self.in_junction:
+                self.in_junction = False
+                self.angle_entering_junction = 0
+                self.turning_window.clear()
+
+        return is_in_junction
+
+    @property
+    def is_end_of_section(self):
+        return self.checkpoint_manager.is_end_of_section(self._current_waypoint_index)
+
+    def _is_correct_direction(self):
+        # only work within junction, so always return True if it is outside junction
+        is_in_junction = self.route_planner.is_junction_waypoint(self._current_waypoint_index)
+        if not is_in_junction:
+            return True
+
+        angle_degree = self.get_angle_to_next_section_waypoint()
+
+        self.turning_window.append(angle_degree)
+
+        if len(self.turning_window) < self.turning_window.maxlen:
+            return True
+        else:
+            avg_angle = sum(self.turning_window) / self.turning_window.maxlen
+
+            if self.angle_entering_junction < 0:
+                angle_less_than_enter = avg_angle > self.angle_entering_junction
+            else:
+                angle_less_than_enter = avg_angle < self.angle_entering_junction
+
+            if angle_less_than_enter:
+                return True
+
+            return self.LEFT_ANGLE_LIMIT <= angle_degree <= self.RIGHT_ANGLE_LIMIT
+
     def _transform_transforms(self, transforms):
         ''' Transform a waypoint into list of x, y and yaw '''
         return list(map(lambda tf: (tf[0].location.x, tf[0].location.y, tf[0].rotation.yaw), transforms))
@@ -141,10 +226,6 @@ class RouteTracker:
         end = transform.location + forward_vector
 
         self.carla_debug.draw_arrow(begin, end, thickness=0.1, arrow_size=0.2, life_time=120)
-
-    @property
-    def is_end_of_section(self):
-        return self.checkpoint_manager.is_end_of_section(self._current_waypoint_index)
 
 
 TOWN7_PLAN = [RoadOption.STRAIGHT] + [RoadOption.RIGHT] * 2 + [RoadOption.STRAIGHT] * 5
