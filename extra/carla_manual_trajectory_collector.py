@@ -214,12 +214,14 @@ class CarlaManualTrajectoryCollector:
 
     def _get_terminal(self):
         if self._does_vehicle_collide():
+            print('terminate because collision')
             return True
 
         if abs(self.current_lane_dis) > self.out_lane_thres:
             in_junction = self.world.route_tracker.is_in_junction()
-            if not in_junction or not self.world.route_tracker.is_correct_direction(self.frame_number):
-                print(f'out of lane at {self.current_lane_dis}. in junction {in_junction}')
+            is_correct_direction = self.world.route_tracker.is_correct_direction(self.frame_number)
+            if not in_junction or not is_correct_direction:
+                print(f'out of lane at {self.current_lane_dis}. in junction {in_junction}, correct direction {is_correct_direction}')
                 return True
 
         return False

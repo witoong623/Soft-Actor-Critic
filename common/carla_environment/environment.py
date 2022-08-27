@@ -452,7 +452,9 @@ class CarlaEnv(gym.Env):
         self.current_lane_dis, w = get_lane_dis_numba(self.waypoints, ego_x, ego_y, self.direction_correction_factor)
         r_out = 0
         if abs(self.current_lane_dis) > self.out_lane_thres:
-            r_out = -100
+            in_junction = self.route_tracker.is_in_junction()
+            if not in_junction or not self.route_tracker.is_correct_direction(self.frame):
+                r_out = -100
         else:
             r_out = -abs(np.nan_to_num(self.current_lane_dis, posinf=self.out_lane_thres + 1, neginf=-(self.out_lane_thres + 1)))
 
@@ -494,7 +496,9 @@ class CarlaEnv(gym.Env):
             return True
 
         if abs(self.current_lane_dis) > self.out_lane_thres:
-            return True
+            in_junction = self.world.route_tracker.is_in_junction()
+            if not in_junction or not self.world.route_tracker.is_correct_direction(self.frame):
+                return True
 
         if self._does_vehicle_stop():
             return True

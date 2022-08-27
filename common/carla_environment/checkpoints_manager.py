@@ -285,7 +285,7 @@ class AITCheckpointManager(MapCheckpointManager):
         return self._completed_lap
 
     def is_end_of_section(self, current_waypoint_index):
-        return current_waypoint_index in self.sections_ends
+        return current_waypoint_index in self.sections_ends[-1:]
 
     def get_correct_spawn_point_transform(self, transform, index):
         new_yaw = self.sections_spawn_point_yaw[self._get_section_index(index)]
