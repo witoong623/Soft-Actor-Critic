@@ -18,7 +18,7 @@ from common.buffer import ReplayBuffer, EpisodeReplayBuffer, EfficientReplayBuff
 from common.utils import clone_network, sync_params, normalize_image, \
     normalize_grayscale_image, ObservationStacker
 from common.carla_environment.action_sampler import CarlaBiasActionSampler, CarlaPIDLongitudinalSampler, CarlaPerfectActionSampler
-from extra.user_episode_loader import load_episode_to_buffer
+from extra.user_episode_loader import UserEpisodeAdder
 
 
 __all__ = ['Collector', 'EpisodeCollector']
@@ -108,6 +108,9 @@ class Sampler(mp.Process):
 
         self.episode = 0
         try:
+            if self.random_sample and self.env.is_AIT_map():
+                self.user_episode_adder = UserEpisodeAdder(self.n_episodes)
+
             while self.episode < self.n_episodes:
                 self.episode += 1
 
@@ -181,18 +184,16 @@ class Sampler(mp.Process):
                     self.save_trajectory(is_end=True)
                     self.save_stat(episode_steps, episode_reward)
                 self.event.clear()
+
                 # set next Sampler to continue save trajectory
                 self.next_sampler_event.set()
-                if self.writer is not None:
-                    average_reward = episode_reward / episode_steps
-                    self.writer.add_scalar(tag='sample/cumulative_reward', scalar_value=episode_reward, global_step=self.episode)
-                    self.writer.add_scalar(tag='sample/average_reward', scalar_value=average_reward, global_step=self.episode)
-                    self.writer.add_scalar(tag='sample/episode_steps', scalar_value=episode_steps, global_step=self.episode)
-                    self.writer.add_scalar(tag='sample/milestone', scalar_value=self.env.get_latest_milestone(), global_step=self.episode)
-                    self.log_video()
-                    self.writer.flush()
-            if self.random_sample and self.env.is_AIT_map():
-                self._load_user_episode_to_buffer()
+
+                self.save_sampler_log(episode_steps, episode_reward)
+
+                if self.random_sample and \
+                    self.env.is_AIT_map() and \
+                    self.user_episode_adder.should_add_user_episode():
+                    self._add_user_episode()
         except KeyboardInterrupt:
             self.close()
             return
@@ -212,6 +213,18 @@ class Sampler(mp.Process):
         self.n_total_steps.value += episode_steps
         self.episode_steps.append(episode_steps)
         self.episode_rewards.append(episode_reward)
+
+    def save_sampler_log(self, episode_steps, episode_reward):
+        if self.writer is None:
+            return
+
+        average_reward = episode_reward / episode_steps
+        self.writer.add_scalar(tag='sample/cumulative_reward', scalar_value=episode_reward, global_step=self.episode)
+        self.writer.add_scalar(tag='sample/average_reward', scalar_value=average_reward, global_step=self.episode)
+        self.writer.add_scalar(tag='sample/episode_steps', scalar_value=episode_steps, global_step=self.episode)
+        self.writer.add_scalar(tag='sample/milestone', scalar_value=self.env.get_latest_milestone(), global_step=self.episode)
+        self.log_video()
+        self.writer.flush()
 
     def close(self):
         try:
@@ -284,11 +297,12 @@ class Sampler(mp.Process):
 
         return action_sampler
 
-    def _load_user_episode_to_buffer(self):
-        episode_step, episode_reward = load_episode_to_buffer(self.replay_buffer)
+    def _add_user_episode(self):
+        user_episode, episode_steps, episode_reward = self.user_episode_adder.get_episode(self.episode)
+        self.replay_buffer.extend(user_episode, is_end=True)
 
-        self.save_stat(episode_step, episode_reward)
-
+        self.save_stat(episode_steps, episode_reward)
+        self.save_sampler_log(episode_steps, episode_reward)
 
 class EpisodeSampler(Sampler):
     def add_transaction(self, observation, action, reward, next_observation, done):
