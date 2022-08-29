@@ -192,7 +192,7 @@ class Sampler(mp.Process):
 
                 if self.random_sample and \
                     self.env.is_AIT_map() and \
-                    self.user_episode_adder.should_add_user_episode():
+                    self.user_episode_adder.should_add_user_episode(self.episode):
                     self._add_user_episode()
         except KeyboardInterrupt:
             self.close()

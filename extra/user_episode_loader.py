@@ -2,30 +2,13 @@ import os
 import pickle
 
 
-episode_file = 'test_trajectory.pkl'
-
-
-def load_episode_to_buffer(buffer):
-    with open(episode_file, 'rb') as f:
-        trajectories = pickle.load(f)
-
-    episode_step = len(trajectories)
-    episode_reward = float(sum([t[3] for t in trajectories]))
-
-    # get everything except info at the last
-    trajectories = [t[:-1] for t in trajectories]
-    buffer.extend(trajectories)
-
-    return episode_step, episode_reward
-
-
 class UserEpisodeAdder:
     def __init__(self, n_episodes):
         self.n_episodes = n_episodes
 
-        self.episode_file = 'user_episodes/usable_test_drive1.pkl'
+        self.episode_file = 'user_episodes/usable_test_drive3.pkl'
 
-        assert os.path.exists(episode_file)
+        assert os.path.exists(self.episode_file), os.path.abspath(self.episode_file)
 
         self.episodes_chunk = [
             (0, 100),
@@ -44,7 +27,7 @@ class UserEpisodeAdder:
         chunk_index = int(current_episode / self.add_every)
         start, stop = self.episodes_chunk[chunk_index]
 
-        chunk_episode = full_episode[start, stop]
+        chunk_episode = full_episode[start:stop]
         chunk_episode_reward = self._calculate_episode_reward(chunk_episode)
 
         return chunk_episode, len(chunk_episode), chunk_episode_reward

@@ -496,8 +496,8 @@ class CarlaEnv(gym.Env):
             return True
 
         if abs(self.current_lane_dis) > self.out_lane_thres:
-            in_junction = self.world.route_tracker.is_in_junction()
-            if not in_junction or not self.world.route_tracker.is_correct_direction(self.frame):
+            in_junction = self.route_tracker.is_in_junction()
+            if not in_junction or not self.route_tracker.is_correct_direction(self.frame):
                 return True
 
         if self._does_vehicle_stop():
