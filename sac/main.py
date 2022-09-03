@@ -188,9 +188,9 @@ def to_image(tensor):
 def test_render(model: RenderTester, config):
     model.state_encoder.reset()
     observation = model.env.reset()
-    additional_state = None
-    if hasattr(model.env, 'first_additional_state'):
-        additional_state = model.env.first_additional_state
+    extra_state = None
+    if hasattr(model.env, 'first_extra_state'):
+        extra_state = model.env.first_extra_state
 
     rewards = 0
 
@@ -208,8 +208,8 @@ def test_render(model: RenderTester, config):
 
     for step in trange(1, config.max_episode_steps + 1):
         normalized_obs = normalize_image(observation, MEAN, STD).transpose((2, 0, 1))
-        additional_state_tensor = torch.tensor(additional_state, dtype=torch.float32, device=model.model_device)
-        state = model.state_encoder.encode(normalized_obs, additional_state_tensor, return_tensor=True)
+        extra_state_tensor = torch.tensor(extra_state, dtype=torch.float32, device=model.model_device)
+        state = model.state_encoder.encode(normalized_obs, extra_state_tensor, return_tensor=True)
 
         action = model.actor.get_action(state, deterministic=True)
 
@@ -225,12 +225,12 @@ def test_render(model: RenderTester, config):
         # rgb_array = to_image(out_tensor)
         # save_image(rgb_array, num=step)
 
-        if 'additional_state' in info:
-            next_additional_state = info['additional_state']
+        if 'extra_state' in info:
+            next_extra_state = info['extra_state']
 
         rewards += reward
         observation = next_observation
-        additional_state = next_additional_state
+        extra_state = next_extra_state
 
         if done:
             break

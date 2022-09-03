@@ -318,7 +318,7 @@ class Trainer(ModelBase):
 
     def prepare_batch(self, batch_size):
         if self.n_past_actions > 1:
-            observation, additional_state, action, reward, next_observation, next_additional_state, done \
+            observation, extra_state, action, reward, next_observation, next_extra_state, done \
                 = self.replay_buffer.sample(batch_size, normalize=True, device=self.model_device)
         else:
             observation, action, reward, next_observation, done = self.replay_buffer.sample(batch_size)
@@ -351,16 +351,16 @@ class Trainer(ModelBase):
                 with torch.no_grad():
                     actor_next_state, critic_next_state = self.state_encoder(next_observation)
             else:
-                state = self.state_encoder(observation, additional_state.view(batch_size, -1))
+                state = self.state_encoder(observation, extra_state.view(batch_size, -1))
                 with torch.no_grad():
-                    next_state = self.state_encoder(next_observation, next_additional_state.view(batch_size, -1))
+                    next_state = self.state_encoder(next_observation, next_extra_state.view(batch_size, -1))
 
         if self.n_past_actions > 1:
             if self.separate_encoder:
-                actor_state = torch.cat((actor_state, additional_state.view(batch_size, -1)), dim=1)
-                critic_state = torch.cat((critic_state, additional_state.view(batch_size, -1)), dim=1)
-                actor_next_state = torch.cat((actor_next_state, next_additional_state.view(batch_size, -1)), dim=1)
-                critic_next_state = torch.cat((critic_next_state, next_additional_state.view(batch_size, -1)), dim=1)
+                actor_state = torch.cat((actor_state, extra_state.view(batch_size, -1)), dim=1)
+                critic_state = torch.cat((critic_state, extra_state.view(batch_size, -1)), dim=1)
+                actor_next_state = torch.cat((actor_next_state, next_extra_state.view(batch_size, -1)), dim=1)
+                critic_next_state = torch.cat((critic_next_state, next_extra_state.view(batch_size, -1)), dim=1)
             else:
                 pass
         if not self.separate_encoder:

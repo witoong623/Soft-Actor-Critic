@@ -92,7 +92,7 @@ class TestReplayBuffer(unittest.TestCase):
             trajectories = [] 
             for step in range(start_step_num, start_step_num + n_step - 1):
                 reward = step
-                # obs, addition obs, action, reward, done
+                # obs, extra obs, action, reward, done
                 trajectories.append((MockObs(ep, step), MockAddiObs(ep, step), 0.1 * step, reward, False))
 
             trajectories.append((MockObs(ep, step + 1), MockAddiObs(ep, step + 1), 0.1 * (step + 1), reward + 1, is_done))

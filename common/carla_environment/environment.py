@@ -356,7 +356,7 @@ class CarlaEnv(gym.Env):
         for _ in range(self.num_past_actions):
             self.actions_queue.append(np.array([0, 0], dtype=np.float32))
 
-        self.first_additional_state = np.ravel(np.array(self.actions_queue, dtype=np.float32))
+        self.first_extra_state = np.ravel(np.array(self.actions_queue, dtype=np.float32))
 
         return self._get_obs()
 
@@ -374,7 +374,7 @@ class CarlaEnv(gym.Env):
         self.total_step += 1
 
         self.actions_queue.append(action)
-        info['additional_state'] = np.ravel(np.array(self.actions_queue, dtype=np.float16))
+        info['extra_state'] = np.ravel(np.array(self.actions_queue, dtype=np.float16))
 
         return self._get_obs(), total_reward, done, info
 

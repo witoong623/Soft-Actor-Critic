@@ -11,7 +11,7 @@ MEAN = np.tile([0.3171, 0.3183, 0.3779], 2)
 STD = np.tile([0.1406, 0.0594, 0.0925], 2)
 
 OBSERVATION = 0
-ADDI_OBSERVATION = 1
+EXTRA_OBSERVATION = 1
 ACTION = 2
 REWARD = 3
 DONE = 4
@@ -57,11 +57,6 @@ class ReplayBuffer(object):
         batch_samples[0] = batch_normalize_images(batch_samples[0], MEAN, STD)
         batch_samples[4] = batch_normalize_images(batch_samples[4], MEAN, STD)
 
-        # batch_samples[0] = batch_normalize_grayscale_images(batch_samples[0])
-        # batch_samples[4] = batch_normalize_grayscale_images(batch_samples[4])
-
-        # size: (batch_size, item_size)
-        # observation, additional_state, action, reward, next_observation, next_additional_state, done
         return tuple(map(np.stack, batch_samples))
 
     def __len__(self):
@@ -254,16 +249,16 @@ class EfficientReplayBuffer:
                 current_transition = self.buffer[state_idx]
 
                 obs = self._get_obs_stack(state_idx)
-                addi_obs = current_transition[ADDI_OBSERVATION]
+                extra_obs = current_transition[EXTRA_OBSERVATION]
                 action = current_transition[ACTION]
                 reward = self._sum_gamma_rewards(state_idx, next_state_idx)
                 next_obs = self._get_obs_stack(next_state_idx)
-                next_addi_obs = self.buffer[next_state_idx][ADDI_OBSERVATION]
-                batch.append((obs, addi_obs, action, [reward], next_obs, next_addi_obs, [is_done]))
+                next_extra_obs = self.buffer[next_state_idx][EXTRA_OBSERVATION]
+                batch.append((obs, extra_obs, action, [reward], next_obs, next_extra_obs, [is_done]))
 
             if normalize:
                 batch_samples = tuple(map(np.stack, zip(*batch)))
-                observation, additional_state, action, reward, next_observation, next_additional_state, done = self._create_sample_tensors(batch_samples, device)
+                observation, extra_state, action, reward, next_observation, next_extra_state, done = self._create_sample_tensors(batch_samples, device)
 
                 self._create_normalization_params_tensor(MEAN, STD, device)
 
@@ -274,7 +269,7 @@ class EfficientReplayBuffer:
                 observation.requires_grad_()
                 next_observation.requires_grad_()
 
-                return observation, additional_state, action, reward, next_observation, next_additional_state, done
+                return observation, extra_state, action, reward, next_observation, next_extra_state, done
             else:
                 return tuple(map(np.stack, zip(*batch)))
 
@@ -365,7 +360,7 @@ class EfficientReplayBuffer:
 
         pad_transaction = (
             based_transaction[OBSERVATION],
-            based_transaction[ADDI_OBSERVATION],
+            based_transaction[EXTRA_OBSERVATION],
             based_transaction[ACTION],
             0,
             based_transaction[DONE]
@@ -381,7 +376,7 @@ class EfficientReplayBuffer:
             self.offset = (self.offset + 1) % self.capacity
 
     def _dump_range(self, start, end):
-        for i, (obs, addi_obs, action, reward, done) in enumerate(self.buffer[start:end]):
+        for i, (obs, extra_obs, action, reward, done) in enumerate(self.buffer[start:end]):
             print(f'No.{start+i}: action type {type(action)} value {action}, reward {reward}, done {done}')
     
     def __len__(self):
