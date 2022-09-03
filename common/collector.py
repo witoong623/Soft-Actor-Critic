@@ -127,9 +127,9 @@ class Sampler(mp.Process):
                     self.state_encoder.reset()
                 observation = self.env.reset()
 
-                additional_state = None
-                if hasattr(self.env, 'first_additional_state'):
-                    additional_state = self.env.first_additional_state
+                extra_state = None
+                if hasattr(self.env, 'first_extra_state'):
+                    extra_state = self.env.first_extra_state
 
                 if self.random_sample:
                     if self.env.is_AIT_map():
@@ -147,24 +147,24 @@ class Sampler(mp.Process):
                         # observation shape (H, W, C)
                         stacked_obs = obs_stacker.get_new_observation(observation)
                         normalized_obs = normalize_image(stacked_obs, MEAN, STD).transpose((2, 0, 1))
-                        additional_state_tensor = torch.tensor(additional_state, dtype=amp_dtype, device=self.device)
-                        state = self.state_encoder.encode(normalized_obs, additional_state_tensor, return_tensor=True, data_dtype=amp_dtype)
+                        extra_state_tensor = torch.tensor(extra_state, dtype=amp_dtype, device=self.device)
+                        state = self.state_encoder.encode(normalized_obs, extra_state_tensor, return_tensor=True, data_dtype=amp_dtype)
 
                         action = self.actor.get_action(state, deterministic=self.deterministic)
 
                     next_observation, reward, done, info = self.env.step(action)
 
-                    next_additional_state = info.get('additional_state', None)
+                    next_extra_state = info.get('extra_state', None)
                     should_stop = info.get('should_stop', False)
 
                     episode_reward += reward
                     episode_steps += 1
 
                     self.save_frame(step=episode_steps, reward=reward, episode_reward=episode_reward)
-                    self.add_transaction(observation, additional_state, action, reward, done)
+                    self.add_transaction(observation, extra_state, action, reward, done)
 
                     observation = next_observation
-                    additional_state = next_additional_state
+                    extra_state = next_extra_state
 
                     if done or (self.random_sample and done_sample) or should_stop:
                         break
@@ -203,8 +203,8 @@ class Sampler(mp.Process):
         if self.writer is not None:
             self.writer.close()
 
-    def add_transaction(self, observation, additional_state, action, reward, done):
-        self.trajectory.append((observation, additional_state, action, reward, done))
+    def add_transaction(self, observation, extra_state, action, reward, done):
+        self.trajectory.append((observation, extra_state, action, reward, done))
 
     def save_trajectory(self, is_end=True):
         self.replay_buffer.extend(self.trajectory, is_end)
