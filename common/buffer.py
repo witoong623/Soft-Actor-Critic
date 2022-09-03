@@ -366,7 +366,7 @@ class EfficientReplayBuffer:
         pad_transaction = (
             based_transaction[OBSERVATION],
             based_transaction[ADDI_OBSERVATION],
-            0,
+            based_transaction[ACTION],
             0,
             based_transaction[DONE]
         )

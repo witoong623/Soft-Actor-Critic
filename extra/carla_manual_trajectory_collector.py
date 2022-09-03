@@ -75,9 +75,9 @@ class CarlaManualTrajectoryCollector:
         reward = self._get_reward()
         done = self._get_terminal()
 
-        should_stop = self._get_should_stop()
+        self._save_transition(obs, extra_stete, action, reward, done)
 
-        self._save_transition(obs, extra_stete, action, reward, done, should_stop)
+        should_stop = self._get_should_stop()
 
         return done, should_stop
 
@@ -92,8 +92,8 @@ class CarlaManualTrajectoryCollector:
             plt.savefig(f'{term}-plot.jpeg')
             plt.clf()
 
-    def _save_transition(self, obs, extra_state, action, reward, done, should_stop):
-        self.stored_transitions.append((obs, extra_state, action, reward, done, should_stop))
+    def _save_transition(self, obs, extra_state, action, reward, done):
+        self.stored_transitions.append((obs, extra_state, action, reward, done))
 
     def _reset(self):
         self.action_queue.clear()
@@ -227,8 +227,8 @@ class CarlaManualTrajectoryCollector:
         return False
 
     def _transform_observation(self, image):
-        cropped_size = (307, 614)
-        cropped_image = center_crop(image, cropped_size, shift_H=1.4)
+        cropped_size = (512, 1024)
+        cropped_image = center_crop(image, cropped_size, shift_H=1.29)
         resized_obs = cv2.resize(cropped_image, (512, 256), interpolation=cv2.INTER_NEAREST)
 
         return convert_to_simplified_cityscape(resized_obs)

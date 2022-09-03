@@ -27,11 +27,6 @@ from ..utils import center_crop, normalize_image, convert_to_simplified_cityscap
 from agents.navigation.behavior_agent import BehaviorAgent
 
 
-class RouteMode(Enum):
-    BASIC_RANDOM = auto()
-    MANUAL_LAP = auto()
-
-
 _walker_spawn_points_cache = []
 _load_world = False
 
@@ -142,20 +137,16 @@ class CarlaEnv(gym.Env):
                     # save to cache
                     _walker_spawn_points_cache.append((loc.x, loc.y, loc.z))
 
-        # route planner mode
-        self.route_mode = RouteMode.MANUAL_LAP
-        if self.route_mode == RouteMode.MANUAL_LAP:
-            initial_checkpoint = kwargs.get('initial_checkpoint', 0)
-            repeat_threshold = kwargs.get('repeat_section_threshold', 5)
-            self.traffic_mode = kwargs.get('traffic_mode', 'RHT')
-            self.route_tracker = RouteTracker(self.lap_spwan_point_wp,
-                                              self.lap_spwan_point_wp,
-                                              self.world,
-                                              resolution=2,
-                                              plan=TOWN7_PLAN,
-                                              initial_checkpoint=initial_checkpoint,
-                                              repeat_section_threshold=repeat_threshold,
-                                              use_section=True, traffic_mode=self.traffic_mode)
+        initial_checkpoint = kwargs.get('initial_checkpoint', 0)
+        repeat_threshold = kwargs.get('repeat_section_threshold', 5)
+        self.traffic_mode = kwargs.get('traffic_mode', 'RHT')
+        self.route_tracker = RouteTracker(self.lap_spwan_point_wp,
+                                          self.lap_spwan_point_wp,
+                                          self.world,
+                                          resolution=2,
+                                          initial_checkpoint=initial_checkpoint,
+                                          repeat_section_threshold=repeat_threshold,
+                                          use_section=True, traffic_mode=self.traffic_mode)
 
         self.direction_correction_factor = 1
         if self.is_AIT_map():
@@ -841,8 +832,8 @@ class CarlaEnv(gym.Env):
 
     def _crop_image(self, img):
         # this size is suitable for 1280x720, fov 69
-        cropped_size = (307, 614)
-        return center_crop(img, cropped_size, shift_H=1.4)
+        cropped_size = (512, 1024)
+        return center_crop(img, cropped_size, shift_H=1.29)
 
     def _get_image_data(self, queue_to_wait, use_semantic_mask=False):
         while True:

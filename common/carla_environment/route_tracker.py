@@ -27,7 +27,7 @@ def carla_to_vector(obj):
 
 class RouteTracker:
     def __init__(self, start_waypoint, end_waypoint, world, resolution=2.0,
-                 plan=None, initial_checkpoint=0, repeat_section_threshold=5,
+                 initial_checkpoint=0, repeat_section_threshold=5,
                  use_section=False, enable=True, debug_route_waypoint_len=None,
                  traffic_mode='RHT'):
         ''' `route_waypoint_len` is purely for testing purpose '''
@@ -36,7 +36,6 @@ class RouteTracker:
         self._vehicle = None
         self._world = world
         self._map = world.get_map()
-        self.plan = plan
 
         self.start_waypoint = start_waypoint
         self.end_waypoint = end_waypoint

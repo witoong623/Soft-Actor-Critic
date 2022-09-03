@@ -444,6 +444,7 @@ class KeyboardControl(object):
         world.hud.notification("Press 'H' or '?' for help.", seconds=4.0)
 
         self.past_throttle = 0
+        self.first_throttle = True
 
     def parse_events(self, client, world, clock, sync_mode):
         if isinstance(self._control, carla.VehicleControl):
@@ -631,7 +632,12 @@ class KeyboardControl(object):
 
     def _parse_vehicle_keys(self, keys, milliseconds):
         if keys[K_UP] or keys[K_w]:
-            self._control.throttle = min(self.past_throttle + 0.01, 1.00)
+            if self.first_throttle:
+                self._control.throttle = 0.5
+                self.first_throttle = False
+            else:
+                self._control.throttle = min(self.past_throttle + 0.015, 1.00)
+
             self.past_throttle = self._control.throttle
         else:
             self._control.throttle = max(0, self.past_throttle - 0.005)
@@ -640,7 +646,7 @@ class KeyboardControl(object):
         if keys[K_DOWN] or keys[K_s]:
             self._control.brake = min(self._control.brake + 0.2, 1)
             self._control.throttle =  0.0
-            self.past_throttle = max(0, self.past_throttle - 0.01)
+            self.past_throttle = max(0, self.past_throttle - 0.015)
         else:
             self._control.brake = 0
 

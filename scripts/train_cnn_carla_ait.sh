@@ -44,8 +44,6 @@ python main.py \
 	--n-bootstrap-step 2 \
 	--log-dir "$LOG_DIR" \
 	--checkpoint-dir "$CHECKPOINT_DIR" \
-	--pretrained-dir "savedcheckpoints/Carla-v0/CNN_pretrained" \
-	--epoch-number 12 \
 	--log-episode-video \
 	--dry-run-init-env \
 	"$@" # script arguments (can override args above)
