@@ -193,85 +193,70 @@ class EfficientReplayBuffer:
 
     def extend(self, trajectory, is_end=True):
         with self.lock:
-            if self.next_episode_start:
-                self._pad_transition(trajectory[0])
-                self.next_episode_start = False
+            self._extend(trajectory, is_end)
 
-            for items in trajectory:
-                if self.size < self.capacity:
-                    self.buffer.append(items)
-                else:
-                    self.buffer[self.offset] = items
+    def _extend(self, trajectory, is_end):
+        if self.next_episode_start:
+            self._pad_transition(trajectory[0])
+            self.next_episode_start = False
 
-                self.end_episode_indexes.pop(self.offset, None)
-                self.pad_indexes.pop(self.offset, None)
-                self.offset = (self.offset + 1) % self.capacity
+        for items in trajectory:
+            if self.size < self.capacity:
+                self.buffer.append(items)
+            else:
+                self.buffer[self.offset] = items
 
-            if is_end:
-                self.end_episode_indexes[(self.offset - 1) % self.capacity] = True
-                self.next_episode_start = True
+            self.end_episode_indexes.pop(self.offset, None)
+            self.pad_indexes.pop(self.offset, None)
+            self.offset = (self.offset + 1) % self.capacity
 
-            self.invalid_indexes[:] = self._get_invalid_end_indexes()
+        if is_end:
+            self.end_episode_indexes[(self.offset - 1) % self.capacity] = True
+            self.next_episode_start = True
+
+        self.invalid_indexes[:] = self._get_invalid_end_indexes()
 
     def sample(self, *args, normalize=False, device='cpu'):
         with self.lock:
-            idx_batch = []
+            idx_batch = self._sample_index_batch()
 
-            attemp_count = 0
-            while len(idx_batch) < self.batch_size and attemp_count < self.max_sample_attempt:
-                random_idx = random.randint(0, len(self.buffer) - 1)
-                if self._is_valid_transition(random_idx):
-                    idx_batch.append(random_idx)
-                    attemp_count = 0
-                else:
-                    attemp_count += 1
-
-            if len(idx_batch) != self.batch_size:
-                raise RuntimeError('cannot sample enough valid sample')
-
-            batch = []
-            for state_idx in idx_batch:
-                # this slice doesn't get item at step_idx + n_step_return
-                # which is for next obs only
-                transitions_indexes = slice(state_idx,
-                                            state_idx + self.n_step_return)
-                transitions_dones = [t[DONE] for t in self.buffer[transitions_indexes]]
-                is_done = any(transitions_dones)
-
-                if is_done:
-                    # because argmax return index not count, +1 make it count
-                    transition_len = np.argmax(transitions_dones) + 1
-                else:
-                    transition_len = self.n_step_return
-
-                next_state_idx = (state_idx + transition_len) % self.capacity
-
-                current_transition = self.buffer[state_idx]
-
-                obs = self._get_obs_stack(state_idx)
-                extra_obs = current_transition[EXTRA_OBSERVATION]
-                action = current_transition[ACTION]
-                reward = self._sum_gamma_rewards(state_idx, next_state_idx)
-                next_obs = self._get_obs_stack(next_state_idx)
-                next_extra_obs = self.buffer[next_state_idx][EXTRA_OBSERVATION]
-                batch.append((obs, extra_obs, action, [reward], next_obs, next_extra_obs, [is_done]))
+            transitions_batch = self._get_transitions_batch(idx_batch)
 
             if normalize:
-                batch_samples = tuple(map(np.stack, zip(*batch)))
-                observation, extra_state, action, reward, next_observation, next_extra_state, done = self._create_sample_tensors(batch_samples, device)
+                transitions_batch = self._normalize_transitions_batch(transitions_batch, device)
 
-                self._create_normalization_params_tensor(MEAN, STD, device)
+            return transitions_batch
 
-                observation, next_observation = self._normalize_observations(observation, next_observation)
-                observation = convert_to_CHW_tensor(observation)
-                next_observation = convert_to_CHW_tensor(next_observation)
+    def _get_transitions_batch(self, idx_batch):
+        batch = []
+        for state_idx in idx_batch:
+            # this slice doesn't get item at step_idx + n_step_return
+            # which is for next obs only
+            transitions_indexes = slice(state_idx,
+                                        state_idx + self.n_step_return)
+            transitions_dones = [t[DONE] for t in self.buffer[transitions_indexes]]
+            is_done = any(transitions_dones)
 
-                observation.requires_grad_()
-                next_observation.requires_grad_()
-
-                return observation, extra_state, action, reward, next_observation, next_extra_state, done
+            if is_done:
+                # because argmax return index not count, +1 make it count
+                transition_len = np.argmax(transitions_dones) + 1
             else:
-                return tuple(map(np.stack, zip(*batch)))
+                transition_len = self.n_step_return
+
+            next_state_idx = (state_idx + transition_len) % self.capacity
+
+            current_transition = self.buffer[state_idx]
+
+            obs = self._get_obs_stack(state_idx)
+            extra_obs = current_transition[EXTRA_OBSERVATION]
+            action = current_transition[ACTION]
+            reward = self._sum_gamma_rewards(state_idx, next_state_idx)
+            next_obs = self._get_obs_stack(next_state_idx)
+            next_extra_obs = self.buffer[next_state_idx][EXTRA_OBSERVATION]
+
+            batch.append((obs, extra_obs, action, [reward], next_obs, next_extra_obs, [is_done]))
+
+        return tuple(map(np.stack, zip(*batch)))
 
     def _get_obs_stack(self, idx):
         start_idx = (idx - self.n_frames + 1) % self.capacity
@@ -384,6 +369,37 @@ class EfficientReplayBuffer:
 
     def _create_sample_tensors(self, np_samples, device):
         return tuple(torch.tensor(sample_item, dtype=torch.float32, device=device) for sample_item in np_samples)
+
+    def _sample_index_batch(self):
+        idx_batch = []
+
+        attemp_count = 0
+        while len(idx_batch) < self.batch_size and attemp_count < self.max_sample_attempt:
+            random_idx = random.randint(0, len(self.buffer) - 1)
+            if self._is_valid_transition(random_idx):
+                idx_batch.append(random_idx)
+                attemp_count = 0
+            else:
+                attemp_count += 1
+
+        if len(idx_batch) != self.batch_size:
+            raise RuntimeError('cannot sample enough valid sample')
+
+        return idx_batch
+
+    def _normalize_transitions_batch(self, transitions_batch, device):
+        observation, extra_state, action, reward, next_observation, next_extra_state, done = self._create_sample_tensors(transitions_batch, device)
+
+        self._create_normalization_params_tensor(MEAN, STD, device)
+
+        observation, next_observation = self._normalize_observations(observation, next_observation)
+        observation = convert_to_CHW_tensor(observation)
+        next_observation = convert_to_CHW_tensor(next_observation)
+
+        observation.requires_grad_()
+        next_observation.requires_grad_()
+
+        return observation, extra_state, action, reward, next_observation, next_extra_state, done
 
     def _create_normalization_params_tensor(self, mean, std, device):
         if not hasattr(self, 'mean_tensor'):
