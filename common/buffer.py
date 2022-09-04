@@ -5,6 +5,7 @@ import numpy as np
 import torch.multiprocessing as mp
 
 from .utils import batch_normalize_images, batch_normalize_grayscale_images, convert_to_CHW_tensor
+from .sum_tree import SumTree
 
 
 MEAN = np.tile([0.3171, 0.3183, 0.3779], 2)
@@ -427,3 +428,83 @@ class EfficientReplayBuffer:
     @offset.setter
     def offset(self, value):
         self.buffer_offset.value = value
+
+
+def range_wrapped(start, end, length):
+    if start < end:
+        return list(range(start, end))
+
+    i = start
+    values = []
+    while i != end:
+        values.append(i)
+        i = (i + 1) % length
+
+    return values
+
+
+class PrioritizedReplayBuffer(EfficientReplayBuffer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        capacity = kwargs['capacity']
+        list_initializer = kwargs['list_initializer']
+        self.sum_tree = SumTree(capacity=capacity, list_initializer=list_initializer)
+        self.lock = self.lock if kwargs.get('debug', False) else mp.RLock()
+        self.sampled_indexes = list_initializer()
+
+    def extend(self, trajectory, is_end=True):
+        with self.lock:
+            start_idx = self.offset
+            self._extend(trajectory, is_end)
+            end_idx = self.offset
+
+            for i in range_wrapped(start_idx, end_idx, self.capacity):
+                self.sum_tree.set(i, self.sum_tree.max_recorded_priority)
+
+    def sample(self, *args, normalize=False, device='cpu'):
+        # release in set_priority
+        self.lock.acquire()
+
+        idx_batch = self._sample_index_batch()
+        self.sampled_indexes[:] = idx_batch
+
+        transitions_batch = self._get_transitions_batch(idx_batch)
+
+        if normalize:
+            transitions_batch = self._normalize_transitions_batch(transitions_batch, device)
+
+        sample_probs = torch.tensor([self.sum_tree.get(i) for i in idx_batch], device=device)
+
+        return transitions_batch + (sample_probs,)
+
+    def set_priority(self, priorities):
+        priorities = np.asarray(priorities)
+
+        for index, priority in zip(self.sampled_indexes, priorities):
+            self.sum_tree.set(index, priority)
+
+        self.sampled_indexes[:] = []
+
+        self.lock.release()
+
+    def _sample_index_batch(self):
+        indices = self.sum_tree.stratified_sample(self.batch_size)
+        allowed_attempts = self.max_sample_attempt
+
+        for i in range(len(indices)):
+            if not self._is_valid_transition(indices[i]):
+                if allowed_attempts == 0:
+                    raise RuntimeError(
+                        'Max sample attempts: Tried {} times but only sampled {}'
+                        ' valid indices. Batch size is {}'.
+                        format(self.max_sample_attempt, i, self.batch_size))
+                index = indices[i]
+                while not self._is_valid_transition(index) and allowed_attempts > 0:
+                    # If index i is not valid keep sampling others. Note that this
+                    # is not stratified.
+                    index = self.sum_tree.sample()
+                    allowed_attempts -= 1
+                indices[i] = index
+
+        return indices

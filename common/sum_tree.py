@@ -62,7 +62,7 @@ class SumTree(object):
   tree, but is a little more user-friendly.
   """
 
-  def __init__(self, capacity):
+  def __init__(self, capacity, list_initializer=list):
     """Creates the sum tree data structure for the given replay capacity.
 
     Args:
@@ -77,7 +77,7 @@ class SumTree(object):
       raise ValueError('Sum tree capacity should be positive. Got: {}'.
                        format(capacity))
 
-    self.nodes = []
+    self.nodes = list_initializer()
     tree_depth = int(math.ceil(np.log2(capacity)))
     level_size = 1
     for _ in range(tree_depth + 1):
@@ -196,9 +196,12 @@ class SumTree(object):
     delta_value = value - self.nodes[-1][node_index]
 
     # Now traverse back the tree, adjusting all sums along the way.
-    for nodes_at_this_depth in reversed(self.nodes):
+    for i in range(len(self.nodes) - 1, -1, -1):
       # Note: Adding a delta leads to some tolerable numerical inaccuracies.
+      nodes_at_this_depth = self.nodes[i]
       nodes_at_this_depth[node_index] += delta_value
+      self.nodes[i] = nodes_at_this_depth
+
       node_index //= 2
 
     assert node_index == 0, ('Sum tree traversal failed, final node index '

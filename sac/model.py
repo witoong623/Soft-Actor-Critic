@@ -196,7 +196,7 @@ class Trainer(ModelBase):
         self.target_critic = clone_network(src_net=self.critic, device=self.model_device)
         self.target_critic.eval().requires_grad_(False)
 
-        self.critic_criterion = nn.MSELoss()
+        self.critic_criterion = nn.MSELoss(reduction='none')
 
         self.global_step = 0
         self.actor_update_frequency = actor_update_frequency
@@ -221,7 +221,7 @@ class Trainer(ModelBase):
         self.train(mode=True)
 
     def update_sac(self, actor_state, critic_state, action, reward, 
-                   actor_next_state, critic_next_state, done,
+                   actor_next_state, critic_next_state, done, critic_loss_weight=None,
                    normalize_rewards=True, reward_scale=1.0,
                    adaptive_entropy=True, target_entropy=-2.0,
                    clip_gradient=False, gamma=0.99, soft_tau=0.01, epsilon=1E-6):
@@ -259,6 +259,7 @@ class Trainer(ModelBase):
         normalized_target = False
         target_q_value1 = target_q_value
         target_q_value2 = target_q_value
+
         if self.use_popart:
             self.critic.update_popart_parameters(target_q_value)
             normalized_target = True
@@ -266,8 +267,16 @@ class Trainer(ModelBase):
 
         predicted_q_value_1, predicted_q_value_2 = self.critic(critic_state, action, normalize=normalized_target)
 
-        critic_loss_1 = self.critic_criterion(predicted_q_value_1, target_q_value1)
-        critic_loss_2 = self.critic_criterion(predicted_q_value_2, target_q_value2)
+        if critic_loss_weight is None:
+            critic_loss_weight = torch.ones((1,), device=self.model_device)
+
+        critic_item_loss_1 = self.critic_criterion(predicted_q_value_1, target_q_value1)
+        critic_item_loss_2 = self.critic_criterion(predicted_q_value_2, target_q_value2)
+
+        priorities = self._get_priorities_from_critic_losses(critic_item_loss_1, critic_item_loss_2)
+
+        critic_loss_1 = (critic_item_loss_1 * critic_loss_weight).mean()
+        critic_loss_2 = (critic_item_loss_2 * critic_loss_weight).mean()
         critic_loss = (critic_loss_1 + critic_loss_2) / 2.0
 
         if self._should_update_actor():
@@ -287,6 +296,8 @@ class Trainer(ModelBase):
         if clip_gradient:
             clip_grad_norm(self.optimizer)
         self.optimizer.step()
+
+        self.replay_buffer.set_priority(priorities)
 
         if self._should_update_actor():
             # Soft update the target value net
@@ -309,27 +320,16 @@ class Trainer(ModelBase):
         self.train()
 
         # size: (batch_size, item_size)
-        actor_state, critic_state, action, reward, actor_next_state, critic_next_state, done = self.prepare_batch(batch_size)
+        actor_state, critic_state, action, reward, actor_next_state, critic_next_state, done, critic_loss_weight = self.prepare_batch(batch_size)
 
         return self.update_sac(actor_state, critic_state, action, reward, actor_next_state, critic_next_state, done,
-                               normalize_rewards, reward_scale,
+                               critic_loss_weight, normalize_rewards, reward_scale,
                                adaptive_entropy, target_entropy,
                                clip_gradient, gamma, soft_tau, epsilon)
 
     def prepare_batch(self, batch_size):
-        if self.n_past_actions > 1:
-            observation, extra_state, action, reward, next_observation, next_extra_state, done \
-                = self.replay_buffer.sample(batch_size, normalize=True, device=self.model_device)
-        else:
-            observation, action, reward, next_observation, done = self.replay_buffer.sample(batch_size)
-
-            observation = torch.tensor(observation, dtype=torch.float32, device=self.model_device)
-            next_observation = torch.tensor(next_observation, dtype=torch.float32, device=self.model_device)
-
-            action = torch.tensor(action, dtype=torch.float32, device=self.model_device)
-
-            reward = torch.tensor(reward, dtype=torch.float32, device=self.model_device)
-            done = torch.tensor(done, dtype=torch.float32, device=self.model_device)
+        observation, extra_state, action, reward, next_observation, next_extra_state, done, sample_probs \
+            = self.replay_buffer.sample(batch_size, normalize=True, device=self.model_device)
 
         if isinstance(self.state_encoder.encoder, VAEBase):
             with torch.no_grad():
@@ -367,11 +367,25 @@ class Trainer(ModelBase):
             actor_state = critic_state = state
             actor_next_state = critic_next_state = next_state
 
+        critic_loss_weight = self._get_critic_loss_weight(sample_probs)
+
         # size: (batch_size, item_size)
-        return actor_state, critic_state, action, reward, actor_next_state, critic_next_state, done
+        return actor_state, critic_state, action, reward, actor_next_state, critic_next_state, done, critic_loss_weight
 
     def _should_update_actor(self):
         return self.global_step % self.actor_update_frequency == 0
+
+    def _get_priorities_from_critic_losses(self, loss_1, loss_2):
+        loss_1 = loss_1.cpu().detach().numpy()
+        loss_2 = loss_2.cpu().detach().numpy()
+
+        return ((loss_1 + loss_2) / 2).tolist()
+
+    def _get_critic_loss_weight(self, sample_probs):
+        loss_weights = 1.0 / torch.sqrt(sample_probs + 1e-10)
+        loss_weights /= torch.max(loss_weights)
+
+        return loss_weights
 
     def save_model(self, path):
         optimizer = None

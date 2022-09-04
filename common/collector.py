@@ -14,7 +14,7 @@ from PIL import Image, ImageDraw, ImageFont
 from setproctitle import setproctitle
 from torch.utils.tensorboard import SummaryWriter
 
-from common.buffer import ReplayBuffer, EpisodeReplayBuffer, EfficientReplayBuffer
+from common.buffer import ReplayBuffer, EpisodeReplayBuffer, EfficientReplayBuffer, PrioritizedReplayBuffer
 from common.utils import clone_network, sync_params, normalize_image, \
     normalize_grayscale_image, ObservationStacker
 from common.carla_environment.action_sampler import CarlaBiasActionSampler, CarlaPIDLongitudinalSampler, CarlaPerfectActionSampler
@@ -336,13 +336,11 @@ class Collector(object):
         self.n_frames = n_frames
         self.n_bootstrap_step = n_bootstrap_step
         self.n_samplers = n_samplers
-        # self.replay_buffer = self.REPLAY_BUFFER(capacity=buffer_capacity, initializer=self.manager.list,
-        #                                         Value=self.manager.Value, Lock=self.manager.Lock)
-        self.replay_buffer = EfficientReplayBuffer(capacity=buffer_capacity, batch_size=batch_size,
-                                                   n_frames=n_frames, n_step_return=n_step_return,
-                                                   frame_stack_mode='concatenate', frame_stack_axis=2,
-                                                   list_initializer=self.manager.list, dict_initializer=self.manager.dict,
-                                                   Value=self.manager.Value, Lock=self.manager.Lock)
+        self.replay_buffer = PrioritizedReplayBuffer(capacity=buffer_capacity, batch_size=batch_size,
+                                                     n_frames=n_frames, n_step_return=n_step_return,
+                                                     frame_stack_mode='concatenate', frame_stack_axis=2,
+                                                     list_initializer=self.manager.list, dict_initializer=self.manager.dict,
+                                                     Value=self.manager.Value, Lock=self.manager.Lock)
 
         self.env_func = env_func
         self.env_kwargs = env_kwargs
