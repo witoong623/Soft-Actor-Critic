@@ -319,7 +319,7 @@ class Collector(object):
 
     def __init__(self, env_func, env_kwargs, state_encoder, actor,
                  n_samplers, n_bootstrap_step, buffer_capacity,
-                 batch_size, n_frames, n_step_return,
+                 batch_size, n_frames, n_step_return, prioritize_replay,
                  devices, random_seed):
         self.manager = mp.Manager()
         self.running_event = self.manager.Event()
@@ -336,11 +336,19 @@ class Collector(object):
         self.n_frames = n_frames
         self.n_bootstrap_step = n_bootstrap_step
         self.n_samplers = n_samplers
-        self.replay_buffer = PrioritizedReplayBuffer(capacity=buffer_capacity, batch_size=batch_size,
-                                                     n_frames=n_frames, n_step_return=n_step_return,
-                                                     frame_stack_mode='concatenate', frame_stack_axis=2,
-                                                     list_initializer=self.manager.list, dict_initializer=self.manager.dict,
-                                                     Value=self.manager.Value, Lock=self.manager.Lock)
+
+        if prioritize_replay:
+            self.replay_buffer = PrioritizedReplayBuffer(capacity=buffer_capacity, batch_size=batch_size,
+                                                         n_frames=n_frames, n_step_return=n_step_return,
+                                                         frame_stack_mode='concatenate', frame_stack_axis=2,
+                                                         list_initializer=self.manager.list, dict_initializer=self.manager.dict,
+                                                         Value=self.manager.Value, Lock=self.manager.Lock)
+        else:
+            self.replay_buffer = EfficientReplayBuffer(capacity=buffer_capacity, batch_size=batch_size,
+                                                       n_frames=n_frames, n_step_return=n_step_return,
+                                                       frame_stack_mode='concatenate', frame_stack_axis=2,
+                                                       list_initializer=self.manager.list, dict_initializer=self.manager.dict,
+                                                       Value=self.manager.Value, Lock=self.manager.Lock)
 
         self.env_func = env_func
         self.env_kwargs = env_kwargs

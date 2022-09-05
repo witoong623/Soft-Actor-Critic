@@ -44,6 +44,7 @@ def build_model(config):
                                                     'weight_decay',
                                                     'actor_update_frequency',
                                                     'use_popart',
+                                                    'prioritize_replay',
                                                     'beta']))
 
         if not config.RNN_encoder:
@@ -56,6 +57,7 @@ def build_model(config):
         model_kwargs.pop('separate_encoder', None)
         model_kwargs.pop('batch_size', None)
         model_kwargs.pop('n_frames', None)
+        model_kwargs.pop('prioritize_replay', None)
     else:
         if not config.RNN_encoder:
             Model = Tester
@@ -93,10 +95,11 @@ class ModelBase(object):
     def __init__(self, env_func, env_kwargs, state_encoder,
                  state_dim, action_dim, hidden_dims, activation, n_past_actions, n_bootstrap_step,
                  initial_alpha, use_popart, beta, n_samplers, buffer_capacity, batch_size, n_frames,
-                 devices, sampler_devices, separate_encoder, random_seed=0):
+                 prioritize_replay, devices, sampler_devices, separate_encoder, random_seed=0):
         self.devices = itertools.cycle(devices)
         self.model_device = next(self.devices)
         self.sampler_devices = sampler_devices
+        self.prioritize_replay = prioritize_replay
 
         self.n_past_actions = n_past_actions
         self.state_dim = state_dim
@@ -135,6 +138,7 @@ class ModelBase(object):
                                         batch_size=batch_size,
                                         n_frames=n_frames,
                                         n_step_return=n_bootstrap_step,
+                                        prioritize_replay=prioritize_replay,
                                         devices=self.sampler_devices,
                                         random_seed=random_seed)
 
@@ -184,19 +188,22 @@ class Trainer(ModelBase):
     def __init__(self, env_func, env_kwargs, state_encoder,
                  state_dim, action_dim, hidden_dims, activation, n_past_actions, n_bootstrap_step,
                  initial_alpha, critic_lr, actor_lr, alpha_lr, weight_decay, actor_update_frequency,
-                 use_popart, beta, n_samplers, buffer_capacity, batch_size, n_frames, devices,
-                 sampler_devices, separate_encoder, random_seed=0):
+                 use_popart, beta, n_samplers, buffer_capacity, batch_size, n_frames, prioritize_replay,
+                 devices, sampler_devices, separate_encoder, random_seed=0):
         super().__init__(env_func, env_kwargs, state_encoder,
                          state_dim, action_dim, hidden_dims, activation, n_past_actions, n_bootstrap_step,
                          initial_alpha, use_popart, beta, n_samplers, buffer_capacity, batch_size, n_frames,
-                         devices, sampler_devices, separate_encoder, random_seed)
+                         prioritize_replay, devices, sampler_devices, separate_encoder, random_seed)
 
         self.dtype = torch.float32
 
         self.target_critic = clone_network(src_net=self.critic, device=self.model_device)
         self.target_critic.eval().requires_grad_(False)
 
-        self.critic_criterion = nn.MSELoss(reduction='none')
+        if self.prioritize_replay:
+            self.critic_criterion = nn.MSELoss(reduction='none')
+        else:
+            self.critic_criterion = nn.MSELoss()
 
         self.global_step = 0
         self.actor_update_frequency = actor_update_frequency
@@ -267,16 +274,19 @@ class Trainer(ModelBase):
 
         predicted_q_value_1, predicted_q_value_2 = self.critic(critic_state, action, normalize=normalized_target)
 
-        if critic_loss_weight is None:
-            critic_loss_weight = torch.ones((1,), device=self.model_device)
-
         critic_item_loss_1 = self.critic_criterion(predicted_q_value_1, target_q_value1)
         critic_item_loss_2 = self.critic_criterion(predicted_q_value_2, target_q_value2)
 
-        priorities = self._get_priorities_from_critic_losses(critic_item_loss_1, critic_item_loss_2)
+        if self.prioritize_replay:
+            priorities = self._get_priorities_from_critic_losses(critic_item_loss_1, critic_item_loss_2)
 
-        critic_loss_1 = (critic_item_loss_1 * critic_loss_weight).mean()
-        critic_loss_2 = (critic_item_loss_2 * critic_loss_weight).mean()
+            # critic_item_losses are squared error, get mean of them
+            critic_loss_1 = (critic_item_loss_1 * critic_loss_weight).mean()
+            critic_loss_2 = (critic_item_loss_2 * critic_loss_weight).mean()
+        else:
+            critic_loss_1 = critic_item_loss_1
+            critic_loss_2 = critic_item_loss_2
+
         critic_loss = (critic_loss_1 + critic_loss_2) / 2.0
 
         if self._should_update_actor():
@@ -297,7 +307,8 @@ class Trainer(ModelBase):
             clip_grad_norm(self.optimizer)
         self.optimizer.step()
 
-        self.replay_buffer.set_priority(priorities)
+        if self.prioritize_replay:
+            self.replay_buffer.set_priority(priorities)
 
         if self._should_update_actor():
             # Soft update the target value net
@@ -328,8 +339,12 @@ class Trainer(ModelBase):
                                clip_gradient, gamma, soft_tau, epsilon)
 
     def prepare_batch(self, batch_size):
-        observation, extra_state, action, reward, next_observation, next_extra_state, done, sample_probs \
-            = self.replay_buffer.sample(batch_size, normalize=True, device=self.model_device)
+        if self.prioritize_replay:
+            observation, extra_state, action, reward, next_observation, next_extra_state, done, sample_probs \
+                = self.replay_buffer.sample(batch_size, normalize=True, device=self.model_device)
+        else:
+            observation, extra_state, action, reward, next_observation, next_extra_state, done \
+                = self.replay_buffer.sample(batch_size, normalize=True, device=self.model_device)
 
         if isinstance(self.state_encoder.encoder, VAEBase):
             with torch.no_grad():
@@ -367,7 +382,9 @@ class Trainer(ModelBase):
             actor_state = critic_state = state
             actor_next_state = critic_next_state = next_state
 
-        critic_loss_weight = self._get_critic_loss_weight(sample_probs)
+        critic_loss_weight = None
+        if self.prioritize_replay:
+            critic_loss_weight = self._get_critic_loss_weight(sample_probs)
 
         # size: (batch_size, item_size)
         return actor_state, critic_state, action, reward, actor_next_state, critic_next_state, done, critic_loss_weight

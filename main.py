@@ -182,6 +182,8 @@ def get_config():
                              help='auto update temperature parameter while training')
     alpha_group.add_argument('--target-entropy', type=float, default=None,
                              help='target entropy to adapt to (default: -dim(action))')
+    parser.add_argument('--prioritize-replay', action='store_true',
+                        help='use prioritize replay experience')
     parser.add_argument('--actor-update-frequency', type=int, default=1, metavar='ACTOR_UPDATE_FREQUENCY',
                         help='frequency of actor update per critic update (default: 1)')
     parser.add_argument('--weight-decay', type=float, default=0.0,
@@ -309,6 +311,7 @@ def copy_environment_file(config):
     shutil.copy('common/carla_environment/checkpoints_manager.py', config.log_dir)
     shutil.copy('common/network.py', config.log_dir)
     shutil.copy('sac/network.py', config.log_dir)
+    shutil.copy('sac/model.py', config.log_dir)
 
 
 def main():
