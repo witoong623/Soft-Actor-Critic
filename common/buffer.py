@@ -397,15 +397,12 @@ class EfficientReplayBuffer:
         observation = convert_to_CHW_tensor(observation)
         next_observation = convert_to_CHW_tensor(next_observation)
 
-        observation.requires_grad_()
-        next_observation.requires_grad_()
-
         return observation, extra_state, action, reward, next_observation, next_extra_state, done
 
     def _create_normalization_params_tensor(self, mean, std, device):
         if not hasattr(self, 'mean_tensor'):
-            self.mean_tensor = torch.tensor(mean, dtype=torch.float32, device=device, requires_grad=False)
-            self.std_tensor = torch.tensor(std, dtype=torch.float32, device=device, requires_grad=False)
+            self.mean_tensor = torch.tensor(mean, dtype=torch.float32, device=device)
+            self.std_tensor = torch.tensor(std, dtype=torch.float32, device=device)
 
     def _normalize_observations(self, observation, next_observation):
         observation = observation.div_(255.).subtract_(self.mean_tensor).divide_(self.std_tensor)
