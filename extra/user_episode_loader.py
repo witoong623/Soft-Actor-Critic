@@ -6,16 +6,22 @@ class UserEpisodeAdder:
     def __init__(self, n_episodes):
         self.n_episodes = n_episodes
 
-        self.episode_file = 'user_episodes/usable_test_drive3.pkl'
+        self.episode_file = 'user_episodes/user-episode-1.pkl'
 
         assert os.path.exists(self.episode_file), os.path.abspath(self.episode_file)
 
+        # for straight road training
         self.episodes_chunk = [
             (0, 100),
-            (400, 530),
-            (900, 1100),
-            (1320, 1500)
         ]
+
+        # for turning training
+        # self.episodes_chunk = [
+        #     (0, 100),
+        #     (430, 530),
+        #     (910, 1020),
+        #     (1410, 1510)
+        # ]
 
         self.add_every = self._calculate_adding_interval()
 
@@ -24,7 +30,7 @@ class UserEpisodeAdder:
 
     def get_episode(self, current_episode):
         full_episode = self._load_user_episode_from_file()
-        chunk_index = int(current_episode / self.add_every)
+        chunk_index = max(0, int(current_episode / self.add_every) - 1)
         start, stop = self.episodes_chunk[chunk_index]
 
         chunk_episode = full_episode[start:stop]

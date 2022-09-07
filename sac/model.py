@@ -149,6 +149,7 @@ class ModelBase(object):
         print(f'buffer_capacity = {self.replay_buffer.capacity}', file=file)
         print(f'n_samplers = {self.collector.n_samplers}', file=file)
         print(f'sampler_devices = {list(map(str, self.collector.devices))}', file=file)
+        print(f'replay buffer =', 'prioritize' if self.prioritize_replay else 'uniform')
         print('Modules:', self.modules, file=file)
 
     @property
