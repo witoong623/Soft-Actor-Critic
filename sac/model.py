@@ -397,7 +397,7 @@ class Trainer(ModelBase):
         loss_1 = loss_1.cpu().detach().numpy()
         loss_2 = loss_2.cpu().detach().numpy()
 
-        return ((loss_1 + loss_2) / 2).tolist()
+        return np.abs((loss_1 + loss_2) / 2).tolist()
 
     def _get_critic_loss_weight(self, sample_probs):
         loss_weights = 1.0 / torch.sqrt(sample_probs + 1e-10)
