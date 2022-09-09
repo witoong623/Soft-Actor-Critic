@@ -280,6 +280,7 @@ class Trainer(ModelBase):
 
         if self.prioritize_replay:
             priorities = self._get_priorities_from_critic_losses(critic_item_loss_1, critic_item_loss_2)
+            self.replay_buffer.set_priority(priorities)
 
             # critic_item_losses are squared error, get mean of them
             critic_loss_1 = (critic_item_loss_1 * critic_loss_weight).mean()
@@ -307,9 +308,6 @@ class Trainer(ModelBase):
         if clip_gradient:
             clip_grad_norm(self.optimizer)
         self.optimizer.step()
-
-        if self.prioritize_replay:
-            self.replay_buffer.set_priority(priorities)
 
         if self._should_update_actor():
             # Soft update the target value net
