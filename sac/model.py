@@ -326,7 +326,7 @@ class Trainer(ModelBase):
 
     def update(self, batch_size, normalize_rewards=True, reward_scale=1.0,
                adaptive_entropy=True, target_entropy=-2.0,
-               clip_gradient=False, gamma=0.99, soft_tau=0.01, epsilon=1E-6):
+               clip_gradient=False, gamma=0.99, soft_tau=0.01, epsilon=1E-6, nth_update=None):
         self.train()
 
         # size: (batch_size, item_size)
@@ -338,12 +338,12 @@ class Trainer(ModelBase):
                                clip_gradient, gamma, soft_tau, epsilon)
 
     def prepare_batch(self, batch_size):
+        batch = self.replay_buffer.sample(batch_size, normalize=True, device=self.model_device)
+
         if self.prioritize_replay:
-            observation, extra_state, action, reward, next_observation, next_extra_state, done, sample_probs \
-                = self.replay_buffer.sample(batch_size, normalize=True, device=self.model_device)
+            observation, extra_state, action, reward, next_observation, next_extra_state, done, sample_probs = batch
         else:
-            observation, extra_state, action, reward, next_observation, next_extra_state, done \
-                = self.replay_buffer.sample(batch_size, normalize=True, device=self.model_device)
+            observation, extra_state, action, reward, next_observation, next_extra_state, done = batch
 
         if isinstance(self.state_encoder.encoder, VAEBase):
             with torch.no_grad():

@@ -18,7 +18,7 @@ REWARD = 3
 DONE = 4
 
 
-__all__ = ['ReplayBuffer', 'EpisodeReplayBuffer', 'EfficientReplayBuffer']
+__all__ = ['ReplayBuffer', 'EpisodeReplayBuffer', 'EfficientReplayBuffer', 'PrioritizedReplayBuffer']
 
 
 class ReplayBuffer(object):
@@ -505,3 +505,54 @@ class PrioritizedReplayBuffer(EfficientReplayBuffer):
                 indices[i] = index
 
         return indices
+
+
+class EREBuffer(EfficientReplayBuffer):
+    def sample(self, nth_update, normalize=False, device='cpu'):
+        with self.lock:
+            idx_batch = self._sample(nth_update)
+
+            transitions_batch = self._get_transitions_batch(idx_batch)
+
+            if normalize:
+                transitions_batch = self._normalize_transitions_batch(transitions_batch, device)
+
+            return transitions_batch
+
+    N_TOTAL_UPDATE = 256
+
+    def _sample_uniform_index_batch(self, nth_update):
+        if self.size < self.capacity:
+            ordered_indexes = list(range(self.size-1, -1, -1))
+        else:
+            ordered_indexes = list(range(self.offset-1, -1, -1)) + list(range(self.capacity-1, self.offset-1, -1))
+
+        if self.size < self.capacity * 0.1:
+            ck = self.size
+        else:
+            N = self.capacity
+            if self.size < self.capacity:
+                N = self.size
+
+            n = 0.995
+
+            # TODO: anneal n
+            ck = int(max(N * n ** (nth_update * 1000 / self.N_TOTAL_UPDATE), self.capacity * 0.1))
+
+        ordered_indexes = ordered_indexes[:ck]
+
+        idx_batch = []
+
+        attemp_count = 0
+        while len(idx_batch) < self.batch_size and attemp_count < self.max_sample_attempt:
+            random_idx = random.choice(ordered_indexes)
+            if self._is_valid_transition(random_idx):
+                idx_batch.append(random_idx)
+                attemp_count = 0
+            else:
+                attemp_count += 1
+
+        if len(idx_batch) != self.batch_size:
+            raise RuntimeError('cannot sample enough valid sample')
+
+        return idx_batch

@@ -38,7 +38,7 @@ def train_loop(model, config, update_kwargs):
             mean_episode_steps = 0.0
             with tqdm.trange(config.n_updates, desc=f'Training {epoch}/{config.n_epochs}') as pbar:
                 for i in pbar:
-                    info = model.update(**update_kwargs)
+                    info = model.update(**update_kwargs, nth_update=(i+1))
 
                     n_samples = model.collector.n_total_steps
                     n_episodes = model.collector.n_episodes
