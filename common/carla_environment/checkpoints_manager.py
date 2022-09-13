@@ -51,6 +51,9 @@ class MapCheckpointManager(abc.ABC):
 
         return indexes
 
+    def _update_reached_last_waypoint_index(self, current_waypoint_index):
+        self._reached_last_waypoint_index = current_waypoint_index == self.sections_stop_points[-1]
+
 
 START = 0
 END = 1
@@ -75,7 +78,7 @@ class Town7CheckpointManager(MapCheckpointManager):
         self.sections_start = [s[START] for s in self.sections_indexes]
         self.sections_end = [s[END] for s in self.sections_indexes]
         self.sections_frequency = [s[FREQUENCY] for s in self.sections_indexes]
-        self.sections_ends = [140, 141, 142, 173, 174, 175, 591]
+        self.sections_stop_points = [140, 141, 142, 173, 174, 175, 591]
 
         self._all_spawn_indexes = functools.reduce(operator.concat,
                                                    [self._get_all_spawn_indexes(*sec) for sec in self.sections_indexes])
@@ -132,7 +135,7 @@ class Town7CheckpointManager(MapCheckpointManager):
         return self._completed_lap
 
     def is_end_of_section(self, current_waypoint_index):
-        return current_waypoint_index in self.sections_ends
+        return current_waypoint_index in self.sections_stop_points
 
     def _get_spawn_point_index(self):
         if self._completed_lap:
@@ -188,7 +191,7 @@ class Town7CheckpointManager(MapCheckpointManager):
             else:
                 # random start at any point before current checkpoint
                 lower_bound = 0
-                for start, end in zip(self.sections_start, self.sections_ends):
+                for start, end in zip(self.sections_start, self.sections_end):
                     if start <= self.checkpoint_index < end:
                         lower_bound = start
                         break
@@ -204,9 +207,6 @@ class Town7CheckpointManager(MapCheckpointManager):
         spawn_idx = self._all_spawn_indexes[list_idx]
 
         return spawn_idx
-
-    def _update_reached_last_waypoint_index(self, current_waypoint_index):
-        self._reached_last_waypoint_index = current_waypoint_index == self.sections_ends[-1]
 
 
 class AITCheckpointManager(MapCheckpointManager):
@@ -227,7 +227,7 @@ class AITCheckpointManager(MapCheckpointManager):
         self.sections_start = [s[START] for s in self.sections_indexes]
         self.sections_end = [s[END] for s in self.sections_indexes]
         self.sections_frequency = [s[FREQUENCY] for s in self.sections_indexes]
-        self.sections_ends = [102, 208, 314, 412]
+        self.sections_stop_points = [102, 208, 314, 412]
         self.sections_spawn_point_yaw = [180, 270, 0, 90]
 
         self._all_spawn_indexes = functools.reduce(operator.concat,
@@ -285,7 +285,7 @@ class AITCheckpointManager(MapCheckpointManager):
         return self._completed_lap
 
     def is_end_of_section(self, current_waypoint_index):
-        return current_waypoint_index in self.sections_ends[-1:]
+        return current_waypoint_index in self.sections_stop_points[-1:]
 
     def get_correct_spawn_point_transform(self, transform, index):
         new_yaw = self.sections_spawn_point_yaw[self._get_section_index(index)]
@@ -337,7 +337,7 @@ class AITCheckpointManager(MapCheckpointManager):
             else:
                 # random start at any point before current checkpoint
                 lower_bound = 0
-                for start, end in zip(self.sections_start, self.sections_ends):
+                for start, end in zip(self.sections_start, self.sections_end):
                     if start <= self.checkpoint_index < end:
                         lower_bound = start
                         break
@@ -353,9 +353,6 @@ class AITCheckpointManager(MapCheckpointManager):
         spawn_idx = self._all_spawn_indexes[list_idx]
 
         return spawn_idx
-
-    def _update_reached_last_waypoint_index(self, current_waypoint_index):
-        self._reached_last_waypoint_index = current_waypoint_index == self.sections_ends[-1]
 
     def _get_section_index(self, waypoint_index):
         for i, (start, end, _) in enumerate(self.sections_indexes):
