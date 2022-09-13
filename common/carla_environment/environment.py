@@ -196,10 +196,14 @@ class CarlaEnv(gym.Env):
         # action buffer
         self.num_past_actions = kwargs.get('n_past_actions', 10)
         self.actions_queue = deque(maxlen=self.num_past_actions)
+        self.desire_queue = deque(maxlen=self.num_past_actions)
 
         # travel distance
         self.traveled_distance_diffs = deque(maxlen=self.frame_per_second * 10)
         self.previous_traveled_distance = 0
+
+        # angle at the intersection
+        self.prev_angle = None
 
         # control history
         self.store_history = self.record_video
@@ -354,9 +358,12 @@ class CarlaEnv(gym.Env):
         self.waypoints = self.route_tracker.run_step()
 
         for _ in range(self.num_past_actions):
-            self.actions_queue.append(np.array([0, 0], dtype=np.float32))
+            self.actions_queue.append(np.array([0, 0], dtype=np.float16))
 
-        self.first_extra_state = np.ravel(np.array(self.actions_queue, dtype=np.float32))
+        for _ in range(self.desire_queue.maxlen):
+            self.desire_queue.append(np.array([0, 1, 0], dtype=np.float16))
+
+        self.first_extra_state = np.concatenate((np.concatenate(self.actions_queue), np.concatenate(self.desire_queue)), dtype=np.float16)
 
         return self._get_obs()
 
@@ -373,8 +380,13 @@ class CarlaEnv(gym.Env):
         self.time_step += 1
         self.total_step += 1
 
+        if self.route_tracker.is_in_junction():
+            self.desire_queue.append(np.array([0, 0, 1], dtype=np.float16))
+        else:
+            self.desire_queue.append(np.array([0, 1, 0], dtype=np.float16))
+
         self.actions_queue.append(action)
-        info['extra_state'] = np.ravel(np.array(self.actions_queue, dtype=np.float16))
+        info['extra_state'] = np.concatenate((np.concatenate(self.actions_queue), np.concatenate(self.desire_queue)), dtype=np.float16)
 
         return self._get_obs(), total_reward, done, info
 
@@ -438,13 +450,32 @@ class CarlaEnv(gym.Env):
         carla_control = self.ego.get_control()
         r_steer = -carla_control.steer**2
 
+        in_junction = self.route_tracker.is_in_junction()
+        # reward for turning in correct direction
+        r_turning = 0
+        if in_junction:
+            current_angle = self.route_tracker.get_angle_to_next_section_waypoint()
+            if self.prev_angle is None:
+                self.prev_angle = current_angle
+
+            if self.prev_angle < 0 and current_angle > self.prev_angle:
+                r_turning = 1
+            elif self.prev_angle > 0 and current_angle < self.prev_angle:
+                r_turning = 1
+
+            self.prev_angle = current_angle
+        else:
+            self.prev_angle = None
+
         # reward for out of lane
         ego_x, ego_y = get_pos(self.ego)
         self.current_lane_dis, w = get_lane_dis_numba(self.waypoints, ego_x, ego_y, self.direction_correction_factor)
         r_out = 0
         if abs(self.current_lane_dis) > self.out_lane_thres:
-            in_junction = self.route_tracker.is_in_junction()
             if not in_junction or not self.route_tracker.is_correct_direction(self.frame):
+                if in_junction and abs(self.current_lane_dis) > self.out_lane_thres + 1:
+                    r_out = -100
+                elif not in_junction:
                 r_out = -100
         else:
             r_out = -abs(np.nan_to_num(self.current_lane_dis, posinf=self.out_lane_thres + 1, neginf=-(self.out_lane_thres + 1)))
@@ -473,7 +504,7 @@ class CarlaEnv(gym.Env):
         if self._does_vehicle_stop():
             r_stop = -1
 
-        r = 200*r_stop + 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + r_steer*5 + 0.2*r_lat - 0.1 - brake_cost
+        r = 200*r_stop + 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + r_steer*5 + 0.2*r_lat - 0.1 - brake_cost + r_turning*3
 
         if self.store_history:
             self.speed_hist.append(speed)
@@ -489,6 +520,9 @@ class CarlaEnv(gym.Env):
         if abs(self.current_lane_dis) > self.out_lane_thres:
             in_junction = self.route_tracker.is_in_junction()
             if not in_junction or not self.route_tracker.is_correct_direction(self.frame):
+                if in_junction and abs(self.current_lane_dis) > self.out_lane_thres + 1:
+                    return True
+                elif not in_junction:
                 return True
 
         if self._does_vehicle_stop():

@@ -2,26 +2,42 @@ import os
 import pickle
 
 
+# user_episodes/user-episode-1.pkl has no turning reward
+# user_episodes/user-episode-2.pkl has no turning reward + 3
+
+
 class UserEpisodeAdder:
     def __init__(self, n_episodes):
-        self.n_episodes = n_episodes
+        # in training, n_episodes is infinity, set it to arbitrary value
+        if n_episodes == float("inf"):
+            self.n_episodes = 1000
+        else:
+            self.n_episodes = n_episodes
 
-        self.episode_file = 'user_episodes/user-episode-1.pkl'
+        self.episode_file = 'user_episodes/user-episode-2.pkl'
 
         assert os.path.exists(self.episode_file), os.path.abspath(self.episode_file)
 
         # for straight road training
-        self.episodes_chunk = [
-            (0, 100),
-        ]
+        # self.episodes_chunk = [
+        #     (0, 100),
+        # ]
 
-        # for turning training
+        # for turning training of user-episode-1.pkl
         # self.episodes_chunk = [
         #     (0, 100),
         #     (430, 530),
         #     (910, 1020),
         #     (1410, 1510)
         # ]
+
+        # for turning training of user-episode-2.pkl
+        self.episode_chunks = [
+            (0, 100),
+            (430, 530),
+            (930, 1030),
+            (1420, 1500)
+        ]
 
         self.add_every = self._calculate_adding_interval()
 
@@ -31,15 +47,28 @@ class UserEpisodeAdder:
     def get_episode(self, current_episode):
         full_episode = self._load_user_episode_from_file()
         chunk_index = max(0, int(current_episode / self.add_every) - 1)
-        start, stop = self.episodes_chunk[chunk_index]
+        start, stop = self.episode_chunks[chunk_index]
 
         chunk_episode = full_episode[start:stop]
         chunk_episode_reward = self._calculate_episode_reward(chunk_episode)
 
         return chunk_episode, len(chunk_episode), chunk_episode_reward
 
+    def get_all_episodes(self):
+        full_episode = self._load_user_episode_from_file()
+
+        episode_chunks = []
+
+        for start, stop in self.episode_chunks:
+            chunk_episode = full_episode[start:stop]
+            chunk_episode_reward = self._calculate_episode_reward(chunk_episode)
+
+            episode_chunks.append((chunk_episode, len(chunk_episode), chunk_episode_reward))
+
+        return episode_chunks
+
     def _calculate_adding_interval(self):
-        return int(self.n_episodes / len(self.episodes_chunk))
+        return int(self.n_episodes / len(self.episode_chunks))
 
     def _load_user_episode_from_file(self):
         with open(self.episode_file, 'rb') as f:

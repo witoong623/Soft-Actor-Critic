@@ -108,7 +108,6 @@ class Sampler(mp.Process):
 
         self.episode = 0
         try:
-            if self.random_sample and self.env.is_AIT_map():
                 self.user_episode_adder = UserEpisodeAdder(self.n_episodes)
 
             while self.episode < self.n_episodes:
@@ -303,6 +302,14 @@ class Sampler(mp.Process):
 
         self.save_stat(episode_steps, episode_reward)
         self.save_sampler_log(episode_steps, episode_reward)
+
+    def _add_all_user_episode(self):
+        for chunk, chunk_steps, chunk_reward in self.user_episode_adder.get_all_episodes():
+            self.replay_buffer.extend(chunk, is_end=True)
+
+            self.save_stat(chunk_steps, chunk_reward)
+            self.save_sampler_log(chunk_steps, chunk_reward)
+
 
 class EpisodeSampler(Sampler):
     def add_transaction(self, observation, action, reward, next_observation, done):
