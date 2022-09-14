@@ -132,7 +132,26 @@ class AITRoutePlanner(BaseRoutePlanner):
 
         self._setup()
 
-        self.junction_waypoint_indexes = list(range(102, 108)) + list(range(209, 214)) + list(range(316, 322))
+        self.each_junction_waypoint_indexes = [list(range(102, 108)), list(range(209, 214)), list(range(316, 322))]
+
+        self.junction_waypoint_indexes = self.each_junction_waypoint_indexes[0] + self.each_junction_waypoint_indexes[1] + self.each_junction_waypoint_indexes[2]
+
+    def get_bonus_out_of_lane_distance(self, current_waypoint_index):
+        junction_idx = None
+        for i, junction_waypoint_indexes in enumerate(self.each_junction_waypoint_indexes):
+            if current_waypoint_index in junction_waypoint_indexes:
+                junction_idx = i
+
+        if junction_idx is None:
+            return 0
+
+        junction_waypoint_indexes = self.each_junction_waypoint_indexes[junction_idx]
+
+        idx_of_waypoint = junction_waypoint_indexes.index(current_waypoint_index)
+
+        based_bonus = 1.5
+
+        return based_bonus - ((based_bonus / len(junction_waypoint_indexes)) * idx_of_waypoint)
 
     def compute_route(self):
         if self._route_waypoints is not None:

@@ -171,6 +171,9 @@ class RouteTracker:
 
         return is_in_junction
 
+    def get_bonus_out_of_lane_distance(self):
+        return self.route_planner.get_bonus_out_of_lane_distance(self._current_waypoint_index)
+
     @property
     def is_end_of_section(self):
         return self.checkpoint_manager.is_end_of_section(self._current_waypoint_index)
