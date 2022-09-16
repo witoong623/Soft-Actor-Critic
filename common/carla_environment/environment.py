@@ -473,10 +473,10 @@ class CarlaEnv(gym.Env):
         r_out = 0
         if abs(self.current_lane_dis) > self.out_lane_thres:
             if not in_junction or not self.route_tracker.is_correct_direction(self.frame):
-                if in_junction and abs(self.current_lane_dis) > self.out_lane_thres + 1:
+                if in_junction and abs(self.current_lane_dis) > self.out_lane_thres + self.route_tracker.get_bonus_out_of_lane_distance():
                     r_out = -100
                 elif not in_junction:
-                r_out = -100
+                    r_out = -100
         else:
             r_out = -abs(np.nan_to_num(self.current_lane_dis, posinf=self.out_lane_thres + 1, neginf=-(self.out_lane_thres + 1)))
 
@@ -520,10 +520,10 @@ class CarlaEnv(gym.Env):
         if abs(self.current_lane_dis) > self.out_lane_thres:
             in_junction = self.route_tracker.is_in_junction()
             if not in_junction or not self.route_tracker.is_correct_direction(self.frame):
-                if in_junction and abs(self.current_lane_dis) > self.out_lane_thres + 1:
+                if in_junction and abs(self.current_lane_dis) > self.out_lane_thres + self.route_tracker.get_bonus_out_of_lane_distance():
                     return True
                 elif not in_junction:
-                return True
+                    return True
 
         if self._does_vehicle_stop():
             return True
