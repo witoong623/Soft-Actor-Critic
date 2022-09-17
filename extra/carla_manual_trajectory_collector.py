@@ -106,13 +106,7 @@ class CarlaManualTrajectoryCollector:
         for _ in range(self.n_past_actions):
             self.action_queue.append(np.array([0, 0], dtype=np.float16))
 
-        for _ in range(self.desire_queue.maxlen):
-            self.desire_queue.append(np.array([0, 1, 0], dtype=np.float16))
-
-        action_array = np.concatenate(self.action_queue)
-        desire_array = np.concatenate(self.desire_queue)
-
-        self.extra_state_queue.append(np.concatenate((action_array, desire_array), dtype=np.float16))
+        self.extra_state_queue.append(np.concatenate(self.action_queue, dtype=np.float16))
 
     def _get_observation(self, frame_number):
         while True:
@@ -137,15 +131,7 @@ class CarlaManualTrajectoryCollector:
 
         self.action_queue.append(action)
 
-        if self.world.route_tracker.is_in_junction():
-            self.desire_queue.append(np.array([0, 0, 1], dtype=np.float16))
-        else:
-            self.desire_queue.append(np.array([0, 1, 0], dtype=np.float16))
-
-        action_array = np.concatenate(self.action_queue)
-        desire_array = np.concatenate(self.desire_queue)
-
-        self.extra_state_queue.append(np.concatenate((action_array, desire_array), dtype=np.float16))
+        self.extra_state_queue.append(np.concatenate(self.action_queue, dtype=np.float16))
 
         state = self.extra_state_queue.popleft()
 
@@ -180,23 +166,6 @@ class CarlaManualTrajectoryCollector:
         carla_control = self.vehicle.get_control()
         r_steer = -carla_control.steer**2
 
-        in_junction = self.world.route_tracker.is_in_junction()
-        # reward for turning in correct direction
-        r_turning = 0
-        if in_junction:
-            current_angle = self.world.route_tracker.get_angle_to_next_section_waypoint()
-            if self.prev_angle is None:
-                self.prev_angle = current_angle
-
-            if self.prev_angle < 0 and current_angle > self.prev_angle:
-                r_turning = 1
-            elif self.prev_angle > 0 and current_angle < self.prev_angle:
-                r_turning = 1
-
-            self.prev_angle = current_angle
-        else:
-            self.prev_angle = None
-
         # reward for out of lane
         ego_x, ego_y = get_pos(self.vehicle)
         self.current_lane_dis, w = get_lane_dis_numba(self.world.waypoints,
@@ -204,11 +173,7 @@ class CarlaManualTrajectoryCollector:
                                                       direction_correction_multiplier=-1)
         r_out = 0
         if abs(self.current_lane_dis) > self.out_lane_thres:
-            if not in_junction or not self.world.route_tracker.is_correct_direction(self.frame_number):
-                if in_junction and abs(self.current_lane_dis) > self.out_lane_thres + 1:
-                    r_out = -100
-                elif not in_junction:
-                    r_out = -100
+            r_out = -100
         else:
             r_out = -abs(np.nan_to_num(self.current_lane_dis, posinf=self.out_lane_thres + 1, neginf=-(self.out_lane_thres + 1)))
 
@@ -236,7 +201,7 @@ class CarlaManualTrajectoryCollector:
         if self._does_vehicle_stop():
             r_stop = -1
 
-        r = r_stop*200 + 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + r_steer*5 + 0.2*r_lat - 0.1 - brake_cost + r_turning*3
+        r = r_stop*200 + 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + r_steer*5 + 0.2*r_lat - 0.1 - brake_cost
 
         self._log_reward_by_term({
             'speed': lspeed_lon,
@@ -245,26 +210,17 @@ class CarlaManualTrajectoryCollector:
             'steer': r_steer*5,
             'lat_acc': 0.2*r_lat,
             'brake': brake_cost,
-            'turning': r_turning
         })
 
         return r
 
     def _get_terminal(self):
         if self._does_vehicle_collide():
-            print('terminate because collision')
             return True
 
         if abs(self.current_lane_dis) > self.out_lane_thres:
-            in_junction = self.world.route_tracker.is_in_junction()
-            is_correct_direction = self.world.route_tracker.is_correct_direction(self.frame_number)
-            if not in_junction or not is_correct_direction:
-                if in_junction and abs(self.current_lane_dis) > self.out_lane_thres + 1:
-                    print(f'out of lane at {self.current_lane_dis}. in junction {in_junction}, correct direction {is_correct_direction}')
-                    return True
-                elif not in_junction:
-                    print(f'out of lane at {self.current_lane_dis}. in junction {in_junction}, correct direction {is_correct_direction}')
-                    return True
+            return True
+
         return False
 
     def _transform_observation(self, image):

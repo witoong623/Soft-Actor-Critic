@@ -3,7 +3,7 @@ import pickle
 
 
 # user_episodes/user-episode-1.pkl has no turning reward
-# user_episodes/user-episode-2.pkl has no turning reward + 3
+# user_episodes/user-episode-4.pkl has turning reward and no steering penalty
 
 
 class UserEpisodeAdder:
@@ -14,14 +14,14 @@ class UserEpisodeAdder:
         else:
             self.n_episodes = n_episodes
 
-        self.episode_file = 'user_episodes/user-episode-2.pkl'
+        self.episode_file = 'user_episodes/user-episode-1.pkl'
 
         assert os.path.exists(self.episode_file), os.path.abspath(self.episode_file)
 
         # for straight road training
-        # self.episodes_chunk = [
-        #     (0, 100),
-        # ]
+        self.episodes_chunk = [
+            (0, 100),
+        ]
 
         # for turning training of user-episode-1.pkl
         # self.episodes_chunk = [
@@ -31,13 +31,21 @@ class UserEpisodeAdder:
         #     (1410, 1510)
         # ]
 
-        # for turning training of user-episode-2.pkl
-        self.episode_chunks = [
-            (0, 100),
-            (430, 530),
-            (930, 1030),
-            (1420, 1500)
-        ]
+        # for turning training of user-episode-2.pkl and episode user-episode-3.pkl
+        # self.episode_chunks = [
+        #     (0, 100),
+        #     (430, 530),
+        #     (930, 1030),
+        #     (1420, 1500)
+        # ]
+
+        # for episode user-episode-4.pkl and episode user-episode-5.pkl
+        # self.episode_chunks = [
+        #     (0, 100),
+        #     (405, 480),
+        #     (865, 935),
+        #     (1305, 1390)
+        # ]
 
         self.add_every = self._calculate_adding_interval()
 

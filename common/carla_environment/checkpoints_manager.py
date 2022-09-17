@@ -223,13 +223,13 @@ class AITCheckpointManager(MapCheckpointManager):
         self._completed_lap = False
 
         # (start, end, checkpoint frequency)
-        self.sections_indexes = [(0, 100, 50), (102, 108, 6) (109, 207, 49), (208, 214, 6) (215, 315, 50), (316, 322, 6) (324, 412, 44)]
+        self.sections_indexes = [(0, 102, 51), (108, 208, 50), (214, 314, 50), (322, 412, 45)]
         self.sections_start = [s[START] for s in self.sections_indexes]
         self.sections_end = [s[END] for s in self.sections_indexes]
         self.sections_frequency = [s[FREQUENCY] for s in self.sections_indexes]
         # sections_stop_points isn't used except the last index
         self.sections_stop_points = [102, 208, 314, 412]
-        self.sections_spawn_point_yaw = [180, 180, 270, 270, 0, 0, 90]
+        self.sections_spawn_point_yaw = [180, 270, 0, 90]
 
         self._all_spawn_indexes = functools.reduce(operator.concat,
                                                    [self._get_all_spawn_indexes(*sec) for sec in self.sections_indexes])

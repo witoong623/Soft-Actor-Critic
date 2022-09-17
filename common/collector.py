@@ -108,6 +108,7 @@ class Sampler(mp.Process):
 
         self.episode = 0
         try:
+            if self.random_sample:
                 self.user_episode_adder = UserEpisodeAdder(self.n_episodes)
 
             while self.episode < self.n_episodes:
