@@ -1,3 +1,4 @@
+import os
 import carla
 import cv2
 import pickle
@@ -251,3 +252,86 @@ class CarlaManualTrajectoryCollector:
     def _log_reward_by_term(self, reward_terms):
         for term, reward in reward_terms.items():
             self.rewards_log[term].append(reward)
+
+
+class SemanticSegmentationDatasetCollector:
+    def __init__(self, world, carla_world, enable=False) -> None:
+        self.world = world
+        self.carla_world = carla_world
+        self.vehicle = None
+        self.enable = enable
+
+        if not self.enable:
+            return
+
+        self.bp_library = self.carla_world.get_blueprint_library()
+
+        self.seg_camera = None
+        self.camera_trans = carla.Transform(carla.Location(x=0.88, z=1.675))
+
+        self.camera_seg_bp = self.bp_library.find('sensor.camera.semantic_segmentation')
+        self.camera_seg_bp.set_attribute('image_size_x', '1280')
+        self.camera_seg_bp.set_attribute('image_size_y', '720')
+        self.camera_seg_bp.set_attribute('fov', '69')
+        self.seg_frame_data_queue = Queue()
+
+        self.rgb_camera = None
+        self.camera_rgb_bp = self.bp_library.find('sensor.camera.rgb')
+        self.camera_rgb_bp.set_attribute('image_size_x', '1280')
+        self.camera_rgb_bp.set_attribute('image_size_y', '720')
+        self.camera_rgb_bp.set_attribute('fov', '69')
+        self.rgb_frame_data_queue = Queue()
+
+        self.rgb_frame_dir = '/home/witoon/thesis/datasets/carla-ait/images'
+        self.seg_frame_dir = '/home/witoon/thesis/datasets/carla-ait/labels'
+
+    def setup_camera(self, vehicle):
+        if not self.enable:
+            return
+
+        self.vehicle = vehicle
+
+        self.seg_camera = self.carla_world.spawn_actor(self.camera_seg_bp, self.camera_trans, attach_to=self.vehicle)
+        self.seg_camera.listen(self.seg_frame_data_queue.put)
+
+        self.rgb_camera = self.carla_world.spawn_actor(self.camera_rgb_bp, self.camera_trans, attach_to=self.vehicle)
+        self.rgb_camera.listen(self.rgb_frame_data_queue.put)
+
+    def collect_transition(self, frame_number):
+        rgb_frame = self._get_frame(frame_number, self.rgb_frame_data_queue, cc.Raw)
+        seg_frame = self._get_frame(frame_number, self.seg_frame_data_queue, cc.CityScapesPalette)
+        
+        rgb_filepath = os.path.join(self.rgb_frame_dir, f'rgb_{frame_number}.png')
+        seg_filepath = os.path.join(self.seg_frame_dir, f'seg_{frame_number}.png')
+
+        self._save_frame(rgb_frame, rgb_filepath)
+        self._save_frame(seg_frame, seg_filepath)
+
+        return False, False
+
+    def save_trajectory(self, filepath):
+        pass
+
+    def plot_reward_terms(self):
+        pass
+
+    def _save_frame(self, frame, filepath):
+        cv2.imwrite(filepath, frame)
+
+    def _get_frame(self, frame_number, queue_to_wait, frame_type):
+        while True:
+            data = queue_to_wait.get()
+            queue_to_wait.task_done()
+            if data.frame == frame_number:
+                break
+
+        data.convert(frame_type)
+
+        array = np.frombuffer(data.raw_data, dtype=np.uint8)
+        array = np.reshape(array, (data.height, data.width, 4))
+        array = array[:, :, :3]
+
+        # BGR(OpenCV) > RGB
+        raw_image = np.ascontiguousarray(array[:, :, ::-1])
+        
+        return raw_image
