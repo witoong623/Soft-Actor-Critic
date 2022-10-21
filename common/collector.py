@@ -9,6 +9,7 @@ import numpy as np
 import torch
 import torch.multiprocessing as mp
 import torch.cuda.amp as amp
+import torch_tensorrt
 import tqdm
 from PIL import Image, ImageDraw, ImageFont
 from setproctitle import setproctitle
@@ -16,7 +17,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from common.buffer import ReplayBuffer, EpisodeReplayBuffer, EfficientReplayBuffer, PrioritizedReplayBuffer
 from common.utils import clone_network, sync_params, normalize_image, \
-    normalize_grayscale_image, ObservationStacker
+    normalize_grayscale_image, ObservationStacker, label_mask_to_color_mask
 from common.carla_environment.action_sampler import CarlaBiasActionSampler, CarlaPIDLongitudinalSampler, CarlaPerfectActionSampler
 from extra.user_episode_loader import UserEpisodeAdder
 
@@ -26,6 +27,10 @@ __all__ = ['Collector', 'EpisodeCollector']
 
 MEAN = np.tile([0.3171, 0.3183, 0.3779], 2)
 STD = np.tile([0.1406, 0.0594, 0.0925], 2)
+
+
+RGB_MEAN = np.array([0.4203, 0.4078, 0.3611])
+RGB_STD = np.array([0.2669, 0.2638, 0.2579])
 
 
 class Sampler(mp.Process):
@@ -95,6 +100,8 @@ class Sampler(mp.Process):
 
     def run(self):
         setproctitle(title=self.name)
+
+        self.seg_model = torch.jit.load('/home/witoon/thesis/code/thesis-code/segmentation-model/checkpoints/bisenetv2/best.ts', map_location=self.device)
 
         self.env = self.env_func(**self.env_kwargs)
         self.env.seed(self.random_seed)
@@ -203,10 +210,13 @@ class Sampler(mp.Process):
         if self.writer is not None:
             self.writer.close()
 
+        self.seg_model = None
+
     def add_transaction(self, observation, extra_state, action, reward, done):
         self.trajectory.append((observation, extra_state, action, reward, done))
 
     def save_trajectory(self, is_end=True):
+        self._transform_observations()
         self.replay_buffer.extend(self.trajectory, is_end)
 
     def save_stat(self, episode_steps, episode_reward):
@@ -310,6 +320,19 @@ class Sampler(mp.Process):
 
             self.save_stat(chunk_steps, chunk_reward)
             self.save_sampler_log(chunk_steps, chunk_reward)
+
+    def _transform_observations(self):
+        batch_size = 8
+        for b in range(0, len(self.trajectory), batch_size):
+            upper = min(len(self.trajectory) - b, batch_size)
+            np_img_batch = np.stack([normalize_image(self.trajectory[b+i][0], RGB_MEAN, RGB_STD).transpose((2, 0, 1)) for i in range(upper)])
+            batch_tensor = torch.tensor(np_img_batch, dtype=torch.float16, device=self.device)
+            out_tensor = self.seg_model(batch_tensor)
+            out_np = out_tensor.cpu().numpy()
+
+            for i in range(upper):
+                label_mask = np.argmax(out_np[i], axis=0)
+                self.trajectory[b+i] = (label_mask_to_color_mask(label_mask),) + self.trajectory[b+i][1:]
 
 
 class EpisodeSampler(Sampler):

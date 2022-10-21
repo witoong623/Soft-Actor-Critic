@@ -152,6 +152,9 @@ class CarlaEnv(gym.Env):
         if self.is_AIT_map():
             self.direction_correction_factor = -1
 
+        # whether preset
+        self.whether_presets = [carla.WeatherParameters.Default, carla.WeatherParameters.ClearNoon, carla.WeatherParameters.ClearSunset]
+
         # ego vehicle bp
         self.ego_bp = self._create_vehicle_bluepprint('vehicle.evt.echo_4s3')
         self.ego = None
@@ -328,6 +331,8 @@ class CarlaEnv(gym.Env):
 
         self.start_location = spawn_transform.location
 
+        self.world.set_weather(self.whether_presets[random.randrange(len(self.whether_presets))])
+
         # Add collision sensor
         self.collision_sensor = self.world.spawn_actor(self.collision_bp, carla.Transform(), attach_to=self.ego)
         self.collision_sensor.listen(self.collision_data_queue.put)
@@ -421,7 +426,10 @@ class CarlaEnv(gym.Env):
             if self.record_video:
                 return self._get_image_data(self.obs_frame_data_queue, use_semantic_mask=False)
             else:
-                return self._get_observation_image()
+                img = self._get_observation_image()
+                if self.use_semantic_camera:
+                    img = convert_to_simplified_cityscape(img)
+                return img
         elif mode == 'observation':
             return self._transform_observation(self.camera_img)
 
@@ -501,6 +509,8 @@ class CarlaEnv(gym.Env):
 
         if self.n_images == 1:
             transformed_observation = self._transform_observation(self.camera_img)
+            if self.use_semantic_camera:
+                transformed_observation = convert_to_simplified_cityscape(transformed_observation)
             return self._combine_observations(transformed_observation)
 
         self.img_buff.append(self.camera_img)
@@ -789,7 +799,7 @@ class CarlaEnv(gym.Env):
         cropped_obs = self._crop_image(obs)
         resized_obs = cv2.resize(cropped_obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
 
-        return convert_to_simplified_cityscape(resized_obs)
+        return resized_obs
 
     def _transform_CNN_grayscale_observation(self, obs):
         cropped_obs = self._crop_image(obs)
@@ -827,7 +837,7 @@ class CarlaEnv(gym.Env):
         '''
         cropped_img = self._crop_image(self.camera_img)
         resized_img = cv2.resize(cropped_img, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
-        return convert_to_simplified_cityscape(resized_img)
+        return resized_img
 
     def _crop_image(self, img):
         # this size is suitable for 1280x720, fov 69

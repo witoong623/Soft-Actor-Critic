@@ -187,6 +187,14 @@ HUMAN = (220, 20, 60)
 OTHER = (55, 90, 80)
 
 
+class Label:
+    ROAD = 0
+    LANE_MARKING = 1
+    VEHICLE = 2
+    HUMAN = 3
+    OTHER = 4
+
+
 def convert_to_simplified_cityscape(img):
     ''' Only work with RGB image '''
     other_elements = (img[...,] != ROAD).all(axis=2) & \
@@ -196,6 +204,17 @@ def convert_to_simplified_cityscape(img):
     img[other_elements] = OTHER
 
     return img
+
+
+def label_mask_to_color_mask(label_mask):
+    color_mask = np.full(label_mask.shape + (3,), OTHER, dtype=np.uint8)
+
+    color_mask[label_mask == Label.ROAD] = ROAD
+    color_mask[label_mask == Label.LANE_MARKING] = ROAD_LINE
+    color_mask[label_mask == Label.VEHICLE] = VEHICLE
+    color_mask[label_mask == Label.HUMAN] = HUMAN
+
+    return color_mask
 
 
 def sample_carracing_bias_action(prev_action):
