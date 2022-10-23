@@ -11,7 +11,7 @@ from functools import partial
 from torchvision.utils import save_image
 from tqdm import tqdm
 
-from dataloader import get_dataloader
+from dataloader import get_vae_dataloader
 from main import test
 from common.network import ConvBetaVAE
 
@@ -41,7 +41,7 @@ if __name__ == "__main__":
     print('num cpus:', multiprocessing.cpu_count())
 
     # train_loader = get_dataloader('/root/thesis/thesis-code/Soft-Actor-Critic/carla_images', BATCH_SIZE, 3)
-    test_loader = get_dataloader('/root/thesis/thesis-code/Soft-Actor-Critic/carla_test_images', BATCH_SIZE, 3)
+    test_loader = get_vae_dataloader('/root/thesis/thesis-code/Soft-Actor-Critic/carla_test_images', BATCH_SIZE, 3)
 
     print('latent size:', LATENT_SIZE)
     # TODO: update size of image
