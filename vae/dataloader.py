@@ -60,9 +60,8 @@ class CarlaAITDataset(Dataset):
 
         images_filepath = [os.path.join(self.root, sample[1]) for sample in sample_tuples]
         images = [cv2.imread(image_filepath) for image_filepath in images_filepath]
-        cropped_images = [center_crop(image, (512, 1024), shift_H=1.29) for image in images]
-        transformed_images_tensor = [self.transform(cropped_image) for cropped_image in cropped_images]
-        
+        transformed_images_tensor = [self.transform(img) for img in images]
+
         return torch.cat(transformed_images_tensor)
 
 

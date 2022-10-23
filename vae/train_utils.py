@@ -1,6 +1,4 @@
 import sys
-from turtle import forward
-import segmentation_models_pytorch
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
@@ -97,7 +95,7 @@ class TrainEpoch(Epoch):
         return loss, output
 
 
-class BVAELoss(nn.Module):
+class BetaVAELoss(nn.Module):
     __name__ = 'BetaVAELoss'
 
     def __init__(self, beta=3) -> None:
