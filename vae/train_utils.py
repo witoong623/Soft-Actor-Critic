@@ -42,11 +42,16 @@ class Epoch:
         logs = {}
         loss_meter = AverageValueMeter()
 
+        disable_pbar = False
+        if isinstance(self.device, int):
+            if self.device not in [-1, 0]:
+                disable_pbar = True
+
         with tqdm(
             dataloader,
             desc=self.stage_name,
             file=sys.stdout,
-            disable=not (self.verbose),
+            disable=not (self.verbose) or disable_pbar,
         ) as iterator:
             for x in iterator:
                 x = x.to(self.device)

@@ -73,9 +73,10 @@ def train_loop():
 
         # save_image(original_images + rect_images, COMPARE_PATH + str(epoch) + '.png', padding=0, nrow=len(original_images))
 
-        torch.save(model.state_dict(), os.path.join(MODEL_PATH, 'latest.pkl'))
-        if epoch % 10 == 0:
-            torch.save(model.state_dict(), os.path.join(MODEL_PATH, CHECKPOINT_FORMAT(prefix='carla-ait-2-img', epoch=epoch, loss=print_loss)))
+        if LOCAL_RANK in [-1, 0]:
+            torch.save(model.state_dict(), os.path.join(MODEL_PATH, 'latest.pkl'))
+            if epoch % 10 == 0:
+                torch.save(model.state_dict(), os.path.join(MODEL_PATH, CHECKPOINT_FORMAT(prefix='carla-ait-2-img', epoch=epoch, loss=print_loss)))
 
     log_writer.flush()
     log_writer.close()
