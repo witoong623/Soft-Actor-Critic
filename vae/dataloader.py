@@ -47,7 +47,7 @@ class CarlaAITDataset(Dataset):
         self.id_at_half = 5675
         self.transform = T.Compose([
             T.ToTensor(),
-            T.Normalize((0.4203, 0.4078, 0.3611), (0.2669, 0.2638, 0.2579))
+            T.Normalize((0.3171, 0.3183, 0.3779), (0.1406, 0.0594, 0.0925))
         ])
 
         self._load_sample_list()

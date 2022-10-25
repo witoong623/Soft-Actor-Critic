@@ -89,7 +89,7 @@ class TrainEpoch(Epoch):
     def batch_update(self, x):
         self.optimizer.zero_grad()
 
-        with torch.cuda.amp.autocast():
+        with torch.cuda.amp.autocast(dtype=torch.bfloat16):
             output, mu, logvar = self.model.forward(x)
             loss = self.loss(output, x, mu, logvar)
 
