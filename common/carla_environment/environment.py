@@ -59,6 +59,10 @@ class CarlaEnv(gym.Env):
         self.reload_world = True
         self.use_semantic_camera = True
 
+        self.interpolation = cv2.INTER_NEAREST
+        if not self.use_semantic_camera:
+            self.interpolation = cv2.INTER_LINEAR
+
         camera_size = kwargs.get('camera_size')
         self.camera_width = camera_size[1]
         self.camera_height = camera_size[0]
@@ -199,7 +203,6 @@ class CarlaEnv(gym.Env):
         # action buffer
         self.num_past_actions = kwargs.get('n_past_actions', 10)
         self.actions_queue = deque(maxlen=self.num_past_actions)
-        self.desire_queue = deque(maxlen=self.num_past_actions)
 
         # travel distance
         self.traveled_distance_diffs = deque(maxlen=self.frame_per_second * 10)
@@ -454,7 +457,7 @@ class CarlaEnv(gym.Env):
         self.current_lane_dis, w = get_lane_dis_numba(self.waypoints, ego_x, ego_y, self.direction_correction_factor)
         r_out = 0
         if abs(self.current_lane_dis) > self.out_lane_thres:
-            r_out = -100
+            r_out = -200
         else:
             r_out = -abs(np.nan_to_num(self.current_lane_dis, posinf=self.out_lane_thres + 1, neginf=-(self.out_lane_thres + 1)))
 
@@ -797,7 +800,7 @@ class CarlaEnv(gym.Env):
 
     def _transform_CNN_observation(self, obs):
         cropped_obs = self._crop_image(obs)
-        resized_obs = cv2.resize(cropped_obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
+        resized_obs = cv2.resize(cropped_obs, (self.obs_width, self.obs_height), interpolation=self.interpolation)
 
         return resized_obs
 
@@ -818,7 +821,7 @@ class CarlaEnv(gym.Env):
 
     def _transform_VAE_observation(self, obs):
         cropped_obs = self._crop_image(obs)
-        resized_obs = cv2.resize(cropped_obs, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
+        resized_obs = cv2.resize(cropped_obs, (self.obs_width, self.obs_height), interpolation=self.interpolation)
         normalized_obs = normalize_image(resized_obs, self.mean, self.std).astype(np.float16)
 
         return normalized_obs
@@ -836,7 +839,7 @@ class CarlaEnv(gym.Env):
             will normalize an image but this method keeps the image format except spatial size.
         '''
         cropped_img = self._crop_image(self.camera_img)
-        resized_img = cv2.resize(cropped_img, (self.obs_width, self.obs_height), interpolation=cv2.INTER_NEAREST)
+        resized_img = cv2.resize(cropped_img, (self.obs_width, self.obs_height), interpolation=self.interpolation)
         return resized_img
 
     def _crop_image(self, img):

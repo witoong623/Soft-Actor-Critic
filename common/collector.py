@@ -129,7 +129,6 @@ class Sampler(mp.Process):
 
                 episode_reward = 0
                 episode_steps = 0
-                self.trajectory.clear()
                 if self.state_encoder is not None:
                     self.state_encoder.reset()
                 observation = self.env.reset()
@@ -181,7 +180,6 @@ class Sampler(mp.Process):
                         self.running_event.wait()
                         with self.sampler_lock:
                             self.save_trajectory(is_end=False)
-                            self.trajectory.clear()
 
                 # wait for signal from Collector to stop or continue
                 self.running_event.wait()
@@ -218,6 +216,7 @@ class Sampler(mp.Process):
     def save_trajectory(self, is_end=True):
         self._transform_observations()
         self.replay_buffer.extend(self.trajectory, is_end)
+        self.trajectory.clear()
 
     def save_stat(self, episode_steps, episode_reward):
         self.n_total_steps.value += episode_steps
@@ -309,7 +308,8 @@ class Sampler(mp.Process):
 
     def _add_user_episode(self):
         user_episode, episode_steps, episode_reward = self.user_episode_adder.get_episode(self.episode)
-        self.replay_buffer.extend(user_episode, is_end=True)
+        self.trajectory.extend(user_episode)
+        self.save_trajectory(is_end=True)
 
         self.save_stat(episode_steps, episode_reward)
         self.save_sampler_log(episode_steps, episode_reward)

@@ -72,9 +72,12 @@ def build_model(config):
 
     if config.pretrained_checkpoint is not None:
         print(f'load pretrained checkpoint from {config.pretrained_checkpoint}')
-        model.load_model(path=config.pretrained_checkpoint,
-                         strict=True,
-                         load_weight_only=True)
+        load_ret = model.load_model(path=config.pretrained_checkpoint,
+                                    strict=False,
+                                    load_weight_only=True)
+
+        print(f'Missing keys: {load_ret.missing_keys}')
+        print(f'Unexpected keys: {load_ret.unexpected_keys}')
 
     if config.initial_checkpoint is not None:
         print(f'load checkpoint from {config.initial_checkpoint}')

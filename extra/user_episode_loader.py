@@ -14,7 +14,7 @@ class UserEpisodeAdder:
         else:
             self.n_episodes = n_episodes
 
-        self.episode_file = 'user_episodes/user-episode-1.pkl'
+        self.episode_file = 'user_episodes/user-episode-5fps-1.pkl'
 
         assert os.path.exists(self.episode_file), os.path.abspath(self.episode_file)
 
