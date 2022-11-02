@@ -101,7 +101,6 @@ class Sampler(mp.Process):
     def run(self):
         setproctitle(title=self.name)
 
-        self.seg_model = torch.jit.load('/home/witoon/thesis/code/thesis-code/segmentation-model/checkpoints/bisenetv2/best.ts', map_location=self.device)
 
         self.env = self.env_func(**self.env_kwargs)
         self.env.seed(self.random_seed)
@@ -115,8 +114,8 @@ class Sampler(mp.Process):
 
         self.episode = 0
         try:
-            if self.random_sample:
-                self.user_episode_adder = UserEpisodeAdder(self.n_episodes)
+            # if self.random_sample:
+            #     self.user_episode_adder = UserEpisodeAdder(self.n_episodes)
 
             while self.episode < self.n_episodes:
                 self.episode += 1
@@ -195,10 +194,10 @@ class Sampler(mp.Process):
 
                 self.save_sampler_log(episode_steps, episode_reward)
 
-                if self.random_sample and \
-                    self.env.is_AIT_map() and \
-                    self.user_episode_adder.should_add_user_episode(self.episode):
-                    self._add_user_episode()
+                # if self.random_sample and \
+                #     self.env.is_AIT_map() and \
+                #     self.user_episode_adder.should_add_user_episode(self.episode):
+                #     self._add_user_episode()
         except KeyboardInterrupt:
             self.close()
             return
@@ -214,7 +213,6 @@ class Sampler(mp.Process):
         self.trajectory.append((observation, extra_state, action, reward, done))
 
     def save_trajectory(self, is_end=True):
-        self._transform_observations()
         self.replay_buffer.extend(self.trajectory, is_end)
         self.trajectory.clear()
 

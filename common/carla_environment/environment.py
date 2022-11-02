@@ -9,6 +9,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+import torch
+import torch_tensorrt
 
 from agents.navigation.behavior_agent import BehaviorAgent, BasicAgent
 from carla import ColorConverter as cc
@@ -22,9 +24,15 @@ from tqdm import trange
 
 from .misc import get_pos, get_lane_dis_numba, get_vehicle_angle
 from .route_tracker import RouteTracker, TOWN7_PLAN
-from ..utils import center_crop, normalize_image, convert_to_simplified_cityscape
+from ..utils import center_crop, normalize_image, convert_to_simplified_cityscape, label_mask_to_color_mask
 
 from agents.navigation.behavior_agent import BehaviorAgent
+
+
+DEVICE = 'cuda:1'
+
+RGB_MEAN = np.array([0.4203, 0.4078, 0.3611])
+RGB_STD = np.array([0.2669, 0.2638, 0.2579])
 
 
 _walker_spawn_points_cache = []
@@ -266,6 +274,8 @@ class CarlaEnv(gym.Env):
 
         self.z_steps = {}
 
+        self.seg_model = torch.jit.load('/home/witoon/thesis/code/thesis-code/segmentation-model/checkpoints/bisenetv2/best.ts', map_location=DEVICE)
+
     def reset(self):
         # Clear history if exist
         if self.store_history:
@@ -457,7 +467,7 @@ class CarlaEnv(gym.Env):
         self.current_lane_dis, w = get_lane_dis_numba(self.waypoints, ego_x, ego_y, self.direction_correction_factor)
         r_out = 0
         if abs(self.current_lane_dis) > self.out_lane_thres:
-            r_out = -200
+            r_out = -100
         else:
             r_out = -abs(np.nan_to_num(self.current_lane_dis, posinf=self.out_lane_thres + 1, neginf=-(self.out_lane_thres + 1)))
 
@@ -514,6 +524,9 @@ class CarlaEnv(gym.Env):
             transformed_observation = self._transform_observation(self.camera_img)
             if self.use_semantic_camera:
                 transformed_observation = convert_to_simplified_cityscape(transformed_observation)
+            else:
+                transformed_observation = self._apply_segmentation_model(transformed_observation)
+
             return self._combine_observations(transformed_observation)
 
         self.img_buff.append(self.camera_img)
@@ -874,6 +887,14 @@ class CarlaEnv(gym.Env):
                     return True
         except queue.Empty:
             return False
+
+    def _apply_segmentation_model(self, rgb_obs):
+        normalized_rgb_image = np.expand_dims(normalize_image(rgb_obs, RGB_MEAN, RGB_STD).transpose((2, 0, 1)), axis=0)
+        batch_tensor = torch.tensor(normalized_rgb_image, dtype=torch.float16, device=DEVICE)
+        out_tensor = self.seg_model(batch_tensor)
+        out_np = out_tensor.cpu().numpy().squeeze()
+        label_mask = np.argmax(out_np, axis=0)
+        return label_mask_to_color_mask(label_mask)
 
     def _draw_debug_waypoints(self, waypoints, size=1, color=(255,0,0)):
         ''' Draw debug point on waypoints '''

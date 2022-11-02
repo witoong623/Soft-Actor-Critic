@@ -33,7 +33,7 @@ TEST_BATCH_SIZE = 256
 EPOCHS = 100
 
 LATENT_SIZE = 512
-LEARNING_RATE = 3e-4
+LEARNING_RATE = 1e-3
 
 USE_CUDA = True
 LOG_PATH = '/home/witoon/thesis/code/Soft-Actor-Critic/logs/carla-ait-vae'
@@ -54,11 +54,12 @@ def train_loop():
     model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model).to(LOCAL_RANK)
     model = DDP(model, device_ids=[LOCAL_RANK], output_device=LOCAL_RANK)
 
-    loss = BetaVAELoss()
+    loss = BetaVAELoss(beta=1)
 
     grad_scaler = amp.GradScaler()
 
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, threshold=5e-3, cooldown=EPOCHS, verbose=True)
 
     train_epoch = TrainEpoch(model, loss, optimizer, grad_scaler, LOCAL_RANK)
 
@@ -70,6 +71,8 @@ def train_loop():
         log_writer.add_scalar('Loss/Train', train_log['BetaVAELoss'].item(), epoch)
 
         print_loss = train_log['BetaVAELoss']
+        
+        scheduler.step(print_loss.item())
 
         # save_image(original_images + rect_images, COMPARE_PATH + str(epoch) + '.png', padding=0, nrow=len(original_images))
 
