@@ -475,11 +475,6 @@ class CarlaEnv(gym.Env):
         lspeed = np.array([v.x, v.y])
         lspeed_lon = np.dot(lspeed, w)
 
-        # cost for too fast
-        r_fast = 0
-        if lspeed_lon > self.desired_speed:
-            r_fast = -1
-
         # if it is faster than desired speed, minus the excess speed
         # and don't give reward from speed
         # r_fast *= lspeed_lon
@@ -488,14 +483,19 @@ class CarlaEnv(gym.Env):
         r_lat = - abs(carla_control.steer) * lspeed_lon**2
 
         # cost for braking
-        brake_cost = carla_control.brake * 2
+        # brake_cost = carla_control.brake * 2
+
+        # cost for too fast
+        r_fast = 0
+        if lspeed_lon > self.desired_speed:
+            r_fast = -1
 
         # cost for stopping
         r_stop = 0
         if self._does_vehicle_stop():
             r_stop = -1
 
-        r = 200*r_stop + 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + r_steer*5 + 0.2*r_lat - 0.1 - brake_cost
+        r = 100*r_stop + 100*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + r_steer*5 + 0.2*r_lat - 0.1
 
         if self.store_history:
             self.speed_hist.append(speed)
@@ -534,7 +534,12 @@ class CarlaEnv(gym.Env):
             self.img_buff.append(self.camera_img)
 
         img_array = [self._transform_observation(img) for img in self.img_buff]
-        return self._combine_observations(img_array)
+        if self.use_semantic_camera:
+            transformed_observation = [convert_to_simplified_cityscape(img) for img in img_array]
+        else:
+            transformed_observation = [self._apply_segmentation_model(img) for img in img_array]
+
+        return self._combine_observations(transformed_observation)
 
     def _create_vehicle_bluepprint(self, actor_filter, color=None, number_of_wheels=[4]):
         """Create the blueprint for a specific actor type.
@@ -884,7 +889,10 @@ class CarlaEnv(gym.Env):
             while True:
                 data = self.collision_data_queue.get_nowait()
                 if data.frame == self.frame:
-                    return True
+                    if not all(tag == 6 for tag in data.other_actor.semantic_tags):
+                        return True
+                    else:
+                        return False
         except queue.Empty:
             return False
 

@@ -240,6 +240,8 @@ class AITCheckpointManager(MapCheckpointManager):
             frequency = self.sections_indexes[1][FREQUENCY]
         elif initial_checkpoint < self.sections_end[2]:
             frequency = self.sections_indexes[2][FREQUENCY]
+        else:
+            frequency = self.sections_indexes[3][FREQUENCY]
 
         self._next_checkpoint_index = self.checkpoint_index + frequency
         if self._next_checkpoint_index > route_waypoint_len - 1:

@@ -18,6 +18,8 @@ from common.utils import CHECKPOINT_FORMAT, normalize_image
 from sac.model import RenderTester
 
 
+DEFAULT_TIME_TO_SLEEP = 0.1
+
 MEAN = np.tile([0.3171, 0.3183, 0.3779], 2)
 STD = np.tile([0.1406, 0.0594, 0.0925], 2)
 
@@ -29,6 +31,7 @@ def train_loop(model, config, update_kwargs):
         while model.collector.n_total_steps == n_initial_samples:
             time.sleep(0.1)
 
+        time_to_sleep = DEFAULT_TIME_TO_SLEEP
         setproctitle(title='trainer')
         for epoch in range(config.initial_epoch + 1, config.n_epochs + 1):
             epoch_critic_loss = 0.0
@@ -73,8 +76,12 @@ def train_loop(model, config, update_kwargs):
                                                   ('update/sample', f'{update_sample_ratio:.1f}')]))
                     if update_sample_ratio < config.update_sample_ratio:
                         model.collector.pause()
+                        time_to_sleep = DEFAULT_TIME_TO_SLEEP
                     else:
                         model.collector.resume()
+                        if update_sample_ratio > config.update_sample_ratio * 1.1:
+                            time.sleep(time_to_sleep)
+                            time_to_sleep += DEFAULT_TIME_TO_SLEEP
 
             writer.add_scalar(tag='epoch/critic_loss', scalar_value=epoch_critic_loss, global_step=epoch)
             writer.add_scalar(tag='epoch/actor_loss', scalar_value=epoch_actor_loss, global_step=epoch)
@@ -194,18 +201,6 @@ def test_render(model: RenderTester, config):
 
     rewards = 0
 
-    # get the first image
-    # rgb_array = model.env.render(mode='rgb_array')
-    # save_image(rgb_array, num=0)
-
-    # render_obs = model.env.render(mode='observation')
-    # render_obs = render_obs.transpose((2, 0, 1))
-    # obs_tensor = torch.tensor(render_obs, dtype=torch.float16, device=model.model_device).unsqueeze(dim=0)
-    # with amp.autocast(dtype=torch.bfloat16):
-    #     out_tensor = model.state_encoder(obs_tensor)
-    # rgb_array = to_image(out_tensor)
-    # save_image(rgb_array, num=0)
-
     for step in trange(1, config.max_episode_steps + 1):
         normalized_obs = normalize_image(observation, MEAN, STD).transpose((2, 0, 1))
         extra_state_tensor = torch.tensor(extra_state, dtype=torch.float32, device=model.model_device)
@@ -215,24 +210,17 @@ def test_render(model: RenderTester, config):
 
         next_observation, reward, done, info = model.env.step(action)
 
-        # rgb_array = model.env.render(mode='rgb_array')
-        # save_image(rgb_array, step)
-
-        # render_obs = model.env.render(mode='observation')
-        # render_obs = render_obs.transpose((2, 0, 1))
-        # obs_tensor = torch.tensor(render_obs, dtype=torch.float32, device=model.model_device).unsqueeze(dim=0)
-        # out_tensor = model.state_encoder(obs_tensor)
-        # rgb_array = to_image(out_tensor)
-        # save_image(rgb_array, num=step)
-
         if 'extra_state' in info:
             next_extra_state = info['extra_state']
+
+        should_stop = info.get('should_stop', False)
 
         rewards += reward
         observation = next_observation
         extra_state = next_extra_state
 
-        if done:
+        if done or should_stop:
+            print(f'done: {done}, should_stop: {should_stop}')
             break
 
     model.env.close()
