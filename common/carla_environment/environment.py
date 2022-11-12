@@ -274,7 +274,7 @@ class CarlaEnv(gym.Env):
 
         self.z_steps = {}
 
-        self.seg_model = torch.jit.load('/home/witoon/thesis/code/thesis-code/segmentation-model/checkpoints/bisenetv2/best.ts', map_location=DEVICE)
+        self.seg_model = torch.jit.load('/home/witoon/thesis/code/thesis-code/segmentation-model/checkpoints/AIT_carla/bisenetv2/best.ts', map_location=DEVICE)
 
     def reset(self):
         # Clear history if exist

@@ -327,27 +327,25 @@ class AITCheckpointManager(MapCheckpointManager):
         return self._next_checkpoint_index >= end_index
 
     def _get_random_spawn_point_index(self):
-        self._in_random_spawn_point = False
-        spawn_idx = self.checkpoint_index
-        # start_original = random.random() >= 0.4
-        # if start_original:
-        #     self._in_random_spawn_point = False
-        #     spawn_idx = self.checkpoint_index
-        # else:
-        #     self._in_random_spawn_point = True
+        start_original = random.random() >= 0.3
+        if start_original:
+            self._in_random_spawn_point = False
+            spawn_idx = self.checkpoint_index
+        else:
+            self._in_random_spawn_point = True
 
-        #     if random.random() >= 0.3 or self.checkpoint_index in self.sections_start:
-        #         # random start in the same section
-        #         spawn_idx = self.checkpoint_index + (random.randint(5, 20) // 2 * 2)
-        #     else:
-        #         # random start at any point before current checkpoint
-        #         lower_bound = 0
-        #         for start, end in zip(self.sections_start, self.sections_end):
-        #             if start <= self.checkpoint_index < end:
-        #                 lower_bound = start
-        #                 break
+            if random.random() >= 0.3 or self.checkpoint_index in self.sections_start:
+                # random start in the same section
+                spawn_idx = self.checkpoint_index + (random.randint(5, 10) // 2 * 2)
+            else:
+                # random start at any point before current checkpoint
+                lower_bound = 0
+                for start, end in zip(self.sections_start, self.sections_end):
+                    if start <= self.checkpoint_index < end:
+                        lower_bound = start
+                        break
 
-        #         spawn_idx = random.randint(lower_bound, self.checkpoint_index)
+                spawn_idx = random.randint(lower_bound, self.checkpoint_index)
 
         return spawn_idx
 

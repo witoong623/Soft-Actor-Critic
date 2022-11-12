@@ -181,17 +181,6 @@ def test(model, config):
                 print(f'{metric}: {dict(mean=mean, stddev=stddev)}')
 
 
-def save_image(image, num):
-    ''' image is RGB numpy array'''
-    img = Image.fromarray(image)
-    img.save(f'/root/thesis/thesis-code/Soft-Actor-Critic/carla_town7_images/observation_reconstruction/reconstructed_image_{num:04d}.jpeg')
-
-
-def to_image(tensor):
-    img_np = tensor[0].squeeze(dim=0).detach().cpu().numpy()
-    return (img_np.transpose(1, 2, 0) * 255).astype('uint8')
-
-
 def test_render(model: RenderTester, config):
     model.state_encoder.reset()
     observation = model.env.reset()
